@@ -3,6 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Refresh
 import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { asistenciaApi } from '@/api/asistencia';
 import type { EmpleadoAsistencia, FichajeAsistencia, Planta, ReporteEmpleadoRango } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
@@ -323,6 +324,12 @@ export function RrhhPage() {
   const [reportHorasEsperadas, setReportHorasEsperadas] = useState(String(HORAS_JORNADA));
   const [reportData, setReportData] = useState<ReporteEmpleadoRango | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<'today' | 'other' | 'range'>('today');
+  const [exportOtherDate, setExportOtherDate] = useState(todayYmdAr);
+  const [exportDesde, setExportDesde] = useState(todayYmdAr);
+  const [exportHasta, setExportHasta] = useState(todayYmdAr);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -606,6 +613,157 @@ export function RrhhPage() {
     );
   };
 
+  const exportFichajesExcel = async () => {
+    let fechas: string[] = [];
+    if (exportMode === 'today') {
+      fechas = [diaFecha];
+    } else if (exportMode === 'other') {
+      if (!exportOtherDate) { toast.error('Seleccioná una fecha'); return; }
+      fechas = [exportOtherDate];
+    } else {
+      if (!exportDesde || !exportHasta || exportDesde > exportHasta) {
+        toast.error('Revisá el rango de fechas'); return;
+      }
+      const cur = new Date(exportDesde + 'T12:00:00');
+      const end = new Date(exportHasta + 'T12:00:00');
+      while (cur <= end && fechas.length < 62) {
+        fechas.push(cur.toISOString().slice(0, 10));
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    setExportLoading(true);
+    try {
+      const dayData = await Promise.all(
+        fechas.map(async (fecha) => {
+          const page = await asistenciaApi.getFichajes({ fecha, planta: planta || undefined });
+          const filtered = page.items.filter((f) => tiempoYmdEnAr(f.tiempo) === fecha);
+          return { fecha, aggs: buildEmployeeDayAggregates(filtered) };
+        }),
+      );
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Lince RRHH';
+      workbook.created = new Date();
+
+      const COLOR_GREEN_BG = 'FFD4EDDA';
+      const COLOR_GREEN_FG = 'FF155724';
+      const COLOR_RED_BG = 'FFF8D7DA';
+      const COLOR_RED_FG = 'FF721C24';
+      const COLOR_GRAY_BG = 'FFF5F5F5';
+      const COLOR_GRAY_FG = 'FF6C757D';
+      const COLOR_AMBER_BG = 'FFFFF3CD';
+      const COLOR_AMBER_FG = 'FF856404';
+      const COLOR_HEADER_BG = 'FF343A40';
+      const COLOR_HEADER_FG = 'FFFFFFFF';
+
+      for (const { fecha, aggs } of dayData) {
+        const sheetName = fecha.length > 31 ? fecha.slice(0, 31) : fecha;
+        const ws = workbook.addWorksheet(sheetName);
+
+        ws.mergeCells('A1:F1');
+        const titleCell = ws.getCell('A1');
+        titleCell.value = `Fichajes · ${formatDayHeading(fecha)}`;
+        titleCell.font = { bold: true, size: 13, color: { argb: 'FF212529' } };
+        titleCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        ws.getRow(1).height = 24;
+
+        ws.addRow([]);
+
+        const headerRow = ws.addRow([
+          'Empleado', 'Planta', 'Tramos entrada→salida', 'Total del día', `Saldo ${HORAS_JORNADA}h`, 'Observaciones',
+        ]);
+        headerRow.height = 20;
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_HEADER_BG } };
+          cell.font = { bold: true, color: { argb: COLOR_HEADER_FG }, size: 10 };
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          cell.border = { bottom: { style: 'thin', color: { argb: 'FF6C757D' } } };
+        });
+
+        for (const agg of aggs) {
+          const tieneValidos = agg.pairs.length > 0;
+          const saldoMs = agg.totalMs - MS_JORNADA;
+
+          const tramos = agg.pairs
+            .map((p) => `${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`)
+            .join('  |  ');
+
+          const observaciones = [
+            ...agg.orphanEntradas.map((f) => `⚠ Entrada sin salida: ${formatSoloHora(f.tiempo)}`),
+            ...agg.orphanSalidas.map((f) => `⚠ Salida sin entrada: ${formatSoloHora(f.tiempo)}`),
+          ].join('  |  ');
+
+          const totalLabel = tieneValidos ? formatDuracion(agg.totalMs) : '—';
+          const saldoLabel = tieneValidos ? formatSaldoJornada(saldoMs) : '—';
+
+          const dataRow = ws.addRow([
+            employeeDisplayLabel(agg),
+            plantasLabel(agg),
+            tramos || '—',
+            totalLabel,
+            saldoLabel,
+            observaciones || '',
+          ]);
+
+          let rowBgArgb: string;
+          let rowFgArgb: string;
+          if (!tieneValidos) {
+            rowBgArgb = COLOR_GRAY_BG; rowFgArgb = COLOR_GRAY_FG;
+          } else if (agg.totalMs >= MS_JORNADA) {
+            rowBgArgb = COLOR_GREEN_BG; rowFgArgb = COLOR_GREEN_FG;
+          } else {
+            rowBgArgb = COLOR_RED_BG; rowFgArgb = COLOR_RED_FG;
+          }
+
+          dataRow.height = observaciones ? 30 : 20;
+          dataRow.eachCell((cell, colNum) => {
+            const isObsCol = colNum === 6;
+            const bg = isObsCol && observaciones ? COLOR_AMBER_BG : rowBgArgb;
+            const fg = isObsCol && observaciones ? COLOR_AMBER_FG : rowFgArgb;
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.font = { color: { argb: fg }, size: 10 };
+            cell.alignment = { vertical: 'middle', wrapText: true };
+            cell.border = { bottom: { style: 'hair', color: { argb: 'FFD0D0D0' } } };
+          });
+          dataRow.getCell(1).font = { bold: true, color: { argb: rowFgArgb }, size: 10 };
+        }
+
+        if (aggs.length === 0) {
+          const emptyRow = ws.addRow(['Sin fichajes para este día']);
+          emptyRow.getCell(1).font = { italic: true, color: { argb: COLOR_GRAY_FG } };
+        }
+
+        ws.columns = [
+          { key: 'empleado', width: 28 },
+          { key: 'planta', width: 14 },
+          { key: 'tramos', width: 48 },
+          { key: 'total', width: 14 },
+          { key: 'saldo', width: 14 },
+          { key: 'obs', width: 38 },
+        ];
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const suffix = fechas.length === 1 ? fechas[0] : `${fechas[0]}_${fechas[fechas.length - 1]}`;
+      a.download = `fichajes-${suffix}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportDialogOpen(false);
+      toast.success(`Excel exportado: ${fechas.length} día(s)`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const openEditHorariosModal = () => {
     const next: Record<string, HorarioEdit> = {};
     for (const f of itemsMismoDiaAr) {
@@ -671,7 +829,7 @@ export function RrhhPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">RRHH</h1>
         {activeView === 'general' && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
             type="button"
             onClick={reconcileUnmatched}
@@ -696,6 +854,20 @@ export function RrhhPage() {
           >
             <Clock className="h-3.5 w-3.5" />
             Editar horarios
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setExportMode('today');
+              setExportOtherDate(diaFecha);
+              setExportDesde(diaFecha);
+              setExportHasta(diaFecha);
+              setExportDialogOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Exportar Excel
           </button>
           <button
             type="button"
@@ -851,6 +1023,101 @@ export function RrhhPage() {
           </Button>
           <Button type="button" onClick={() => void saveHorariosModal()} disabled={savingHorarios}>
             {savingHorarios ? 'Guardando…' : 'Guardar cambios'}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={exportDialogOpen}
+        onClose={() => !exportLoading && setExportDialogOpen(false)}
+        title="Exportar Excel de fichajes"
+        description="Elegí qué días incluir. Cada día se genera en una hoja separada."
+        panelClassName="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {(
+              [
+                { value: 'today', label: `Día actual (${formatDayHeading(diaFecha)})` },
+                { value: 'other', label: 'Otro día' },
+                { value: 'range', label: 'Rango de fechas (una hoja por día)' },
+              ] as const
+            ).map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-3 cursor-pointer rounded-lg border border-border px-4 py-3 hover:bg-accent">
+                <input
+                  type="radio"
+                  name="exportMode"
+                  value={value}
+                  checked={exportMode === value}
+                  onChange={() => setExportMode(value)}
+                  className="accent-primary"
+                />
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </div>
+
+          {exportMode === 'other' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-sm text-muted-foreground">Fecha</label>
+              <input
+                type="date"
+                value={exportOtherDate}
+                max={hoyYmd}
+                onChange={(e) => setExportOtherDate(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+              />
+            </div>
+          )}
+
+          {exportMode === 'range' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-sm text-muted-foreground">Desde</label>
+              <input
+                type="date"
+                value={exportDesde}
+                max={hoyYmd}
+                onChange={(e) => setExportDesde(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <label className="text-sm text-muted-foreground">hasta</label>
+              <input
+                type="date"
+                value={exportHasta}
+                max={hoyYmd}
+                onChange={(e) => setExportHasta(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              {exportDesde && exportHasta && exportDesde <= exportHasta && (
+                <p className="w-full text-xs text-muted-foreground">
+                  {(() => {
+                    const d1 = new Date(exportDesde + 'T12:00:00');
+                    const d2 = new Date(exportHasta + 'T12:00:00');
+                    const days = Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1;
+                    return `${days} día(s) · ${days} hoja(s) en el Excel`;
+                  })()}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-border">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setExportDialogOpen(false)}
+            disabled={exportLoading}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void exportFichajesExcel()}
+            disabled={exportLoading}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+            {exportLoading ? 'Generando…' : 'Exportar'}
           </Button>
         </div>
       </Dialog>
