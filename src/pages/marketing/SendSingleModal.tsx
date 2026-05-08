@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import * as marketingApi from '@/api/marketing';
 import type { YCloudTemplate } from '@/types/marketing.types';
 
-const ADVISORS = ['EZEQUIEL', 'DENIS', 'MARTIN'] as const;
+const ADVISORS = ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN'] as const;
 type Advisor = typeof ADVISORS[number];
 
 interface Props {

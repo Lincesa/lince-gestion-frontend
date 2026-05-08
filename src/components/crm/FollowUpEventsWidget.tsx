@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchFollowUpEvents, completeFollowUpEvent } from '@/store/crm/analyticsSlice';
 
-const ASESORES = ['EZEQUIEL', 'DENIS', 'MARTIN', 'SIN_ASIGNAR'];
+const ASESORES = ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN', 'SIN_ASIGNAR'];
 const FOLLOW_STATUSES = ['READY', 'SCHEDULED', 'COMPLETED', 'CANCELLED'];
 
 function getStatusBadge(status: string) {

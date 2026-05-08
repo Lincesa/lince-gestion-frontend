@@ -41,7 +41,7 @@ export interface SendSinglePayload {
   phone: string;
   templateName: string;
   templateLanguage: string;
-  advisor: 'EZEQUIEL' | 'DENIS' | 'MARTIN';
+  advisor: 'EZEQUIEL' | 'DENIS' | 'MARTIN' | 'JULIAN';
   templateHeaderImageUrl?: string;
 }
 
