@@ -165,6 +165,7 @@ export function ClientsPage() {
           <option value="EZEQUIEL">Ezequiel</option>
           <option value="DENIS">Denis</option>
           <option value="MARTIN">Martín</option>
+          <option value="JULIAN">Julián</option>
           <option value="SIN_ASIGNAR">Sin asignar</option>
         </select>
 

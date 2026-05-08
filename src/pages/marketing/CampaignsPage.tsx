@@ -34,7 +34,7 @@ const STATUS_CLASSES: Record<string, string> = {
   FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-const ADVISORS = ['EZEQUIEL', 'DENIS', 'MARTIN'];
+const ADVISORS = ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN'];
 const ESTADOS = [
   { value: 'PENDIENTE', label: 'Pendiente' },
   { value: 'NO_CONTESTO', label: 'No contestó' },
