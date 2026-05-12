@@ -14,7 +14,7 @@ export function PrivateRoute() {
   }
 
   const isTag = user?.area?.toUpperCase() === 'TAG';
-  if (isTag && !location.pathname.startsWith('/ocr/remitos')) {
+  if (isTag && !location.pathname.startsWith('/ocr/remitos') && location.pathname !== '/change-password') {
     return <Navigate to="/ocr/remitos" replace />;
   }
 

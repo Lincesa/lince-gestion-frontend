@@ -139,7 +139,6 @@ function SoporteItIndexRedirect() {
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
-    // Change password is inside PrivateRoute so the user must be authenticated
     element: <PrivateRoute />,
     children: [
       {
@@ -150,11 +149,6 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
-    ],
-  },
-  {
-    element: <PrivateRoute />,
-    children: [
       {
         element: <AppLayout />,
         children: [
