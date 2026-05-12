@@ -78,12 +78,9 @@ export function OcrRemitosPage() {
     }
   }, [capturedBlob]);
 
-  const isMobile = typeof window !== 'undefined' &&
-    ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-
-  const videoRef      = useRef<HTMLVideoElement>(null);
-  const streamRef     = useRef<MediaStream | null>(null);
-  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const videoRef       = useRef<HTMLVideoElement>(null);
+  const streamRef      = useRef<MediaStream | null>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Conectividad
@@ -328,18 +325,17 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
+          {/* Botón principal — abre cámara nativa en mobile, file picker en desktop */}
           <div
-            onClick={() => isMobile ? cameraInputRef.current?.click() : startCamera()}
+            onClick={() => cameraInputRef.current?.click()}
             className="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
           >
             <Camera className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-lg font-semibold text-foreground">Capturar remito</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {isMobile ? 'Toca para abrir la cámara' : 'Haz clic para activar la webcam'}
-            </p>
+            <p className="text-lg font-semibold text-foreground">Sacar foto del remito</p>
+            <p className="text-sm text-muted-foreground mt-1">Toca para abrir la cámara</p>
           </div>
 
-          {/* Input nativo con cámara trasera — solo mobile */}
+          {/* capture="environment" → cámara trasera en mobile, file picker en desktop */}
           <input
             ref={cameraInputRef}
             type="file"
@@ -349,23 +345,32 @@ export function OcrRemitosPage() {
             onChange={handleFileSelect}
           />
 
-          <div className="border border-dashed border-border rounded-lg p-4 text-center">
-            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">O seleccioná una imagen desde el dispositivo</p>
+          <div className="flex gap-2">
+            {/* Desde galería / archivo (sin capture) */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="mt-2 px-4 py-1.5 text-sm rounded-md bg-muted text-muted-foreground hover:bg-accent"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors"
             >
-              Seleccionar archivo
+              <Upload className="h-4 w-4" />
+              Elegir de galería
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
+            {/* Webcam — útil en desktop */}
+            <button
+              onClick={startCamera}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <Camera className="h-4 w-4" />
+              Usar webcam
+            </button>
           </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
         </>
       )}
 
