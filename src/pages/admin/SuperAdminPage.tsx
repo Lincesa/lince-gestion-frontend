@@ -33,7 +33,11 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   [ModuleKey.ASISTENCIA]: 'RRHH',
 };
 
-const MODULE_ROLES = ['VIEWER', 'EDITOR', 'ADMIN'];
+const MODULE_ROLES: Partial<Record<ModuleKey, string[]>> = {
+  [ModuleKey.OCR]: ['OPERADOR_CAMPO', 'ADMINISTRATIVO', 'ADMIN'],
+};
+const DEFAULT_MODULE_ROLES = ['VIEWER', 'EDITOR', 'ADMIN'];
+const getModuleRoles = (key: ModuleKey) => MODULE_ROLES[key] ?? DEFAULT_MODULE_ROLES;
 
 // ── Módulos editor (reutilizable) ────────────────────────────────────────────
 
@@ -45,7 +49,7 @@ function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: 
       delete next[key];
       onChange(next);
     } else {
-      onChange({ ...value, [key]: { enabled: true, role: 'VIEWER' } });
+      onChange({ ...value, [key]: { enabled: true, role: getModuleRoles(key)[0] } });
     }
   };
   const setRole = (key: ModuleKey, role: string) =>
@@ -68,11 +72,11 @@ function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: 
             <Label htmlFor={`mod-${key}`} className="w-32 font-medium">{MODULE_LABELS[key]}</Label>
             {enabled ? (
               <Select
-                value={perm?.role ?? 'VIEWER'}
+                value={perm?.role ?? getModuleRoles(key)[0]}
                 onChange={(e) => setRole(key, e.target.value)}
                 className="flex-1 h-8 text-sm"
               >
-                {MODULE_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                {getModuleRoles(key).map((r) => <option key={r} value={r}>{r}</option>)}
               </Select>
             ) : (
               <span className="text-sm text-muted-foreground">Deshabilitado</span>
