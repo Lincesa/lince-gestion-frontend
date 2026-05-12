@@ -78,9 +78,13 @@ export function OcrRemitosPage() {
     }
   }, [capturedBlob]);
 
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const streamRef   = useRef<MediaStream | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = typeof window !== 'undefined' &&
+    ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+  const videoRef      = useRef<HTMLVideoElement>(null);
+  const streamRef     = useRef<MediaStream | null>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Conectividad
   useEffect(() => {
@@ -325,13 +329,25 @@ export function OcrRemitosPage() {
       {step === 'idle' && (
         <>
           <div
-            onClick={startCamera}
+            onClick={() => isMobile ? cameraInputRef.current?.click() : startCamera()}
             className="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
           >
             <Camera className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <p className="text-lg font-semibold text-foreground">Capturar remito</p>
-            <p className="text-sm text-muted-foreground mt-1">Toca para activar la cámara</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isMobile ? 'Toca para abrir la cámara' : 'Haz clic para activar la webcam'}
+            </p>
           </div>
+
+          {/* Input nativo con cámara trasera — solo mobile */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
 
           <div className="border border-dashed border-border rounded-lg p-4 text-center">
             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
