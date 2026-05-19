@@ -40,6 +40,7 @@ export interface OcrDocument {
   approvedBy:       string | null;
   approvedAt:       string | null;
   rejectReason:     string | null;
+  observaciones:    string | null;
   createdAt:        string;
   updatedAt:        string;
   /** Presigned GET URL incluida en findOne() — expira en 1h */

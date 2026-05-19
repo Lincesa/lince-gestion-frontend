@@ -256,7 +256,14 @@ export function OcrFacturasPage() {
                       <span className="font-mono text-xs">{f.id.slice(0, 8)}…</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <StatusBadge status={f.status} />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <StatusBadge status={f.status} />
+                        {f.observaciones && (
+                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                            {f.observaciones}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {new Date(f.createdAt).toLocaleDateString('es-AR')}

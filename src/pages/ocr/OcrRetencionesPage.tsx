@@ -294,7 +294,14 @@ export function OcrRetencionesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <StatusBadge status={doc.status} />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <StatusBadge status={doc.status} />
+                        {doc.observaciones && (
+                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                            {doc.observaciones}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs font-mono">
                       {doc.extractedData?.['cuitEmisor'] || '—'}
