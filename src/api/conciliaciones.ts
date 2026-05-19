@@ -13,8 +13,8 @@ import type {
 const BASE = `${API_BASE_URL}/conciliaciones`;
 
 export const conciliacionesApi = {
-  listRuns: () =>
-    apiFetch<ReconciliationRun[]>(`/conciliaciones/reconciliations`),
+  listRuns: (company?: string) =>
+    apiFetch<ReconciliationRun[]>(`/conciliaciones/reconciliations${company ? `?company=${encodeURIComponent(company)}` : ''}`),
 
   getRun: (id: string) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`),
@@ -25,7 +25,7 @@ export const conciliacionesApi = {
       body: JSON.stringify(payload),
     }),
 
-  updateRun: (id: string, data: { status?: 'OPEN' | 'CLOSED'; bankName?: string | null; enabledCategoryIds?: string[] }) =>
+  updateRun: (id: string, data: { status?: 'OPEN' | 'CLOSED'; bankName?: string | null; company?: string | null; enabledCategoryIds?: string[] }) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

@@ -17,10 +17,12 @@ import { ResumenPanel } from '@/components/conciliaciones/ResumenPanel';
 import { ExclusionesPanel } from '@/components/conciliaciones/ExclusionesPanel';
 import { IssuesPanel } from '@/components/conciliaciones/IssuesPanel';
 import { PermissionsPanel } from '@/components/conciliaciones/PermissionsPanel';
+import { LibroBancoPanel } from '@/components/conciliaciones/LibroBancoPanel';
 import type { RunDetail } from '@/types/conciliaciones.types';
 import type { RunDetailSection } from '@/components/conciliaciones/RunDetailSidebar';
 
-const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco ICBC'];
+const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
+const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
 
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -124,6 +126,15 @@ export function RunDetailPage() {
     } catch { toast.error('Error al actualizar banco'); }
   };
 
+  const handleCompanyChange = async (comp: string) => {
+    if (!id || !detail) return;
+    try {
+      await conciliacionesApi.updateRun(id, { company: comp || null });
+      void fetchDetail();
+      toast.success('Empresa actualizada');
+    } catch { toast.error('Error al actualizar empresa'); }
+  };
+
   const handleWorkspaceFinalize = async () => {
     if (!id || !detail) return;
     const pendingItems = detail.pendingItems || [];
@@ -189,6 +200,11 @@ export function RunDetailPage() {
             <span>—</span>
             {!isClosed && canEdit ? (
               <>
+                <Label className="text-muted-foreground font-normal">Empresa:</Label>
+                <Select value={COMPANY_OPTIONS.includes(detail.company || '') ? (detail.company ?? '') : ''} onChange={(e) => void handleCompanyChange(e.target.value)} className="w-36 h-8 text-sm">
+                  <option value="">Sin empresa</option>
+                  {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
                 <Label className="text-muted-foreground font-normal">Banco:</Label>
                 <Select value={BANK_OPTIONS.includes(detail.bankName || '') ? (detail.bankName ?? '') : ''} onChange={(e) => void handleBankChange(e.target.value)} className="w-48 h-8 text-sm">
                   <option value="">Sin definir</option>
@@ -196,7 +212,11 @@ export function RunDetailPage() {
                 </Select>
               </>
             ) : (
-              <span>{detail.bankName || 'Sin banco'}</span>
+              <>
+                {detail.company && <span className="font-medium text-foreground">{detail.company}</span>}
+                {detail.company && <span>·</span>}
+                <span>{detail.bankName || 'Sin banco'}</span>
+              </>
             )}
           </p>
         </div>
@@ -234,6 +254,14 @@ export function RunDetailPage() {
         <div className="flex-1 overflow-auto p-4">
           {section === 'resumen' && (
             <ResumenPanel detail={detail} pendingItems={pendingItems} systemById={systemById} extractById={extractById} isClosed={!!isClosed} canEdit={canEdit} onResolvePending={handleResolvePending} onOpenAddPending={(sysId) => { setPendingSystemLineId(sysId); setPendingDialogOpen(true); }} />
+          )}
+          {section === 'libro-banco' && (
+            <LibroBancoPanel
+              systemLines={detail.systemLines}
+              matches={detail.matches}
+              unmatchedSystem={detail.unmatchedSystem}
+              extractById={extractById}
+            />
           )}
           {section === 'workspace' && !isClosed && (
             <WorkspacePanel

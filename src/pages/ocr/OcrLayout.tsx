@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Camera, FileText, LayoutDashboard, LogOut, Receipt, Settings } from 'lucide-react';
+import { Camera, LayoutDashboard, LogOut, Settings } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
@@ -64,14 +64,7 @@ export function OcrLayout() {
           <Camera className="h-4 w-4" />
           Remitos
         </NavLink>
-        <NavLink to="/ocr/facturas" className={navClass}>
-          <FileText className="h-4 w-4" />
-          Facturas
-        </NavLink>
-        <NavLink to="/ocr/retenciones" className={navClass}>
-          <Receipt className="h-4 w-4" />
-          Retenciones
-        </NavLink>
+        {/* Facturas y retenciones pausadas temporalmente en el front. */}
         {isSuperAdmin && (
           <NavLink to="/ocr/configuracion" className={navClass}>
             <Settings className="h-4 w-4" />

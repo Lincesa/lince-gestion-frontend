@@ -14,11 +14,12 @@ import { DocumentType } from '@/types/ocr.types';
 
 const AVAILABLE_FIELDS: Record<DocumentType, { key: string; label: string }[]> = {
   [DocumentType.REMITO]: [
-    { key: 'numero',       label: 'Número de remito' },
-    { key: 'fecha',        label: 'Fecha' },
-    { key: 'proveedor',    label: 'Proveedor' },
-    { key: 'destinatario', label: 'Destinatario' },
-    { key: 'total',        label: 'Total / Importe' },
+    { key: 'nroRemito',         label: 'Número de remito' },
+    { key: 'fecha',             label: 'Fecha' },
+    { key: 'cliente',           label: 'Cliente' },
+    { key: 'firmaEstado',       label: 'Firma detectada' },
+    { key: 'aclaracionEstado',  label: 'Aclaración detectada' },
+    { key: 'dniEstado',         label: 'DNI detectado' },
   ],
   [DocumentType.FACTURA]: [
     { key: 'numero',    label: 'Número de comprobante' },
@@ -46,7 +47,7 @@ export function OcrConfigPage() {
 
   // Estado local de edición: tipo → conjunto de campos requeridos seleccionados
   const [required, setRequired] = useState<Record<DocumentType, Set<string>>>({
-    [DocumentType.REMITO]:    new Set(['numero', 'fecha', 'proveedor']),
+    [DocumentType.REMITO]:    new Set(['nroRemito', 'fecha']),
     [DocumentType.FACTURA]:   new Set(['numero', 'fecha', 'proveedor', 'cuit', 'total']),
     [DocumentType.RETENCION]: new Set(['cuitEmisor', 'tipoImpuesto', 'monto']),
   });
@@ -87,7 +88,7 @@ export function OcrConfigPage() {
     setSaving(type);
     try {
       await ocrApi.updateOcrConfig(type, Array.from(required[type]));
-      toast.success(`Configuración de ${type === DocumentType.REMITO ? 'Remitos' : 'Facturas'} guardada`);
+      toast.success(`Configuración de ${type === DocumentType.REMITO ? 'Remitos' : 'documento'} guardada`);
       await loadConfigs();
     } catch (err) {
       toast.error((err as Error).message);
@@ -121,7 +122,8 @@ export function OcrConfigPage() {
         </div>
       )}
 
-      {([DocumentType.REMITO, DocumentType.FACTURA] as DocumentType[]).map((type) => {
+      {/* Facturación y retenciones pausadas temporalmente en el front. */}
+      {([DocumentType.REMITO] as DocumentType[]).map((type) => {
         const fields     = AVAILABLE_FIELDS[type];
         const lastSaved  = configs.find((c) => c.type === type);
         const isSaving   = saving === type;
@@ -131,7 +133,7 @@ export function OcrConfigPage() {
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">
-                  {type === DocumentType.REMITO ? 'Remitos' : 'Facturas'}
+                  Remitos
                 </h2>
                 {lastSaved && (
                   <p className="text-xs text-muted-foreground mt-0.5">

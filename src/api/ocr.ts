@@ -1,4 +1,4 @@
-import { api, apiFetch } from './client';
+import { api, API_BASE_URL, apiFetch, getAccessToken } from './client';
 import type {
   FilterDocumentsParams,
   OcrConfig,
@@ -118,6 +118,20 @@ export function getDocument(id: string): Promise<OcrDocument> {
 /** Obtiene una presigned view URL fresca para el documento (sin traer todo el detalle) */
 export function getDocumentViewUrl(id: string): Promise<{ viewUrl: string | null }> {
   return api.get<{ viewUrl: string | null }>(`${BASE}/${id}/view-url`);
+}
+
+/** Descarga el archivo original del documento (imagen o PDF) */
+export async function downloadDocumentFile(id: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}${BASE}/${id}/file`, {
+    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Error al descargar' }));
+    const raw = (error as { message?: string | string[] }).message;
+    const message = Array.isArray(raw) ? raw.join(' · ') : (raw ?? `Error ${res.status}`);
+    throw new Error(message);
+  }
+  return res.blob();
 }
 
 /** Polling de estado — liviano, solo devuelve id + status + errores */

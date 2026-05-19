@@ -23,6 +23,7 @@ export type RunPayload = {
   title?: string;
   bankName?: string;
   accountRef?: string;
+  company?: string;
   windowDays?: number;
   cutDate?: string;
   enabledCategoryIds?: string[];
@@ -52,6 +53,7 @@ export type ReconciliationRun = {
   title?: string | null;
   bankName?: string | null;
   accountRef?: string | null;
+  company?: string | null;
   windowDays: number;
   cutDate?: string | null;
   status?: RunStatus;
@@ -143,6 +145,7 @@ export type RunDetail = {
   id: string;
   title?: string;
   bankName?: string | null;
+  company?: string | null;
   status?: RunStatus;
   createdById?: string;
   excludeConcepts?: string[];

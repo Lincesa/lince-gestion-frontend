@@ -104,12 +104,7 @@ const OcrDashboardPage = lazy(() =>
 const OcrRemitosPage = lazy(() =>
   import('@/pages/ocr/OcrRemitosPage').then((m) => ({ default: m.OcrRemitosPage })),
 );
-const OcrFacturasPage = lazy(() =>
-  import('@/pages/ocr/OcrFacturasPage').then((m) => ({ default: m.OcrFacturasPage })),
-);
-const OcrRetencionesPage = lazy(() =>
-  import('@/pages/ocr/OcrRetencionesPage').then((m) => ({ default: m.OcrRetencionesPage })),
-);
+// Facturas y retenciones quedan pausadas temporalmente en el front.
 const OcrConfigPage = lazy(() =>
   import('@/pages/ocr/OcrConfigPage').then((m) => ({ default: m.OcrConfigPage })),
 );
@@ -428,19 +423,11 @@ const router = createBrowserRouter([
                   },
                   {
                     path: 'facturas',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <OcrFacturasPage />
-                      </Suspense>
-                    ),
+                    element: <Navigate to="/ocr/remitos" replace />,
                   },
                   {
                     path: 'retenciones',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <OcrRetencionesPage />
-                      </Suspense>
-                    ),
+                    element: <Navigate to="/ocr/remitos" replace />,
                   },
                   {
                     path: 'configuracion',

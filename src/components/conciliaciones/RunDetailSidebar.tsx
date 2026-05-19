@@ -1,6 +1,6 @@
-import { LayoutDashboard, Briefcase, MessageSquare, Shield, FilterX } from 'lucide-react';
+import { LayoutDashboard, Briefcase, MessageSquare, Shield, FilterX, BookOpen } from 'lucide-react';
 
-export type RunDetailSection = 'resumen' | 'workspace' | 'exclusiones' | 'issues' | 'permisos';
+export type RunDetailSection = 'resumen' | 'libro-banco' | 'workspace' | 'exclusiones' | 'issues' | 'permisos';
 
 interface RunDetailSidebarProps {
   active: RunDetailSection;
@@ -11,6 +11,7 @@ interface RunDetailSidebarProps {
 
 const BASE_SECTIONS: { id: RunDetailSection; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'resumen', label: 'Resumen', icon: LayoutDashboard },
+  { id: 'libro-banco', label: 'Libro Banco', icon: BookOpen },
   { id: 'workspace', label: 'Hoja de trabajo', icon: Briefcase },
   { id: 'exclusiones', label: 'Exclusiones', icon: FilterX },
   { id: 'issues', label: 'Issues', icon: MessageSquare },

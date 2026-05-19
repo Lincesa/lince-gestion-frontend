@@ -46,7 +46,8 @@ function autoMapSystem(cols: string[]): Partial<ReturnType<typeof initSystemMapp
 const initExtractMapping = (): ExtractMapping => ({ amountMode: 'single', dateCol: '', conceptCol: '', amountCol: '', debeCol: '', haberCol: '' });
 const initSystemMapping = (): SystemMapping => ({ amountMode: 'single', issueDateCol: '', dueDateCol: '', descriptionCol: '', amountCol: '', debeCol: '', haberCol: '' });
 
-const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco ICBC'];
+const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
+const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
 
 export function NewReconciliationPage() {
   const navigate = useNavigate();
@@ -55,9 +56,11 @@ export function NewReconciliationPage() {
   const [extractMapping, setExtractMapping] = useState<ExtractMapping>(initExtractMapping());
   const [systemMapping, setSystemMapping] = useState<SystemMapping>(initSystemMapping());
   const [bankName, setBankName] = useState('');
+  const [company, setCompany] = useState('');
   const [windowDays, setWindowDays] = useState(3);
   const [cutDate, setCutDate] = useState('');
   const [excludeConcepts, setExcludeConcepts] = useState<string[]>([]);
+  const [conceptSearch, setConceptSearch] = useState('');
   const [enabledCategoryIds, setEnabledCategoryIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -117,6 +120,7 @@ export function NewReconciliationPage() {
     try {
       const result = await conciliacionesApi.createRun({
         bankName: bankName || undefined,
+        company: company || undefined,
         windowDays,
         cutDate: cutDate || undefined,
         enabledCategoryIds: enabledCategoryIds.length ? enabledCategoryIds : undefined,
@@ -254,6 +258,13 @@ export function NewReconciliationPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>Empresa</Label>
+            <Select value={company} onChange={(e) => setCompany(e.target.value)}>
+              <option value="">Seleccionar empresa</option>
+              {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Banco</Label>
             <Select value={BANK_OPTIONS.includes(bankName) ? bankName : (bankName ? 'Otro' : '')} onChange={(e) => { const v = e.target.value; setBankName(v === 'Otro' ? 'Otro' : v); }}>
               <option value="">Seleccionar banco</option>
@@ -281,19 +292,54 @@ export function NewReconciliationPage() {
                 <p className="text-sm text-muted-foreground mt-1">Seleccioná los conceptos que querés excluir de la conciliación</p>
               </div>
               <div className="rounded-md border bg-card">
-                <div className="max-h-[200px] overflow-y-auto p-4 space-y-2">
-                  {conceptOptions.map((concept) => (
-                    <label key={concept} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors">
-                      <input type="checkbox" checked={excludeConcepts.includes(concept)} onChange={(e) => { if (e.target.checked) setExcludeConcepts([...excludeConcepts, concept]); else setExcludeConcepts(excludeConcepts.filter((c) => c !== concept)); }} className="h-4 w-4 rounded border-input text-primary" />
-                      <span className="text-sm flex-1">{concept}</span>
-                    </label>
-                  ))}
-                </div>
-                {excludeConcepts.length > 0 && (
-                  <div className="border-t bg-muted/50 px-4 py-2">
-                    <p className="text-xs text-muted-foreground">{excludeConcepts.length} concepto{excludeConcepts.length !== 1 ? 's' : ''} excluido{excludeConcepts.length !== 1 ? 's' : ''}</p>
+                <div className="p-3 border-b space-y-2">
+                  <Input
+                    placeholder="Buscar concepto..."
+                    value={conceptSearch}
+                    onChange={(e) => setConceptSearch(e.target.value)}
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {conceptSearch.trim()
+                        ? `${conceptOptions.filter((c) => c.toLowerCase().includes(conceptSearch.toLowerCase())).length} de ${conceptOptions.length} conceptos`
+                        : `${conceptOptions.length} concepto${conceptOptions.length !== 1 ? 's' : ''}`}
+                      {excludeConcepts.length > 0 && ` · ${excludeConcepts.length} seleccionado${excludeConcepts.length !== 1 ? 's' : ''}`}
+                    </p>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        className="text-xs text-primary underline hover:no-underline"
+                        onClick={() => {
+                          const visible = conceptOptions.filter((c) => !conceptSearch.trim() || c.toLowerCase().includes(conceptSearch.toLowerCase()));
+                          setExcludeConcepts((prev) => Array.from(new Set([...prev, ...visible])));
+                        }}
+                      >
+                        Seleccionar todos
+                      </button>
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <button
+                        type="button"
+                        className="text-xs text-primary underline hover:no-underline"
+                        onClick={() => setExcludeConcepts([])}
+                      >
+                        Quitar selección
+                      </button>
+                    </div>
                   </div>
-                )}
+                </div>
+                <div className="max-h-[200px] overflow-y-auto p-2 space-y-0.5">
+                  {conceptOptions
+                    .filter((concept) => !conceptSearch.trim() || concept.toLowerCase().includes(conceptSearch.toLowerCase()))
+                    .map((concept) => (
+                      <label key={concept} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors">
+                        <input type="checkbox" checked={excludeConcepts.includes(concept)} onChange={(e) => { if (e.target.checked) setExcludeConcepts([...excludeConcepts, concept]); else setExcludeConcepts(excludeConcepts.filter((c) => c !== concept)); }} className="h-4 w-4 rounded border-input text-primary" />
+                        <span className="text-sm flex-1">{concept}</span>
+                      </label>
+                    ))}
+                  {conceptOptions.filter((concept) => !conceptSearch.trim() || concept.toLowerCase().includes(conceptSearch.toLowerCase())).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-3">Sin resultados para "{conceptSearch}"</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
