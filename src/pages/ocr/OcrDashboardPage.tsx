@@ -3,7 +3,7 @@
  * Facturas y retenciones quedan ocultas temporalmente del front.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Camera,
@@ -13,6 +13,7 @@ import {
   Download,
   Loader2,
   RefreshCw,
+  Search,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -28,6 +29,11 @@ import {
 import type { FilterDocumentsParams, OcrDocument } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { DocumentDetailModal } from './components/DocumentDetailModal';
+
+// Chips de filtro por uploader — extender con más tags según crezca el equipo
+const UPLOADER_CHIPS = [
+  { label: 'TAG San Pedro', email: 'chofer@lincesa.com.ar' },
+] as const;
 
 type PresenceStatus = 'si' | 'duda' | 'no';
 
@@ -72,7 +78,13 @@ function formatRemitoNumber(doc: OcrDocument): string {
 }
 
 function formatDocumentDate(doc: OcrDocument): string {
-  return doc.extractedData?.['fecha'] || new Date(doc.createdAt).toLocaleDateString('es-AR');
+  return doc.extractedData?.['fecha'] || '—';
+}
+
+function formatUploadDate(doc: OcrDocument): string {
+  return new Date(doc.createdAt).toLocaleDateString('es-AR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
 }
 
 function formatEditedAt(doc: OcrDocument): string {
@@ -99,13 +111,31 @@ export function OcrDashboardPage() {
     limit: 20,
     type: DocumentType.REMITO,
   });
+  const [nroRemitoInput, setNroRemitoInput] = useState('');
   const [detailDoc, setDetailDoc] = useState<OcrDocument | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     dispatch(fetchDocuments({ ...filters, type: DocumentType.REMITO }));
   }, [dispatch, filters]);
+
+  const handleNroRemitoChange = (value: string) => {
+    setNroRemitoInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setFilters((f) => ({ ...f, nroRemito: value || undefined, page: 1 }));
+    }, 400);
+  };
+
+  const toggleUploaderChip = (email: string) => {
+    setFilters((f) => ({
+      ...f,
+      uploadedByEmail: f.uploadedByEmail === email ? undefined : email,
+      page: 1,
+    }));
+  };
 
   const handleDelete = async (id: string) => {
     const result = await dispatch(deleteDocument(id));
@@ -190,7 +220,41 @@ export function OcrDashboardPage() {
         </div>
       </div>
 
+      {/* ── Chips de uploader ────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground font-medium">Origen:</span>
+        {UPLOADER_CHIPS.map((chip) => {
+          const active = filters.uploadedByEmail === chip.email;
+          return (
+            <button
+              key={chip.email}
+              onClick={() => toggleUploaderChip(chip.email)}
+              className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+                active
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background text-muted-foreground border-border hover:border-primary hover:text-foreground'
+              }`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Filtros ───────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Búsqueda por número de remito */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Nro. remito…"
+            value={nroRemitoInput}
+            onChange={(e) => handleNroRemitoChange(e.target.value)}
+            className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
+          />
+        </div>
+        {/* Estado */}
         <select
           value={filters.status ?? ''}
           onChange={(e) => setFilters((f) => ({ ...f, status: (e.target.value as DocumentStatus) || undefined, page: 1 }))}
@@ -201,20 +265,30 @@ export function OcrDashboardPage() {
             <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>
           ))}
         </select>
+        {/* Rango de fechas de upload */}
         <input
           type="date"
+          title="Desde"
           value={filters.dateFrom ?? ''}
           onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
+          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <input
+          type="date"
+          title="Hasta"
+          value={filters.dateTo ?? ''}
+          onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
           className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-[1020px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha subida</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha remito</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Número de remito</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Firma</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Aclaración</th>
@@ -226,7 +300,7 @@ export function OcrDashboardPage() {
             <tbody className="divide-y divide-border">
               {loading && docs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="h-4 w-4 animate-spin" />
                       Cargando...
@@ -235,14 +309,15 @@ export function OcrDashboardPage() {
                 </tr>
               ) : docs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     No hay remitos con los filtros seleccionados
                   </td>
                 </tr>
               ) : (
                 docs.map((doc) => (
                   <tr key={doc.id} className="hover:bg-muted/50">
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{formatDocumentDate(doc)}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'firma')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>

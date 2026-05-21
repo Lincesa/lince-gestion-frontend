@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical } from 'lucide-react';
+import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2 } from 'lucide-react';
 import * as ocrApi from '@/api/ocr';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { StatusBadge } from './components/StatusBadge';
@@ -38,6 +38,20 @@ interface QueueItem {
 
 const POLL_INTERVAL_MS = 2500;
 const POLL_MAX_RETRIES = 24; // 24 × 2.5s = 1 minuto máximo
+const DELETE_WINDOW_MS = 5 * 60 * 1000; // 5 minutos
+
+function canDeleteFromDb(item: QueueItem): boolean {
+  if (!item.documentId || item.status !== 'synced') return false;
+  return Date.now() - new Date(item.createdAt).getTime() < DELETE_WINDOW_MS;
+}
+
+function deleteWindowRemaining(item: QueueItem): string {
+  const remaining = DELETE_WINDOW_MS - (Date.now() - new Date(item.createdAt).getTime());
+  if (remaining <= 0) return '';
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
@@ -54,6 +68,9 @@ export function OcrRemitosPage() {
   const [pollErrors, setPollErrors]   = useState<string[] | null>(null);
   const [queue, setQueue]             = useState<QueueItem[]>(() => loadQueue());
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  // ticker para re-render mientras haya items dentro de la ventana de 5 min
+  const [, setTick] = useState(0);
 
   // ── Test OCR sin S3 ─────────────────────────────────────────────────────────
   const [testModalOpen,    setTestModalOpen]    = useState(false);
@@ -96,6 +113,20 @@ export function OcrRemitosPage() {
   useEffect(() => {
     dispatch(fetchMyFacturas({ limit: 5 }));
   }, [dispatch]);
+
+  // Interval de 1s mientras haya items dentro de la ventana de eliminación
+  useEffect(() => {
+    const hasActive = queue.some(
+      (item) =>
+        item.documentId &&
+        item.status === 'synced' &&
+        Date.now() - new Date(item.createdAt).getTime() < DELETE_WINDOW_MS,
+    );
+    if (!hasActive) return;
+
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [queue]);
 
   // ── Webcam ──────────────────────────────────────────────────────────────────
 
@@ -278,6 +309,20 @@ export function OcrRemitosPage() {
   };
 
   // ── Cola local (localStorage) ───────────────────────────────────────────────
+
+  const handleDeleteDocument = async (item: QueueItem) => {
+    if (!item.documentId) return;
+    setDeletingDocId(item.documentId);
+    try {
+      await ocrApi.deleteDocument(item.documentId);
+      removeFromQueue(item.id);
+      toast.success('Remito eliminado');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo eliminar el remito');
+    } finally {
+      setDeletingDocId(null);
+    }
+  };
 
   function addToQueue(item: QueueItem) {
     setQueue((prev) => {
@@ -520,6 +565,11 @@ export function OcrRemitosPage() {
                   {item.errorMsg && (
                     <p className="text-xs text-red-500 truncate">{item.errorMsg}</p>
                   )}
+                  {canDeleteFromDb(item) && (
+                    <p className="text-xs text-orange-500">
+                      Eliminar disponible: {deleteWindowRemaining(item)}
+                    </p>
+                  )}
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   item.status === 'synced'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
@@ -528,13 +578,26 @@ export function OcrRemitosPage() {
                 }`}>
                   {item.status === 'synced' ? 'Enviado' : item.status === 'pending' ? 'Pendiente' : 'Error'}
                 </span>
-                <button
-                  onClick={() => removeFromQueue(item.id)}
-                  title="Quitar de la cola"
-                  className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {canDeleteFromDb(item) ? (
+                  <button
+                    onClick={() => handleDeleteDocument(item)}
+                    disabled={deletingDocId === item.documentId}
+                    title="Eliminar remito del sistema"
+                    className="p-1 rounded text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 disabled:opacity-50"
+                  >
+                    {deletingDocId === item.documentId
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => removeFromQueue(item.id)}
+                    title="Quitar de la lista"
+                    className="p-1 rounded text-muted-foreground hover:bg-accent"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             ))}
           </div>

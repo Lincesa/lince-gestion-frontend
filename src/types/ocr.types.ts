@@ -77,11 +77,13 @@ export interface OcrConfig {
 }
 
 export interface FilterDocumentsParams {
-  type?:       DocumentType;
-  status?:     DocumentStatus;
-  uploadedBy?: string;
-  dateFrom?:   string;
-  dateTo?:     string;
-  page?:       number;
-  limit?:      number;
+  type?:             DocumentType;
+  status?:           DocumentStatus;
+  uploadedBy?:       string;
+  uploadedByEmail?:  string;
+  dateFrom?:         string;
+  dateTo?:           string;
+  nroRemito?:        string;
+  page?:             number;
+  limit?:            number;
 }
