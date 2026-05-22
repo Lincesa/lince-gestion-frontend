@@ -25,8 +25,8 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-lg tracking-tight text-primary">Lince</span>
-          <span className="text-xs text-muted-foreground hidden sm:inline">Plataforma</span>
+          <img src="/logo_lince.png" alt="Lince SA" className="h-8 w-8 rounded-full object-cover" />
+          <span className="font-bold text-lg tracking-tight text-primary hidden sm:inline">Lince SA</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground hidden sm:block">{user.name}</span>
