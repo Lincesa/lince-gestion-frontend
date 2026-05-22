@@ -342,7 +342,7 @@ export function RrhhPage() {
           estado,
           planta: planta || undefined,
         }),
-        asistenciaApi.getEmpleados(planta || undefined),
+        asistenciaApi.getEmpleados(undefined),
       ]);
       setItems(fichajesPage.items);
       setTotal(fichajesPage.total);
