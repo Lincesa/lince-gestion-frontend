@@ -112,6 +112,16 @@ const RrhhPage = lazy(() =>
   import('@/pages/rrhh/RrhhPage').then((m) => ({ default: m.RrhhPage })),
 );
 
+const LogisticaLayout = lazy(() =>
+  import('@/pages/logistica/LogisticaLayout').then((m) => ({ default: m.LogisticaLayout })),
+);
+const RemitosListPage = lazy(() =>
+  import('@/pages/logistica/RemitosListPage').then((m) => ({ default: m.RemitosListPage })),
+);
+const MapaPage = lazy(() =>
+  import('@/pages/logistica/MapaPage').then((m) => ({ default: m.MapaPage })),
+);
+
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -434,6 +444,38 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <OcrConfigPage />
+                      </Suspense>
+                    ),
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            path: 'logistica',
+            element: <RequireModule moduleKey={ModuleKey.LOGISTICA} />,
+            children: [
+              {
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <LogisticaLayout />
+                  </Suspense>
+                ),
+                children: [
+                  { index: true, element: <Navigate to="remitos" replace /> },
+                  {
+                    path: 'remitos',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <RemitosListPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'mapa',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <MapaPage />
                       </Suspense>
                     ),
                   },

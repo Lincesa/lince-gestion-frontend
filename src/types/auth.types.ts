@@ -11,6 +11,7 @@ export enum ModuleKey {
   MARKETING = 'marketing',
   SOPORTE_IT = 'soporte-it',
   ASISTENCIA = 'asistencia',
+  LOGISTICA = 'logistica',
 }
 
 export interface ModulePermission {

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardCheck, FileText, LayoutDashboard, Megaphone, Monitor, ScanLine, Settings, Users } from 'lucide-react';
+import { ClipboardCheck, FileText, LayoutDashboard, Megaphone, MapPin, Monitor, ScanLine, Settings, Users } from 'lucide-react';
 import { GlobalRole, ModuleKey, type AuthUser } from '@/types';
 
 export type DashboardNavKey = 'dashboard' | 'admin';
@@ -56,6 +56,13 @@ export const APP_MODULE_NAV: readonly AppModuleNav[] = [
     path: '/rrhh',
     Icon: ClipboardCheck,
     requiresModule: ModuleKey.ASISTENCIA,
+  },
+  {
+    key: ModuleKey.LOGISTICA,
+    label: 'Logística',
+    path: '/logistica',
+    Icon: MapPin,
+    requiresModule: ModuleKey.LOGISTICA,
   },
   {
     key: 'admin',
