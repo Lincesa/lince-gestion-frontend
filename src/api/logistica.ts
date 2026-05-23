@@ -1,5 +1,5 @@
 import { api, API_BASE_URL } from './client';
-import type { PaginatedRemitos, RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
+import type { GeoLayer, GeoPoint, PaginatedRemitos, RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
 
@@ -31,4 +31,14 @@ export const logisticaApi = {
 
   /** URL de descarga — el backend redirige 302 a S3 presigned URL */
   getFileUrl: (id: string) => `${API_BASE_URL}${BASE}/${id}/file`,
+
+  getGeoLayers: () => api.get<GeoLayer[]>('/logistica/geo-layers'),
+
+  createGeoPoint: (data: Omit<GeoPoint, 'id' | 'orden' | 'createdAt' | 'updatedAt'>) =>
+    api.post<GeoPoint>('/logistica/geo-layers', data),
+
+  updateGeoPoint: (id: string, data: Partial<Omit<GeoPoint, 'id' | 'orden' | 'createdAt' | 'updatedAt'>>) =>
+    api.patch<GeoPoint>(`/logistica/geo-layers/${id}`, data),
+
+  deleteGeoPoint: (id: string) => api.delete<void>(`/logistica/geo-layers/${id}`),
 };

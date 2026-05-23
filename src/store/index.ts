@@ -12,6 +12,7 @@ import equiposReducer from './soporte-it/equiposSlice';
 import incidentesReducer from './soporte-it/incidentesSlice';
 import relevamientosReducer from './soporte-it/relevamientosSlice';
 import remitosLogisticaReducer from './logistica/remitosSlice';
+import geoLayersReducer from './logistica/geoLayersSlice';
 
 export const store = configureStore({
   reducer: {
@@ -27,6 +28,7 @@ export const store = configureStore({
     incidentes: incidentesReducer,
     relevamientos: relevamientosReducer,
     remitosLogistica: remitosLogisticaReducer,
+    geoLayers: geoLayersReducer,
   },
 });
 

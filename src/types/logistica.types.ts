@@ -28,3 +28,20 @@ export interface PaginatedRemitos {
   pages: number;
   limit: number;
 }
+
+export interface GeoPoint {
+  id: string;
+  carpeta: string;
+  nombre: string;
+  descripcion: string | null;
+  lat: number;
+  lng: number;
+  iconFile: string;
+  orden: number;
+}
+
+export interface GeoLayer {
+  carpeta: string;
+  iconFile: string;
+  points: GeoPoint[];
+}
