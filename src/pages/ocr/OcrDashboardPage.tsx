@@ -33,7 +33,7 @@ import { DocumentDetailModal } from './components/DocumentDetailModal';
 // Chips de filtro por uploader — extender con más tags según crezca el equipo
 const UPLOADER_CHIPS = [
   { label: 'TAG San Pedro', email: 'chofer@lincesa.com.ar' },
-  { label: 'Nastek', email: 'nastek@lincesa.com.ar' },
+  { label: 'Tag Arroyito', email: 'tagarroyito@lincesa.com.ar' },
 ] as const;
 
 type PresenceStatus = 'si' | 'duda' | 'no';
