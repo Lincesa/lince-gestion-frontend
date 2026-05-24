@@ -19,6 +19,7 @@ export interface RemitoDetalle extends RemitoLogistica {
   lugarEntrega: string | null;
   observaciones: string | null;
   viewUrl: string;
+  isPdf: boolean;
 }
 
 export interface PaginatedRemitos {

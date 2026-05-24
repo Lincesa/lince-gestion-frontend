@@ -1,30 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Eye, MapPin, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchRemitos } from '@/store/logistica/remitosSlice';
-import { logisticaApi, type ListRemitosParams } from '@/api/logistica';
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDIENTE:          'Pendiente',
-  PROCESANDO:         'Procesando',
-  VALIDO:             'Válido',
-  CON_ERRORES:        'Con errores',
-  REVISION_PENDIENTE: 'Revisión pendiente',
-  REVISADO:           'Revisado',
-  APROBADO:           'Aprobado',
-  RECHAZADO:          'Rechazado',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDIENTE:          'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  PROCESANDO:         'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  VALIDO:             'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-  CON_ERRORES:        'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
-  REVISION_PENDIENTE: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-  REVISADO:           'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
-  APROBADO:           'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  RECHAZADO:          'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300',
-};
+import { type ListRemitosParams } from '@/api/logistica';
+import { RemitoDetailModal } from '@/components/logistica/RemitoDetailModal';
 
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();
@@ -32,6 +11,7 @@ export function RemitosListPage() {
 
   const [filters, setFilters] = useState<ListRemitosParams>({ page: 1, limit: 20 });
   const [nroInput, setNroInput] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -45,9 +25,6 @@ export function RemitosListPage() {
       setFilters((f) => ({ ...f, nroRemito: value || undefined, page: 1 }));
     }, 400);
   };
-
-  const setFilter = (patch: Partial<ListRemitosParams>) =>
-    setFilters((f) => ({ ...f, ...patch, page: 1 }));
 
   const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
@@ -70,28 +47,18 @@ export function RemitosListPage() {
             className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
           />
         </div>
-        <select
-          value={filters.status ?? ''}
-          onChange={(e) => setFilter({ status: e.target.value || undefined })}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">Todos los estados</option>
-          {Object.keys(STATUS_LABELS).map((s) => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
         <input
           type="date"
           title="Desde"
           value={filters.dateFrom ?? ''}
-          onChange={(e) => setFilter({ dateFrom: e.target.value || undefined })}
+          onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
           className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <input
           type="date"
           title="Hasta"
           value={filters.dateTo ?? ''}
-          onChange={(e) => setFilter({ dateTo: e.target.value || undefined })}
+          onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
           className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
@@ -104,84 +71,54 @@ export function RemitosListPage() {
         </div>
       )}
 
-      {!loading && <div className="rounded-lg border border-border overflow-x-auto">
-        <table className="w-full text-sm min-w-[700px]">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">N° Remito</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Cliente</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Subido por</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Geo</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {list.length === 0 ? (
+      {!loading && (
+        <div className="rounded-lg border border-border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  No hay remitos
-                </td>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha de subida</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">N° remito</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Subido por</th>
               </tr>
-            ) : (
-              list.map((remito) => (
-                <tr key={remito.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 font-mono">
-                    {remito.nroRemito ?? <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {remito.fecha ?? <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {remito.cliente ?? <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col">
-                      <span>{remito.uploadedByName}</span>
-                      <span className="text-xs text-muted-foreground">{remito.uploadedByEmail}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[remito.status] ?? ''}`}>
-                      {STATUS_LABELS[remito.status] ?? remito.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {remito.latitude !== null && remito.longitude !== null ? (
-                      <MapPin className="h-4 w-4 text-primary" />
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={async () => {
-                          const { url } = await logisticaApi.getViewUrl(remito.id);
-                          if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                        }}
-                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="Ver imagen"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <a
-                        href={logisticaApi.getFileUrl(remito.id)}
-                        download
-                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title="Descargar"
-                      >
-                        <Download className="h-4 w-4" />
-                      </a>
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {list.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
+                    No hay remitos
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>}
+              ) : (
+                list.map((remito) => (
+                  <tr
+                    key={remito.id}
+                    onClick={() => setSelectedId(remito.id)}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {new Date(remito.createdAt).toLocaleString('es-AR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="px-4 py-3 font-mono">
+                      {remito.nroRemito ?? (
+                        <span className="text-muted-foreground italic">No se obtuvo</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <span>{remito.uploadedByName}</span>
+                        <span className="text-xs text-muted-foreground">{remito.uploadedByEmail}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {!loading && pagination.pages > 1 && (
         <div className="flex items-center justify-center gap-2">
@@ -203,6 +140,13 @@ export function RemitosListPage() {
             Siguiente
           </button>
         </div>
+      )}
+
+      {selectedId && (
+        <RemitoDetailModal
+          remitoId={selectedId}
+          onClose={() => setSelectedId(null)}
+        />
       )}
     </div>
   );
