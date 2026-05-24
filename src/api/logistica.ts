@@ -10,6 +10,7 @@ export interface ListRemitosParams {
   dateTo?: string;
   nroRemito?: string;
   status?: string;
+  uploadedByEmail?: string;
 }
 
 export const logisticaApi = {
@@ -20,7 +21,8 @@ export const logisticaApi = {
     if (params.dateFrom)  qs.set('dateFrom',  params.dateFrom);
     if (params.dateTo)    qs.set('dateTo',    params.dateTo);
     if (params.nroRemito) qs.set('nroRemito', params.nroRemito);
-    if (params.status)    qs.set('status',    params.status);
+    if (params.status)          qs.set('status',          params.status);
+    if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
     const query = qs.toString();
     return api.get<PaginatedRemitos>(`${BASE}${query ? `?${query}` : ''}`);
   },

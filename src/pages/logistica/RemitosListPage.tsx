@@ -5,6 +5,13 @@ import { fetchRemitos } from '@/store/logistica/remitosSlice';
 import { type ListRemitosParams } from '@/api/logistica';
 import { RemitoDetailModal } from '@/components/logistica/RemitoDetailModal';
 
+const UPLOADER_CHIPS = [
+  { label: 'TAG San Pedro',   email: 'chofer@lincesa.com.ar' },
+  { label: 'Tag Arroyito',    email: 'tagarroyito@lincesa.com.ar' },
+  { label: 'Tag Porta',       email: 'tagporta@lincesa.com.ar' },
+  { label: 'Tag Quilmes Tuc', email: 'tagtucquilmes@lincesa.com.ar' },
+] as const;
+
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();
   const { list, loading, error, pagination } = useAppSelector((s) => s.remitosLogistica);
@@ -36,31 +43,57 @@ export function RemitosListPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Nro. remito…"
+              value={nroInput}
+              onChange={(e) => handleNroChange(e.target.value)}
+              className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
+            />
+          </div>
           <input
-            type="text"
-            placeholder="Nro. remito…"
-            value={nroInput}
-            onChange={(e) => handleNroChange(e.target.value)}
-            className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
+            type="date"
+            title="Desde"
+            value={filters.dateFrom ?? ''}
+            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <input
+            type="date"
+            title="Hasta"
+            value={filters.dateTo ?? ''}
+            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        <input
-          type="date"
-          title="Desde"
-          value={filters.dateFrom ?? ''}
-          onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        <input
-          type="date"
-          title="Hasta"
-          value={filters.dateTo ?? ''}
-          onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+
+        {/* Chips de procedencia */}
+        <div className="flex flex-wrap gap-2">
+          {UPLOADER_CHIPS.map((chip) => {
+            const active = filters.uploadedByEmail === chip.email;
+            return (
+              <button
+                key={chip.email}
+                onClick={() => setFilters((f) => ({
+                  ...f,
+                  uploadedByEmail: active ? undefined : chip.email,
+                  page: 1,
+                }))}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                }`}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {error && <div className="text-destructive text-sm">{error}</div>}
