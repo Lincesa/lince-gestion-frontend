@@ -29,6 +29,8 @@ export const logisticaApi = {
 
   getRemito: (id: string) => api.get<RemitoDetalle>(`${BASE}/${id}`),
 
+  getViewUrl: (id: string) => api.get<{ url: string }>(`${BASE}/${id}/view-url`),
+
   /** URL de descarga — el backend redirige 302 a S3 presigned URL */
   getFileUrl: (id: string) => `${API_BASE_URL}${BASE}/${id}/file`,
 

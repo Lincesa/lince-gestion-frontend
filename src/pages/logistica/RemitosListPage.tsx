@@ -156,15 +156,16 @@ export function RemitosListPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <a
-                        href={logisticaApi.getFileUrl(remito.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={async () => {
+                          const { url } = await logisticaApi.getViewUrl(remito.id);
+                          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
                         className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                         title="Ver imagen"
                       >
                         <Eye className="h-4 w-4" />
-                      </a>
+                      </button>
                       <a
                         href={logisticaApi.getFileUrl(remito.id)}
                         download
