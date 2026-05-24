@@ -66,7 +66,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: SidebarProp
       {/* Mobile drawer */}
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-[1000] flex flex-col w-64 bg-card border-r border-border transition-transform duration-200 md:hidden',
+          'fixed inset-y-0 left-0 z-[1001] flex flex-col w-64 bg-card border-r border-border transition-transform duration-200 md:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
