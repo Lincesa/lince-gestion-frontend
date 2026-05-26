@@ -36,6 +36,8 @@ const UPLOADER_CHIPS = [
   { label: 'Tag Arroyito', email: 'tagarroyito@lincesa.com.ar' },
   { label: 'Tag Porta', email: 'tagporta@lincesa.com.ar' },
   { label: 'Tag Quilmes Tuc', email: 'tagtucquilmes@lincesa.com.ar' },
+  { label: 'TAG Arcor Misky', email: 'tagarcmisk@lincesa.com.ar' },
+  { label: 'Tag Frías', email: 'tagfrias@lincesa.com.ar' },
 ] as const;
 
 type PresenceStatus = 'si' | 'duda' | 'no';
