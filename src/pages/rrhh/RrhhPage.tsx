@@ -274,37 +274,12 @@ function plantasLabel(agg: EmployeeDayAgg): string {
   return [...set].join(', ');
 }
 
-const VILLA_NUEVA_BASE: { pin: string; firstName: string; lastName: string }[] = [
-  { pin: '3', firstName: 'Ramiro', lastName: 'Alaniz' },
-  { pin: '11', firstName: 'Maria Celeste', lastName: 'Almada' },
-  { pin: '7', firstName: 'Julieta', lastName: 'Calderon' },
-  { pin: '21', firstName: 'Antonella Lucia', lastName: 'Corna' },
-  { pin: '6', firstName: 'Dalia', lastName: 'Duriavichi' },
-  { pin: '17', firstName: 'Ezequiel', lastName: 'Fassi' },
-  { pin: '9', firstName: 'Gabriel', lastName: 'Fernandez' },
-  { pin: '2', firstName: 'Leila', lastName: 'Gasull' },
-  { pin: '10', firstName: 'Luis', lastName: 'Haedo' },
-  { pin: '12', firstName: 'Luis', lastName: 'Lujan' },
-  { pin: '15', firstName: 'Florencia', lastName: 'Micelli' },
-  { pin: '1', firstName: 'Micaela', lastName: 'Negro' },
-  { pin: '16', firstName: 'Omar', lastName: 'Paviglianti' },
-  { pin: '14', firstName: 'Jose', lastName: 'Paz' },
-  { pin: '5', firstName: 'Luciana', lastName: 'Rivera' },
-  { pin: '19', firstName: 'Damian', lastName: 'Rodriguez' },
-  { pin: '8', firstName: 'Simon', lastName: 'Santa' },
-  { pin: '18', firstName: 'Juan Cruz', lastName: 'Sarmo Finelli' },
-  { pin: '13', firstName: 'Pablo', lastName: 'Segura' },
-  { pin: '20', firstName: 'Yoana Maricel', lastName: 'Serrano' },
-  { pin: '4', firstName: 'Florencia', lastName: 'Vottero' },
-];
 
 export function RrhhPage() {
   const location = useLocation();
   const activeView = location.pathname.endsWith('/reportes') ? 'reportes' : 'general';
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
   const [items, setItems] = useState<FichajeAsistencia[]>([]);
   const [empleados, setEmpleados] = useState<EmpleadoAsistencia[]>([]);
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
@@ -462,52 +437,6 @@ export function RrhhPage() {
       else n.add(key);
       return n;
     });
-  };
-
-  const syncVillaNueva = async () => {
-    setSyncing(true);
-    try {
-      const freshEmpleados = await asistenciaApi.getEmpleados(undefined);
-      const byPin = new Map(freshEmpleados.map((e) => [e.pin, e]));
-      let created = 0;
-      let skipped = 0;
-      for (const base of VILLA_NUEVA_BASE) {
-        if (byPin.has(base.pin)) { skipped++; continue; }
-        try {
-          await asistenciaApi.createEmpleado({
-            firstName: base.firstName,
-            lastName: base.lastName,
-            pin: base.pin,
-            planta: 'villa_nueva',
-            activo: true,
-          });
-          created++;
-        } catch {
-          skipped++;
-        }
-      }
-      toast.success(`Sync completado: ${created} nuevos, ${skipped} ya existían`);
-      const result = await asistenciaApi.reconcileUnmatched(10000);
-      if (result.matched > 0) toast.success(`${result.matched} fichajes asociados automáticamente`);
-      await loadData();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const reconcileUnmatched = async () => {
-    setReconciling(true);
-    try {
-      const result = await asistenciaApi.reconcileUnmatched(5000);
-      toast.success(`Reconciliacion completa: ${result.matched}/${result.scanned} fichajes asociados`);
-      await loadData();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setReconciling(false);
-    }
   };
 
   const unmatched = itemsMismoDiaAr.filter((f) => !f.empleadoId).length;
@@ -830,22 +759,6 @@ export function RrhhPage() {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">RRHH</h1>
         {activeView === 'general' && (
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <button
-            type="button"
-            onClick={reconcileUnmatched}
-            disabled={reconciling}
-            className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
-          >
-            {reconciling ? 'Reconciliando…' : 'Reconciliar sin empleado'}
-          </button>
-          <button
-            type="button"
-            onClick={syncVillaNueva}
-            disabled={syncing}
-            className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
-          >
-            {syncing ? 'Sincronizando…' : 'Sincronizar empleados Villa Nueva'}
-          </button>
           <button
             type="button"
             onClick={openEditHorariosModal}

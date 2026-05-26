@@ -20,14 +20,6 @@ export interface UpdateFichajePayload {
   tiempo?: string;
 }
 
-export interface CreateEmpleadoPayload {
-  firstName: string;
-  lastName: string;
-  pin: string;
-  planta: Planta;
-  activo?: boolean;
-}
-
 export const asistenciaApi = {
   getFichajes: async (query: FichajesQuery) => {
     const qs = new URLSearchParams();
@@ -60,9 +52,4 @@ export const asistenciaApi = {
     return api.get<ReporteEmpleadoRango>(`/asistencia/reports/employee/${empleadoId}/range?${qs.toString()}`);
   },
 
-  createEmpleado: (payload: CreateEmpleadoPayload) =>
-    api.post<EmpleadoAsistencia>('/asistencia/empleados', payload),
-
-  reconcileUnmatched: (limit = 2000) =>
-    api.post<{ scanned: number; matched: number }>(`/asistencia/logs/reconcile-unmatched?limit=${limit}`, {}),
 };
