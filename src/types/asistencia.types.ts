@@ -61,6 +61,16 @@ export interface DiaReporteEmpleado {
   salidasSinEntrada: FichajeReporte[];
 }
 
+export interface PinSummaryRow {
+  pin: string;
+  planta: Planta;
+  totalFichajes: number;
+  ultimoFichaje: string | null;
+  empleadoId: string | null;
+  empleadoNombre: string | null;
+  empleadoPlanta: Planta | null;
+}
+
 export interface ReporteEmpleadoRango {
   empleado: {
     id: string;

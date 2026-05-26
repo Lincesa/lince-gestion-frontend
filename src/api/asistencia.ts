@@ -1,4 +1,4 @@
-import type { EmpleadoAsistencia, FichajeAsistencia, FichajesPage, Planta, ReporteEmpleadoRango } from '@/types';
+import type { EmpleadoAsistencia, FichajeAsistencia, FichajesPage, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
 import { api } from './client';
 
 export interface FichajesQuery {
@@ -16,8 +16,26 @@ export interface FichajesQuery {
 
 export interface UpdateFichajePayload {
   estado?: 0 | 1;
-  empleadoId?: string;
+  empleadoId?: string | null;
   tiempo?: string;
+}
+
+export interface CreateEmpleadoPayload {
+  firstName: string;
+  lastName: string;
+  pin: string;
+  planta: Planta;
+  dni?: string;
+  activo?: boolean;
+}
+
+export interface UpdateEmpleadoPayload {
+  firstName?: string;
+  lastName?: string;
+  pin?: string;
+  planta?: Planta;
+  dni?: string;
+  activo?: boolean;
 }
 
 export const asistenciaApi = {
@@ -52,4 +70,24 @@ export const asistenciaApi = {
     return api.get<ReporteEmpleadoRango>(`/asistencia/reports/employee/${empleadoId}/range?${qs.toString()}`);
   },
 
+  getPinesSummary: () =>
+    api.get<PinSummaryRow[]>('/asistencia/logs/pines-summary'),
+
+  getAllEmpleados: () =>
+    api.get<EmpleadoAsistencia[]>('/asistencia/empleados'),
+
+  createEmpleado: (payload: CreateEmpleadoPayload) =>
+    api.post<EmpleadoAsistencia>('/asistencia/empleados', payload),
+
+  updateEmpleado: (id: string, payload: UpdateEmpleadoPayload) =>
+    api.patch<EmpleadoAsistencia>(`/asistencia/empleados/${id}`, payload),
+
+  deleteEmpleado: (id: string) =>
+    api.delete<void>(`/asistencia/empleados/${id}`),
+
+  reconcileUnmatched: (limit = 2000) =>
+    api.post<{ scanned: number; matched: number }>(`/asistencia/logs/reconcile-unmatched?limit=${limit}`, {}),
+
+  reassignPin: (pin: string, planta: Planta, empleadoId: string | null) =>
+    api.post<{ updated: number }>('/asistencia/logs/reassign-pin', { pin, planta, empleadoId }),
 };

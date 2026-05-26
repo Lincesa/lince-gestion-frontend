@@ -4,8 +4,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import { asistenciaApi } from '@/api/asistencia';
-import type { EmpleadoAsistencia, FichajeAsistencia, Planta, ReporteEmpleadoRango } from '@/types';
+import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
+import type { EmpleadoAsistencia, FichajeAsistencia, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 
@@ -277,7 +277,13 @@ function plantasLabel(agg: EmployeeDayAgg): string {
 
 export function RrhhPage() {
   const location = useLocation();
-  const activeView = location.pathname.endsWith('/reportes') ? 'reportes' : 'general';
+  const activeView = location.pathname.endsWith('/reportes')
+    ? 'reportes'
+    : location.pathname.endsWith('/pines')
+    ? 'pines'
+    : location.pathname.endsWith('/empleados')
+    ? 'empleados'
+    : 'general';
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [items, setItems] = useState<FichajeAsistencia[]>([]);
@@ -305,6 +311,22 @@ export function RrhhPage() {
   const [exportDesde, setExportDesde] = useState(todayYmdAr);
   const [exportHasta, setExportHasta] = useState(todayYmdAr);
   const [exportLoading, setExportLoading] = useState(false);
+  const [pines, setPines] = useState<PinSummaryRow[]>([]);
+  const [pinesLoading, setPinesLoading] = useState(false);
+  const [pinesFilterPlanta, setPinesFilterPlanta] = useState<'' | Planta>('');
+  const [crearEmpleadoPin, setCrearEmpleadoPin] = useState<PinSummaryRow | null>(null);
+  const [crearForm, setCrearForm] = useState({ firstName: '', lastName: '', dni: '' });
+  const [savingCrear, setSavingCrear] = useState(false);
+  const [asignandoKey, setAsignandoKey] = useState<string | null>(null);
+  const [todosEmpleados, setTodosEmpleados] = useState<EmpleadoAsistencia[]>([]);
+  const [empLoading, setEmpLoading] = useState(false);
+  const [empFilterPlanta, setEmpFilterPlanta] = useState<'' | Planta>('');
+  const [editingEmpId, setEditingEmpId] = useState<string | null>(null);
+  const [editEmpDraft, setEditEmpDraft] = useState<UpdateEmpleadoPayload & { firstName: string; lastName: string; pin: string; planta: Planta }>({ firstName: '', lastName: '', pin: '', planta: 'tucuman' });
+  const [savingEmpId, setSavingEmpId] = useState<string | null>(null);
+  const [nuevoEmpOpen, setNuevoEmpOpen] = useState(false);
+  const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string }>({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+  const [savingNuevo, setSavingNuevo] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -341,6 +363,10 @@ export function RrhhPage() {
   useEffect(() => {
     if (activeView === 'general') {
       void loadData();
+    } else if (activeView === 'pines') {
+      void loadPines();
+    } else if (activeView === 'empleados') {
+      void loadTodosEmpleados();
     } else {
       void loadReportEmployees();
     }
@@ -350,12 +376,75 @@ export function RrhhPage() {
     await loadData();
   };
 
-  const empleadosByPin = useMemo(() => {
+  const loadPines = async () => {
+    setPinesLoading(true);
+    try {
+      const [data, emps] = await Promise.all([
+        asistenciaApi.getPinesSummary(),
+        asistenciaApi.getEmpleados(undefined),
+      ]);
+      setPines(data);
+      setEmpleados(emps);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setPinesLoading(false);
+    }
+  };
+
+  const asignarEmpleadoAPin = async (row: PinSummaryRow, empleadoId: string | null) => {
+    const key = `${row.pin}:${row.planta}`;
+    setAsignandoKey(key);
+    try {
+      const { updated } = await asistenciaApi.reassignPin(row.pin, row.planta, empleadoId);
+      toast.success(
+        empleadoId
+          ? `Empleado asignado a ${updated} fichaje(s) del PIN`
+          : `${updated} fichaje(s) quedaron sin empleado`,
+      );
+      await loadPines();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setAsignandoKey(null);
+    }
+  };
+
+  const crearEmpleadoDesdePin = async () => {
+    if (!crearEmpleadoPin) return;
+    if (!crearForm.firstName.trim() || !crearForm.lastName.trim()) {
+      toast.error('Nombre y apellido son obligatorios');
+      return;
+    }
+    setSavingCrear(true);
+    try {
+      // El backend autoasocia fichajes huérfanos con el mismo (pin, planta) al crear.
+      await asistenciaApi.createEmpleado({
+        firstName: crearForm.firstName.trim(),
+        lastName: crearForm.lastName.trim(),
+        pin: crearEmpleadoPin.pin,
+        planta: crearEmpleadoPin.planta,
+        dni: crearForm.dni.trim() || undefined,
+        activo: true,
+      });
+      toast.success('Empleado creado y fichajes asociados');
+      setCrearEmpleadoPin(null);
+      setCrearForm({ firstName: '', lastName: '', dni: '' });
+      await loadPines();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingCrear(false);
+    }
+  };
+
+  const empleadosByPlanta = useMemo(() => {
     const map = new Map<string, EmpleadoAsistencia[]>();
     for (const emp of empleados) {
-      const arr = map.get(emp.pin) ?? [];
+      if (!emp.planta) continue;
+      const arr = map.get(emp.planta) ?? [];
       arr.push(emp);
-      map.set(emp.pin, arr);
+      map.set(emp.planta, arr);
     }
     return map;
   }, [empleados]);
@@ -410,23 +499,70 @@ export function RrhhPage() {
     }
   };
 
-  const aplicarEmpleadoGrupo = async (agg: EmployeeDayAgg, empleadoId: string) => {
-    const payload = empleadoId || undefined;
+  const loadTodosEmpleados = async () => {
+    setEmpLoading(true);
     try {
-      await Promise.all(
-        agg.fichajes.map((f) =>
-          asistenciaApi.updateFichaje(f.id, { empleadoId: payload }),
-        ),
-      );
-      toast.success('Empleado actualizado en todos los fichajes del día');
-      await loadData();
-      setDrafts((prev) => {
-        const next = { ...prev };
-        for (const f of agg.fichajes) delete next[f.id];
-        return next;
-      });
+      setTodosEmpleados(await asistenciaApi.getAllEmpleados());
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setEmpLoading(false);
+    }
+  };
+
+  const startEditEmp = (emp: EmpleadoAsistencia) => {
+    setEditingEmpId(emp.id);
+    setEditEmpDraft({ firstName: emp.firstName, lastName: emp.lastName, pin: emp.pin, planta: emp.planta, dni: emp.dni ?? '', activo: emp.activo });
+  };
+
+  const saveEditEmp = async (id: string) => {
+    setSavingEmpId(id);
+    try {
+      const updated = await asistenciaApi.updateEmpleado(id, editEmpDraft);
+      setTodosEmpleados((prev) => prev.map((e) => (e.id === id ? updated : e)));
+      setEditingEmpId(null);
+      toast.success('Empleado actualizado');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingEmpId(null);
+    }
+  };
+
+  const deleteEmp = async (id: string, nombre: string) => {
+    if (!window.confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await asistenciaApi.deleteEmpleado(id);
+      setTodosEmpleados((prev) => prev.filter((e) => e.id !== id));
+      toast.success('Empleado eliminado');
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const crearNuevoEmpleado = async () => {
+    if (!nuevoEmpForm.firstName.trim() || !nuevoEmpForm.lastName.trim() || !nuevoEmpForm.pin.trim()) {
+      toast.error('Nombre, apellido y PIN son obligatorios');
+      return;
+    }
+    setSavingNuevo(true);
+    try {
+      const created = await asistenciaApi.createEmpleado({
+        firstName: nuevoEmpForm.firstName.trim(),
+        lastName: nuevoEmpForm.lastName.trim(),
+        pin: nuevoEmpForm.pin.trim(),
+        planta: nuevoEmpForm.planta,
+        dni: nuevoEmpForm.dni.trim() || undefined,
+        activo: true,
+      });
+      setTodosEmpleados((prev) => [...prev, created].sort((a, b) => a.lastName.localeCompare(b.lastName)));
+      setNuevoEmpOpen(false);
+      setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+      toast.success('Empleado creado');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingNuevo(false);
     }
   };
 
@@ -818,6 +954,28 @@ export function RrhhPage() {
           }
         >
           Generar reporte
+        </NavLink>
+        <NavLink
+          to="/rrhh/pines"
+          className={({ isActive }) =>
+            [
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            ].join(' ')
+          }
+        >
+          Registro de PINs
+        </NavLink>
+        <NavLink
+          to="/rrhh/empleados"
+          className={({ isActive }) =>
+            [
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            ].join(' ')
+          }
+        >
+          Empleados
         </NavLink>
       </div>
 
@@ -1352,9 +1510,6 @@ export function RrhhPage() {
               </tr>
             </thead>
             {aggregates.map((agg) => {
-              const first = agg.fichajes[0];
-              const options = first ? (empleadosByPin.get(first.pin) ?? empleados) : empleados;
-              const draftMain = first ? draftFor(first) : { empleadoId: '', estado: '0' as EstadoOption };
               const tieneValidos = agg.pairs.length > 0;
               const saldoMs = agg.totalMs - MS_JORNADA;
               const expanded = expandedKeys.has(agg.key);
@@ -1364,22 +1519,6 @@ export function RrhhPage() {
                   <tr className="hover:bg-muted/20 align-top">
                     <td className="px-5 py-5">
                       <p className="font-medium text-foreground leading-snug">{employeeDisplayLabel(agg)}</p>
-                      {first && (
-                        <select
-                          value={draftMain.empleadoId}
-                          onChange={(e) => {
-                            void aplicarEmpleadoGrupo(agg, e.target.value);
-                          }}
-                          className="mt-2 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
-                        >
-                          <option value="">Sin asociar</option>
-                          {options.map((emp) => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.firstName} {emp.lastName}
-                            </option>
-                          ))}
-                        </select>
-                      )}
                     </td>
                     <td className="px-5 py-5">
                       <div className="space-y-2.5">
@@ -1554,6 +1693,481 @@ export function RrhhPage() {
           </button>
         </div>
       </div>
+        </>
+      )}
+
+      {activeView === 'empleados' && (
+        <>
+          <Dialog
+            open={nuevoEmpOpen}
+            onClose={() => !savingNuevo && setNuevoEmpOpen(false)}
+            title="Nuevo empleado"
+            panelClassName="max-w-md"
+          >
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre *</span>
+                  <input
+                    type="text"
+                    value={nuevoEmpForm.firstName}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, firstName: e.target.value }))}
+                    placeholder="Nombre"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Apellido *</span>
+                  <input
+                    type="text"
+                    value={nuevoEmpForm.lastName}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, lastName: e.target.value }))}
+                    placeholder="Apellido"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">PIN *</span>
+                  <input
+                    type="text"
+                    value={nuevoEmpForm.pin}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, pin: e.target.value }))}
+                    placeholder="PIN del reloj"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta *</span>
+                  <select
+                    value={nuevoEmpForm.planta}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, planta: e.target.value as Planta }))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="tucuman">Tucumán</option>
+                    <option value="villa_nueva">Villa Nueva</option>
+                  </select>
+                </label>
+              </div>
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI (opcional)</span>
+                <input
+                  type="text"
+                  value={nuevoEmpForm.dni}
+                  onChange={(e) => setNuevoEmpForm((f) => ({ ...f, dni: e.target.value }))}
+                  placeholder="DNI"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border">
+              <Button type="button" variant="outline" onClick={() => setNuevoEmpOpen(false)} disabled={savingNuevo}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={() => void crearNuevoEmpleado()} disabled={savingNuevo}>
+                {savingNuevo ? 'Creando…' : 'Crear empleado'}
+              </Button>
+            </div>
+          </Dialog>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={empFilterPlanta}
+              onChange={(e) => setEmpFilterPlanta(e.target.value as '' | Planta)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              <option value="">Todas las plantas</option>
+              <option value="villa_nueva">Villa Nueva</option>
+              <option value="tucuman">Tucumán</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void loadTodosEmpleados()}
+              disabled={empLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${empLoading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+                setNuevoEmpOpen(true);
+              }}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              + Nuevo empleado
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Apellido</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-24">PIN</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-20">Activo</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
+                    </tr>
+                  ) : todosEmpleados.filter((e) => !empFilterPlanta || e.planta === empFilterPlanta).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
+                    </tr>
+                  ) : (
+                    todosEmpleados
+                      .filter((e) => !empFilterPlanta || e.planta === empFilterPlanta)
+                      .map((emp) => {
+                        const isEditing = editingEmpId === emp.id;
+                        const isSaving = savingEmpId === emp.id;
+                        return (
+                          <tr key={emp.id} className={`border-b border-border/60 last:border-0 hover:bg-muted/20 ${!emp.activo ? 'opacity-50' : ''}`}>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editEmpDraft.firstName}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, firstName: e.target.value }))}
+                                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                              ) : (
+                                <span className="font-medium text-foreground">{emp.firstName}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editEmpDraft.lastName}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, lastName: e.target.value }))}
+                                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                              ) : (
+                                <span>{emp.lastName}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editEmpDraft.pin}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, pin: e.target.value }))}
+                                  className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+                                />
+                              ) : (
+                                <span className="font-mono text-muted-foreground">{emp.pin}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <select
+                                  value={editEmpDraft.planta}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, planta: e.target.value as Planta }))}
+                                  className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                >
+                                  <option value="tucuman">Tucumán</option>
+                                  <option value="villa_nueva">Villa Nueva</option>
+                                </select>
+                              ) : (
+                                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">
+                                  {emp.planta.replace('_', ' ')}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editEmpDraft.dni ?? ''}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, dni: e.target.value }))}
+                                  placeholder="—"
+                                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                              ) : (
+                                <span className="text-muted-foreground">{emp.dni ?? '—'}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="checkbox"
+                                  checked={editEmpDraft.activo ?? true}
+                                  onChange={(e) => setEditEmpDraft((d) => ({ ...d, activo: e.target.checked }))}
+                                  className="accent-primary h-4 w-4"
+                                />
+                              ) : (
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${emp.activo ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>
+                                  {emp.activo ? 'Sí' : 'No'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {isEditing ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => setEditingEmpId(null)}
+                                      disabled={isSaving}
+                                      className="h-7 px-2 text-xs"
+                                    >
+                                      Cancelar
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      onClick={() => void saveEditEmp(emp.id)}
+                                      disabled={isSaving}
+                                      className="h-7 px-2 text-xs"
+                                    >
+                                      {isSaving ? 'Guardando…' : 'Guardar'}
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditEmp(emp)}
+                                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteEmp(emp.id, `${emp.firstName} ${emp.lastName}`)}
+                                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeView === 'pines' && (
+        <>
+          <Dialog
+            open={crearEmpleadoPin !== null}
+            onClose={() => !savingCrear && setCrearEmpleadoPin(null)}
+            title="Crear empleado"
+            description={`PIN ${crearEmpleadoPin?.pin ?? ''} · ${crearEmpleadoPin?.planta?.replace('_', ' ') ?? ''}`}
+            panelClassName="max-w-md"
+          >
+            <div className="space-y-3">
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nombre *</span>
+                <input
+                  type="text"
+                  value={crearForm.firstName}
+                  onChange={(e) => setCrearForm((f) => ({ ...f, firstName: e.target.value }))}
+                  placeholder="Nombre"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Apellido *</span>
+                <input
+                  type="text"
+                  value={crearForm.lastName}
+                  onChange={(e) => setCrearForm((f) => ({ ...f, lastName: e.target.value }))}
+                  placeholder="Apellido"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block space-y-1 text-sm">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI (opcional)</span>
+                <input
+                  type="text"
+                  value={crearForm.dni}
+                  onChange={(e) => setCrearForm((f) => ({ ...f, dni: e.target.value }))}
+                  placeholder="DNI"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCrearEmpleadoPin(null)}
+                disabled={savingCrear}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void crearEmpleadoDesdePin()}
+                disabled={savingCrear}
+              >
+                {savingCrear ? 'Creando…' : 'Crear empleado'}
+              </Button>
+            </div>
+          </Dialog>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={pinesFilterPlanta}
+              onChange={(e) => setPinesFilterPlanta(e.target.value as '' | Planta)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              <option value="">Todas las plantas</option>
+              <option value="villa_nueva">Villa Nueva</option>
+              <option value="tucuman">Tucumán</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void loadPines()}
+              disabled={pinesLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${pinesLoading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-20">PIN</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta device</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Empleado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta empleado</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide w-24">Fichajes</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Último fichaje</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-72">Asignar empleado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pinesLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        Cargando…
+                      </td>
+                    </tr>
+                  ) : pines.filter((r) => !pinesFilterPlanta || r.planta === pinesFilterPlanta).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        Sin datos
+                      </td>
+                    </tr>
+                  ) : (
+                    pines
+                      .filter((r) => !pinesFilterPlanta || r.planta === pinesFilterPlanta)
+                      .map((row) => {
+                        const key = `${row.pin}:${row.planta}`;
+                        const isAssigning = asignandoKey === key;
+                        const plantaMismatch =
+                          row.empleadoPlanta !== null && row.empleadoPlanta !== row.planta;
+                        const opcionesEmpleados = empleadosByPlanta.get(row.planta) ?? [];
+                        return (
+                          <tr
+                            key={key}
+                            className={`border-b border-border/60 last:border-0 hover:bg-muted/20 ${plantaMismatch ? 'bg-red-500/5' : ''}`}
+                          >
+                            <td className="px-4 py-3">
+                              <span className="font-mono font-semibold text-foreground">{row.pin}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">
+                                {row.planta.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.empleadoNombre ? (
+                                <span className="font-medium text-foreground">{row.empleadoNombre}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60 italic">Sin empleado</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.empleadoPlanta ? (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${plantaMismatch ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-muted text-muted-foreground'}`}>
+                                  {plantaMismatch && <span title="La planta del empleado no coincide con la del device">⚠</span>}
+                                  {row.empleadoPlanta.replace('_', ' ')}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                              {row.totalFichajes}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                              {row.ultimoFichaje ? formatFichajeHora(row.ultimoFichaje) : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={row.empleadoId ?? ''}
+                                  disabled={isAssigning}
+                                  onChange={(e) => {
+                                    const next = e.target.value || null;
+                                    if (next === (row.empleadoId ?? null)) return;
+                                    if (
+                                      next === null &&
+                                      !window.confirm(
+                                        `¿Quitar el empleado de TODOS los fichajes del PIN ${row.pin} (${row.planta.replace('_', ' ')})?`,
+                                      )
+                                    ) {
+                                      return;
+                                    }
+                                    void asignarEmpleadoAPin(row, next);
+                                  }}
+                                  className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                                >
+                                  <option value="">Sin asignar</option>
+                                  {opcionesEmpleados.map((emp) => (
+                                    <option key={emp.id} value={emp.id}>
+                                      {emp.firstName} {emp.lastName}
+                                    </option>
+                                  ))}
+                                </select>
+                                {!row.empleadoId && (
+                                  <button
+                                    type="button"
+                                    disabled={isAssigning}
+                                    onClick={() => {
+                                      setCrearForm({ firstName: '', lastName: '', dni: '' });
+                                      setCrearEmpleadoPin(row);
+                                    }}
+                                    className="shrink-0 rounded-md border border-border px-2 py-1.5 text-xs hover:bg-accent disabled:opacity-50 whitespace-nowrap"
+                                  >
+                                    + Crear
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
     </div>

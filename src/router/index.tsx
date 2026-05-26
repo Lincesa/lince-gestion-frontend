@@ -503,6 +503,22 @@ const router = createBrowserRouter([
                   </Suspense>
                 ),
               },
+              {
+                path: 'pines',
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <RrhhPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'empleados',
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <RrhhPage />
+                  </Suspense>
+                ),
+              },
             ],
           },
         ],
