@@ -4,13 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchRemitos } from '@/store/logistica/remitosSlice';
 import { type ListRemitosParams } from '@/api/logistica';
 import { RemitoDetailModal } from '@/components/logistica/RemitoDetailModal';
-
-const UPLOADER_CHIPS = [
-  { label: 'TAG San Pedro',   email: 'chofer@lincesa.com.ar' },
-  { label: 'Tag Arroyito',    email: 'tagarroyito@lincesa.com.ar' },
-  { label: 'Tag Porta',       email: 'tagporta@lincesa.com.ar' },
-  { label: 'Tag Quilmes Tuc', email: 'tagtucquilmes@lincesa.com.ar' },
-] as const;
+import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();

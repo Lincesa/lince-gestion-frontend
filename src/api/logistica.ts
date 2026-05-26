@@ -13,6 +13,13 @@ export interface ListRemitosParams {
   uploadedByEmail?: string;
 }
 
+export interface MapaRemitosParams {
+  dateFrom?: string;
+  dateTo?: string;
+  uploadedByEmail?: string;
+  cliente?: string;
+}
+
 export const logisticaApi = {
   listRemitos: (params: ListRemitosParams = {}) => {
     const qs = new URLSearchParams();
@@ -27,7 +34,15 @@ export const logisticaApi = {
     return api.get<PaginatedRemitos>(`${BASE}${query ? `?${query}` : ''}`);
   },
 
-  getMapaRemitos: () => api.get<RemitoLogistica[]>(`${BASE}/mapa`),
+  getMapaRemitos: (params: MapaRemitosParams = {}) => {
+    const qs = new URLSearchParams();
+    if (params.dateFrom)        qs.set('dateFrom',        params.dateFrom);
+    if (params.dateTo)          qs.set('dateTo',          params.dateTo);
+    if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
+    if (params.cliente)         qs.set('cliente',         params.cliente);
+    const query = qs.toString();
+    return api.get<RemitoLogistica[]>(`${BASE}/mapa${query ? `?${query}` : ''}`);
+  },
 
   getRemito: (id: string) => api.get<RemitoDetalle>(`${BASE}/${id}`),
 

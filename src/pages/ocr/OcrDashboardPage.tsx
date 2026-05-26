@@ -29,16 +29,7 @@ import {
 import type { FilterDocumentsParams, OcrDocument } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { DocumentDetailModal } from './components/DocumentDetailModal';
-
-// Chips de filtro por uploader — extender con más tags según crezca el equipo
-const UPLOADER_CHIPS = [
-  { label: 'TAG San Pedro', email: 'chofer@lincesa.com.ar' },
-  { label: 'Tag Arroyito', email: 'tagarroyito@lincesa.com.ar' },
-  { label: 'Tag Porta', email: 'tagporta@lincesa.com.ar' },
-  { label: 'Tag Quilmes Tuc', email: 'tagtucquilmes@lincesa.com.ar' },
-  { label: 'TAG Arcor Misky', email: 'tagarcmisk@lincesa.com.ar' },
-  { label: 'Tag Frías', email: 'tagfrias@lincesa.com.ar' },
-] as const;
+import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
 

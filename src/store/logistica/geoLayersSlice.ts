@@ -24,6 +24,7 @@ function saveVisibility(v: Record<string, boolean>) {
 interface GeoLayersState {
   layers: GeoLayer[];
   visibility: Record<string, boolean>;
+  geoSearch: string;
   loading: boolean;
   error: string | null;
   editingPoint: GeoPoint | null;
@@ -34,6 +35,7 @@ interface GeoLayersState {
 const initialState: GeoLayersState = {
   layers: [],
   visibility: loadVisibility(),
+  geoSearch: '',
   loading: false,
   error: null,
   editingPoint: null,
@@ -93,6 +95,9 @@ const geoLayersSlice = createSlice({
     closeModal(state) {
       state.editingPoint = null;
       state.isCreating = false;
+    },
+    setGeoSearch(state, action: PayloadAction<string>) {
+      state.geoSearch = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -169,6 +174,7 @@ export const {
   openEditPoint,
   openCreatePoint,
   closeModal,
+  setGeoSearch,
 } = geoLayersSlice.actions;
 
 export default geoLayersSlice.reducer;

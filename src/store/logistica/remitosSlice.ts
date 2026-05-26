@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { logisticaApi, type ListRemitosParams } from '@/api/logistica';
+import { logisticaApi, type ListRemitosParams, type MapaRemitosParams } from '@/api/logistica';
 import type { PaginatedRemitos, RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
 
 interface RemitosLogisticaState {
@@ -31,7 +31,7 @@ export const fetchRemitos = createAsyncThunk(
 
 export const fetchMapaRemitos = createAsyncThunk(
   'remitosLogistica/fetchMapa',
-  () => logisticaApi.getMapaRemitos(),
+  (params: MapaRemitosParams = {}) => logisticaApi.getMapaRemitos(params),
 );
 
 export const fetchRemitoDetalle = createAsyncThunk(
