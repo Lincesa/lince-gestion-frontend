@@ -20,6 +20,14 @@ export interface UpdateFichajePayload {
   tiempo?: string;
 }
 
+export interface CreateFichajePayload {
+  pin: string;
+  planta: Planta;
+  estado: 0 | 1;
+  tiempo: string;
+  empleadoId?: string | null;
+}
+
 export interface CreateEmpleadoPayload {
   firstName: string;
   lastName: string;
@@ -57,6 +65,12 @@ export const asistenciaApi = {
   updateFichaje: (id: string, payload: UpdateFichajePayload) =>
     api.patch<FichajeAsistencia>(`/asistencia/logs/${id}`, payload),
 
+  createFichaje: (payload: CreateFichajePayload) =>
+    api.post<FichajeAsistencia>('/asistencia/logs', payload),
+
+  deleteFichaje: (id: string) =>
+    api.delete<void>(`/asistencia/logs/${id}`),
+
   getEmpleados: (planta?: Planta) =>
     api.get<EmpleadoAsistencia[]>(
       planta ? `/asistencia/empleados?planta=${planta}&soloActivos=true` : '/asistencia/empleados?soloActivos=true',
@@ -73,8 +87,10 @@ export const asistenciaApi = {
   getPinesSummary: () =>
     api.get<PinSummaryRow[]>('/asistencia/logs/pines-summary'),
 
-  getAllEmpleados: () =>
-    api.get<EmpleadoAsistencia[]>('/asistencia/empleados'),
+  getAllEmpleados: (planta?: Planta) =>
+    api.get<EmpleadoAsistencia[]>(
+      planta ? `/asistencia/empleados?planta=${planta}` : '/asistencia/empleados',
+    ),
 
   createEmpleado: (payload: CreateEmpleadoPayload) =>
     api.post<EmpleadoAsistencia>('/asistencia/empleados', payload),
@@ -90,4 +106,7 @@ export const asistenciaApi = {
 
   reassignPin: (pin: string, planta: Planta, empleadoId: string | null) =>
     api.post<{ updated: number }>('/asistencia/logs/reassign-pin', { pin, planta, empleadoId }),
+
+  sendDailyReport: (ymd: string) =>
+    api.post<{ sent: boolean; ymd: string }>(`/asistencia/reports/send-daily?ymd=${ymd}`, {}),
 };

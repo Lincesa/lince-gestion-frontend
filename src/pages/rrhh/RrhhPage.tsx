@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, RefreshCw, Save } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Info, Mail, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -16,15 +16,61 @@ interface RowDraft {
   empleadoId: string;
 }
 
-interface HorarioEdit {
+interface EditRowDraft {
+  fichajeId: string;
+  isNew: boolean;
+  pin: string;
+  planta: Planta | null;
+  empleadoId: string | null;
+  estado: 0 | 1;
   fecha: string;
   hora: string;
-  estado: 0 | 1;
+  saving: boolean;
+  forOrphanId?: string;
 }
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
 const HORAS_JORNADA = 9;
 const MS_JORNADA = HORAS_JORNADA * 60 * 60 * 1000;
+const DEFAULT_PLANTA: Planta = 'villa_nueva';
+const PLANTAS: { value: Planta; label: string }[] = [
+  { value: 'villa_nueva', label: 'Villa María' },
+  { value: 'tucuman', label: 'Tucumán' },
+];
+
+function plantaDisplayName(planta: Planta | string): string {
+  if (planta === 'villa_nueva') return 'Villa María';
+  if (planta === 'tucuman') return 'Tucumán';
+  return planta.replace(/_/g, ' ');
+}
+
+function PlantaToggle({
+  value,
+  onChange,
+}: {
+  value: Planta;
+  onChange: (planta: Planta) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1">
+      {PLANTAS.map(({ value: v, label }) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={[
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+            value === v
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          ].join(' ')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const fmtFichajeTiempo = new Intl.DateTimeFormat('es-AR', {
   timeZone: AR_TZ,
@@ -166,16 +212,23 @@ function employeeKey(f: FichajeAsistencia): string {
   return f.empleadoId ? `id:${f.empleadoId}` : `pin:${f.pin}`;
 }
 
+interface FichajePair {
+  entrada: FichajeAsistencia;
+  salida: FichajeAsistencia;
+  ms: number;
+}
+
 interface EmployeeDayAgg {
   key: string;
   fichajes: FichajeAsistencia[];
-  pairs: { entrada: FichajeAsistencia; salida: FichajeAsistencia; ms: number }[];
+  pairs: FichajePair[];
+  pairsSalidaDiaSiguiente: FichajePair[];
   orphanEntradas: FichajeAsistencia[];
   orphanSalidas: FichajeAsistencia[];
   totalMs: number;
 }
 
-function buildEmployeeDayAggregates(items: FichajeAsistencia[]): EmployeeDayAgg[] {
+function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: string): EmployeeDayAgg[] {
   const byEmp = new Map<string, FichajeAsistencia[]>();
   for (const r of items) {
     const k = employeeKey(r);
@@ -190,9 +243,9 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[]): EmployeeDayAgg[
     const sorted = [...evs].sort(
       (a, b) => new Date(a.tiempo).getTime() - new Date(b.tiempo).getTime(),
     );
-    const pairs: { entrada: FichajeAsistencia; salida: FichajeAsistencia; ms: number }[] = [];
-    const orphanEntradas: FichajeAsistencia[] = [];
-    const orphanSalidas: FichajeAsistencia[] = [];
+    const allPairs: FichajePair[] = [];
+    const allOrphanEntradas: FichajeAsistencia[] = [];
+    const allOrphanSalidas: FichajeAsistencia[] = [];
     const openEntradas: FichajeAsistencia[] = [];
 
     for (const ev of sorted) {
@@ -204,23 +257,46 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[]): EmployeeDayAgg[
           openEntradas.length > 0 &&
           new Date(openEntradas[0].tiempo).getTime() >= salidaMs
         ) {
-          orphanEntradas.push(openEntradas.shift()!);
+          allOrphanEntradas.push(openEntradas.shift()!);
         }
         const entrada = openEntradas.shift();
         if (entrada) {
           const ms = salidaMs - new Date(entrada.tiempo).getTime();
           if (ms >= 0) {
-            pairs.push({ entrada, salida: ev, ms });
+            allPairs.push({ entrada, salida: ev, ms });
           } else {
-            orphanSalidas.push(ev);
+            allOrphanSalidas.push(ev);
             openEntradas.unshift(entrada);
           }
         } else {
-          orphanSalidas.push(ev);
+          allOrphanSalidas.push(ev);
         }
       }
     }
-    orphanEntradas.push(...openEntradas);
+    allOrphanEntradas.push(...openEntradas);
+
+    // Turnos nocturnos: el backend devuelve desde las 18:00 del día anterior
+    // y hasta las 14:00 del día siguiente. El total se imputa al día de salida.
+    // - pairs: tramos cuya salida cae en el día consultado (suman al total).
+    // - pairsSalidaDiaSiguiente: tramos que empiezan en el día consultado pero
+    //   cierran al día siguiente; se muestran como informativos y NO suman.
+    const pairs = allPairs.filter((p) => tiempoYmdEnAr(p.salida.tiempo) === requestedDay);
+    const pairsSalidaDiaSiguiente = allPairs.filter(
+      (p) =>
+        tiempoYmdEnAr(p.entrada.tiempo) === requestedDay &&
+        tiempoYmdEnAr(p.salida.tiempo) !== requestedDay,
+    );
+    const orphanEntradas = allOrphanEntradas.filter((f) => tiempoYmdEnAr(f.tiempo) === requestedDay);
+    const orphanSalidas = allOrphanSalidas.filter((f) => tiempoYmdEnAr(f.tiempo) === requestedDay);
+
+    if (
+      pairs.length === 0 &&
+      pairsSalidaDiaSiguiente.length === 0 &&
+      orphanEntradas.length === 0 &&
+      orphanSalidas.length === 0
+    ) {
+      continue;
+    }
 
     let totalMs = 0;
     for (const p of pairs) {
@@ -229,6 +305,10 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[]): EmployeeDayAgg[
 
     const fichajesMap = new Map<string, FichajeAsistencia>();
     for (const p of pairs) {
+      fichajesMap.set(p.entrada.id, p.entrada);
+      fichajesMap.set(p.salida.id, p.salida);
+    }
+    for (const p of pairsSalidaDiaSiguiente) {
       fichajesMap.set(p.entrada.id, p.entrada);
       fichajesMap.set(p.salida.id, p.salida);
     }
@@ -242,6 +322,7 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[]): EmployeeDayAgg[
       key,
       fichajes,
       pairs,
+      pairsSalidaDiaSiguiente,
       orphanEntradas,
       orphanSalidas,
       totalMs,
@@ -294,11 +375,10 @@ export function RrhhPage() {
   const [pin, setPin] = useState('');
   const [nombre, setNombre] = useState('');
   const [estado, setEstado] = useState<EstadoOption>('');
-  const [planta, setPlanta] = useState<'' | Planta>('');
+  const [selectedPlanta, setSelectedPlanta] = useState<Planta>(DEFAULT_PLANTA);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
   const [editHorariosOpen, setEditHorariosOpen] = useState(false);
-  const [horarioEdits, setHorarioEdits] = useState<Record<string, HorarioEdit>>({});
-  const [savingHorarios, setSavingHorarios] = useState(false);
+  const [editDrafts, setEditDrafts] = useState<Record<string, EditRowDraft>>({});
   const [reportEmpleadoId, setReportEmpleadoId] = useState('');
   const [reportDesde, setReportDesde] = useState(() => addDaysYmdAr(todayYmdAr(), -30));
   const [reportHasta, setReportHasta] = useState(todayYmdAr);
@@ -311,21 +391,20 @@ export function RrhhPage() {
   const [exportDesde, setExportDesde] = useState(todayYmdAr);
   const [exportHasta, setExportHasta] = useState(todayYmdAr);
   const [exportLoading, setExportLoading] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   const [pines, setPines] = useState<PinSummaryRow[]>([]);
   const [pinesLoading, setPinesLoading] = useState(false);
-  const [pinesFilterPlanta, setPinesFilterPlanta] = useState<'' | Planta>('');
   const [crearEmpleadoPin, setCrearEmpleadoPin] = useState<PinSummaryRow | null>(null);
   const [crearForm, setCrearForm] = useState({ firstName: '', lastName: '', dni: '' });
   const [savingCrear, setSavingCrear] = useState(false);
   const [asignandoKey, setAsignandoKey] = useState<string | null>(null);
   const [todosEmpleados, setTodosEmpleados] = useState<EmpleadoAsistencia[]>([]);
   const [empLoading, setEmpLoading] = useState(false);
-  const [empFilterPlanta, setEmpFilterPlanta] = useState<'' | Planta>('');
   const [editingEmpId, setEditingEmpId] = useState<string | null>(null);
-  const [editEmpDraft, setEditEmpDraft] = useState<UpdateEmpleadoPayload & { firstName: string; lastName: string; pin: string; planta: Planta }>({ firstName: '', lastName: '', pin: '', planta: 'tucuman' });
+  const [editEmpDraft, setEditEmpDraft] = useState<UpdateEmpleadoPayload & { firstName: string; lastName: string; pin: string; planta: Planta }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA });
   const [savingEmpId, setSavingEmpId] = useState<string | null>(null);
   const [nuevoEmpOpen, setNuevoEmpOpen] = useState(false);
-  const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string }>({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+  const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
 
   const loadData = async () => {
@@ -337,9 +416,9 @@ export function RrhhPage() {
           pin: pin || undefined,
           nombre: nombre.trim() || undefined,
           estado,
-          planta: planta || undefined,
+          planta: selectedPlanta,
         }),
-        asistenciaApi.getEmpleados(undefined),
+        asistenciaApi.getEmpleados(selectedPlanta),
       ]);
       setItems(fichajesPage.items);
       setTotal(fichajesPage.total);
@@ -352,9 +431,8 @@ export function RrhhPage() {
   };
 
   const loadReportEmployees = async () => {
-    if (empleados.length > 0) return;
     try {
-      setEmpleados(await asistenciaApi.getEmpleados(undefined));
+      setEmpleados(await asistenciaApi.getEmpleados(selectedPlanta));
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -370,7 +448,16 @@ export function RrhhPage() {
     } else {
       void loadReportEmployees();
     }
-  }, [activeView, diaFecha, estado, planta]);
+  }, [activeView, diaFecha, estado, selectedPlanta]);
+
+  useEffect(() => {
+    if (!reportEmpleadoId) return;
+    const emp = empleados.find((e) => e.id === reportEmpleadoId);
+    if (emp && emp.planta !== selectedPlanta) {
+      setReportEmpleadoId('');
+      setReportData(null);
+    }
+  }, [selectedPlanta, empleados, reportEmpleadoId]);
 
   const onRefresh = async () => {
     await loadData();
@@ -381,7 +468,7 @@ export function RrhhPage() {
     try {
       const [data, emps] = await Promise.all([
         asistenciaApi.getPinesSummary(),
-        asistenciaApi.getEmpleados(undefined),
+        asistenciaApi.getEmpleados(selectedPlanta),
       ]);
       setPines(data);
       setEmpleados(emps);
@@ -453,11 +540,10 @@ export function RrhhPage() {
     () => items.filter((f) => tiempoYmdEnAr(f.tiempo) === diaFecha),
     [items, diaFecha],
   );
-  const registrosFueraDelDia = items.length - itemsMismoDiaAr.length;
 
   const aggregates = useMemo(
-    () => buildEmployeeDayAggregates(itemsMismoDiaAr),
-    [itemsMismoDiaAr],
+    () => buildEmployeeDayAggregates(items, diaFecha),
+    [items, diaFecha],
   );
 
   const reportExpectedHoursNum = Math.max(0, Number(reportHorasEsperadas) || 0);
@@ -502,7 +588,7 @@ export function RrhhPage() {
   const loadTodosEmpleados = async () => {
     setEmpLoading(true);
     try {
-      setTodosEmpleados(await asistenciaApi.getAllEmpleados());
+      setTodosEmpleados(await asistenciaApi.getAllEmpleados(selectedPlanta));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -557,7 +643,7 @@ export function RrhhPage() {
       });
       setTodosEmpleados((prev) => [...prev, created].sort((a, b) => a.lastName.localeCompare(b.lastName)));
       setNuevoEmpOpen(false);
-      setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+      setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '' });
       toast.success('Empleado creado');
     } catch (err) {
       toast.error((err as Error).message);
@@ -701,9 +787,8 @@ export function RrhhPage() {
     try {
       const dayData = await Promise.all(
         fechas.map(async (fecha) => {
-          const page = await asistenciaApi.getFichajes({ fecha, planta: planta || undefined });
-          const filtered = page.items.filter((f) => tiempoYmdEnAr(f.tiempo) === fecha);
-          return { fecha, aggs: buildEmployeeDayAggregates(filtered) };
+          const page = await asistenciaApi.getFichajes({ fecha, planta: selectedPlanta });
+          return { fecha, aggs: buildEmployeeDayAggregates(page.items, fecha) };
         }),
       );
 
@@ -755,6 +840,9 @@ export function RrhhPage() {
             .join('  |  ');
 
           const observaciones = [
+            ...agg.pairsSalidaDiaSiguiente.map(
+              (p) => `↗ Turno cruza al día siguiente: ${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (total computado en el día de salida)`,
+            ),
             ...agg.orphanEntradas.map((f) => `⚠ Entrada sin salida: ${formatSoloHora(f.tiempo)}`),
             ...agg.orphanSalidas.map((f) => `⚠ Salida sin entrada: ${formatSoloHora(f.tiempo)}`),
           ].join('  |  ');
@@ -830,64 +918,251 @@ export function RrhhPage() {
   };
 
   const openEditHorariosModal = () => {
-    const next: Record<string, HorarioEdit> = {};
-    for (const f of itemsMismoDiaAr) {
+    const next: Record<string, EditRowDraft> = {};
+    for (const f of items) {
       next[f.id] = {
+        fichajeId: f.id,
+        isNew: false,
+        pin: f.pin,
+        planta: f.planta,
+        empleadoId: f.empleadoId ?? null,
+        estado: f.estado,
         fecha: tiempoYmdEnAr(f.tiempo),
         hora: tiempoHmsEnAr(f.tiempo),
-        estado: f.estado,
+        saving: false,
       };
     }
-    setHorarioEdits(next);
+    setEditDrafts(next);
     setEditHorariosOpen(true);
   };
 
-  const saveHorariosModal = async () => {
-    setSavingHorarios(true);
+  const saveEditRow = async (fichajeId: string) => {
+    const draft = editDrafts[fichajeId];
+    if (!draft) return;
+
+    setEditDrafts((prev) => ({
+      ...prev,
+      [fichajeId]: { ...prev[fichajeId], saving: true },
+    }));
+
     try {
-      const toPatch: { id: string; tiempo?: string; estado?: 0 | 1 }[] = [];
-      for (const f of itemsMismoDiaAr) {
-        const ed = horarioEdits[f.id];
-        if (!ed) continue;
-        const newIso = arFechaYHoraToIso(ed.fecha, ed.hora);
-        const patch: { id: string; tiempo?: string; estado?: 0 | 1 } = { id: f.id };
-        if (new Date(newIso).getTime() !== new Date(f.tiempo).getTime()) {
-          patch.tiempo = newIso;
-        }
-        if (ed.estado !== f.estado) {
-          patch.estado = ed.estado;
-        }
-        if (patch.tiempo !== undefined || patch.estado !== undefined) {
-          toPatch.push(patch);
+      const tiempo = arFechaYHoraToIso(draft.fecha, draft.hora);
+
+      if (draft.isNew) {
+        await asistenciaApi.createFichaje({
+          pin: draft.pin,
+          planta: draft.planta!,
+          estado: draft.estado,
+          tiempo,
+          empleadoId: draft.empleadoId,
+        });
+      } else {
+        const orig = items.find((f) => f.id === fichajeId);
+        if (orig) {
+          const patch: { tiempo?: string; estado?: 0 | 1 } = {};
+          if (new Date(tiempo).getTime() !== new Date(orig.tiempo).getTime()) patch.tiempo = tiempo;
+          if (draft.estado !== orig.estado) patch.estado = draft.estado;
+          if (Object.keys(patch).length === 0) {
+            toast.message('Sin cambios');
+            setEditDrafts((prev) => ({ ...prev, [fichajeId]: { ...prev[fichajeId], saving: false } }));
+            return;
+          }
+          await asistenciaApi.updateFichaje(fichajeId, patch);
         }
       }
-      if (toPatch.length === 0) {
-        toast.message('No hay cambios para guardar');
-        setEditHorariosOpen(false);
-        return;
-      }
-      await Promise.all(
-        toPatch.map((u) =>
-          asistenciaApi.updateFichaje(u.id, { tiempo: u.tiempo, estado: u.estado }),
-        ),
-      );
-      toast.success(`${toPatch.length} fichaje(s) actualizado(s)`);
-      setEditHorariosOpen(false);
-      await loadData();
+
+      toast.success('Guardado');
+
+      const fichajesPage = await asistenciaApi.getFichajes({
+        fecha: diaFecha,
+        pin: pin || undefined,
+        nombre: nombre.trim() || undefined,
+        estado,
+        planta: selectedPlanta,
+      });
+      setItems(fichajesPage.items);
+      setTotal(fichajesPage.total);
+
+      setEditDrafts((prev) => {
+        const next: Record<string, EditRowDraft> = {};
+        for (const f of fichajesPage.items) {
+          next[f.id] = {
+            fichajeId: f.id,
+            isNew: false,
+            pin: f.pin,
+            planta: f.planta,
+            empleadoId: f.empleadoId ?? null,
+            estado: f.estado,
+            fecha: tiempoYmdEnAr(f.tiempo),
+            hora: tiempoHmsEnAr(f.tiempo),
+            saving: false,
+          };
+        }
+        for (const [key, d] of Object.entries(prev)) {
+          if (d.isNew && key !== fichajeId) next[key] = d;
+        }
+        return next;
+      });
     } catch (err) {
       toast.error((err as Error).message);
-    } finally {
-      setSavingHorarios(false);
+      setEditDrafts((prev) => ({
+        ...prev,
+        [fichajeId]: { ...prev[fichajeId], saving: false },
+      }));
     }
   };
 
-  const fichajesModalSorted = useMemo(
-    () =>
-      [...itemsMismoDiaAr].sort(
-        (a, b) => new Date(a.tiempo).getTime() - new Date(b.tiempo).getTime(),
-      ),
-    [itemsMismoDiaAr],
-  );
+  const addComplementRow = (orphan: FichajeAsistencia) => {
+    const complementEstado: 0 | 1 = orphan.estado === 0 ? 1 : 0;
+    const orphanMs = new Date(orphan.tiempo).getTime();
+    const delta = orphan.estado === 0 ? MS_JORNADA : -MS_JORNADA;
+    const suggestedIso = new Date(orphanMs + delta).toISOString();
+    const newId = `new-${Math.random().toString(36).slice(2)}`;
+    setEditDrafts((prev) => ({
+      ...prev,
+      [newId]: {
+        fichajeId: newId,
+        isNew: true,
+        pin: orphan.pin,
+        planta: orphan.planta,
+        empleadoId: orphan.empleadoId ?? null,
+        estado: complementEstado,
+        fecha: tiempoYmdEnAr(suggestedIso),
+        hora: tiempoHmsEnAr(suggestedIso),
+        saving: false,
+        forOrphanId: orphan.id,
+      },
+    }));
+  };
+
+  const deleteEditRow = async (fichajeId: string) => {
+    const draft = editDrafts[fichajeId];
+    if (!draft) return;
+
+    if (draft.isNew) {
+      setEditDrafts((prev) => {
+        const next = { ...prev };
+        delete next[fichajeId];
+        return next;
+      });
+      return;
+    }
+
+    setEditDrafts((prev) => ({
+      ...prev,
+      [fichajeId]: { ...prev[fichajeId], saving: true },
+    }));
+
+    try {
+      await asistenciaApi.deleteFichaje(fichajeId);
+      toast.success('Fichaje eliminado');
+
+      const fichajesPage = await asistenciaApi.getFichajes({
+        fecha: diaFecha,
+        pin: pin || undefined,
+        nombre: nombre.trim() || undefined,
+        estado,
+        planta: selectedPlanta,
+      });
+      setItems(fichajesPage.items);
+      setTotal(fichajesPage.total);
+
+      setEditDrafts((prev) => {
+        const next: Record<string, EditRowDraft> = {};
+        for (const f of fichajesPage.items) {
+          next[f.id] = {
+            fichajeId: f.id,
+            isNew: false,
+            pin: f.pin,
+            planta: f.planta,
+            empleadoId: f.empleadoId ?? null,
+            estado: f.estado,
+            fecha: tiempoYmdEnAr(f.tiempo),
+            hora: tiempoHmsEnAr(f.tiempo),
+            saving: false,
+          };
+        }
+        for (const [key, d] of Object.entries(prev)) {
+          if (d.isNew) next[key] = d;
+        }
+        return next;
+      });
+    } catch (err) {
+      toast.error((err as Error).message);
+      setEditDrafts((prev) => ({
+        ...prev,
+        [fichajeId]: { ...prev[fichajeId], saving: false },
+      }));
+    }
+  };
+
+  const isEditRowDirty = (draft: EditRowDraft): boolean => {
+    if (draft.isNew) return true;
+    const orig = items.find((f) => f.id === draft.fichajeId);
+    if (!orig) return false;
+    return (
+      draft.estado !== orig.estado ||
+      draft.fecha !== tiempoYmdEnAr(orig.tiempo) ||
+      draft.hora !== tiempoHmsEnAr(orig.tiempo)
+    );
+  };
+
+  const renderEditRow = (draft: EditRowDraft | undefined, label: string) => {
+    if (!draft) return null;
+    const dirty = isEditRowDirty(draft);
+    const setDraft = (patch: Partial<EditRowDraft>) =>
+      setEditDrafts((prev) => ({
+        ...prev,
+        [draft.fichajeId]: { ...prev[draft.fichajeId], ...patch },
+      }));
+    return (
+      <div key={draft.fichajeId} className="flex items-center gap-2 py-1 flex-wrap">
+        <span className="text-xs text-muted-foreground w-20 shrink-0">{label}</span>
+        <select
+          value={String(draft.estado)}
+          onChange={(e) => setDraft({ estado: Number(e.target.value) as 0 | 1 })}
+          className="rounded border border-border bg-background px-2 py-1 text-xs"
+        >
+          <option value="0">Entrada</option>
+          <option value="1">Salida</option>
+        </select>
+        <input
+          type="date"
+          value={draft.fecha}
+          onChange={(e) => setDraft({ fecha: e.target.value })}
+          className="rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+        <input
+          type="time"
+          step={1}
+          value={draft.hora}
+          onChange={(e) => setDraft({ hora: e.target.value })}
+          className="rounded border border-border bg-background px-2 py-1 text-xs tabular-nums"
+        />
+        <button
+          type="button"
+          onClick={() => void saveEditRow(draft.fichajeId)}
+          disabled={draft.saving || !dirty}
+          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+            dirty
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+              : 'invisible'
+          }`}
+        >
+          {draft.saving ? '…' : 'Guardar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void deleteEditRow(draft.fichajeId)}
+          disabled={draft.saving}
+          title={draft.isNew ? 'Descartar' : 'Eliminar fichaje'}
+          className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-[1500px] mx-auto">
@@ -898,7 +1173,7 @@ export function RrhhPage() {
           <button
             type="button"
             onClick={openEditHorariosModal}
-            disabled={loading || itemsMismoDiaAr.length === 0}
+            disabled={loading || aggregates.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
           >
             <Clock className="h-3.5 w-3.5" />
@@ -917,6 +1192,25 @@ export function RrhhPage() {
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             Exportar Excel
+          </button>
+          <button
+            type="button"
+            disabled={sendingReport}
+            onClick={async () => {
+              setSendingReport(true);
+              try {
+                await asistenciaApi.sendDailyReport(diaFecha);
+                toast.success(`Reporte enviado por correo (${diaFecha})`);
+              } catch {
+                toast.error('Error al enviar el correo — revisá los logs del servidor');
+              } finally {
+                setSendingReport(false);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
+          >
+            <Mail className={`h-3.5 w-3.5 ${sendingReport ? 'animate-pulse' : ''}`} />
+            {sendingReport ? 'Enviando…' : 'Enviar correo'}
           </button>
           <button
             type="button"
@@ -983,117 +1277,83 @@ export function RrhhPage() {
         <>
       <Dialog
         open={editHorariosOpen}
-        onClose={() => !savingHorarios && setEditHorariosOpen(false)}
+        onClose={() => setEditHorariosOpen(false)}
         title="Editar horarios de fichajes"
-        description={`${formatDayHeading(diaFecha)} · hora en Argentina (−03:00). Se guardan solo las filas que cambien.`}
-        panelClassName="max-w-3xl"
+        description={`${formatDayHeading(diaFecha)} · hora Argentina (−03:00). Cada fila se guarda de forma independiente.`}
+        panelClassName="sm:max-w-4xl"
       >
-        <div className="max-h-[min(70vh,520px)] overflow-y-auto rounded-md border border-border">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm border-b border-border">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Persona
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground w-[5.5rem]">
-                  Tipo
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Fecha
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                  Hora
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {fichajesModalSorted.map((f) => {
-                const ed = horarioEdits[f.id] ?? {
-                  fecha: tiempoYmdEnAr(f.tiempo),
-                  hora: tiempoHmsEnAr(f.tiempo),
-                  estado: f.estado,
-                };
-                return (
-                  <tr key={f.id} className="border-b border-border/80 last:border-0">
-                    <td className="px-3 py-2 align-middle">
-                      <span className="font-medium text-foreground leading-snug">
-                        {fichajeEmpleadoLabel(f)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 align-middle">
-                      <select
-                        value={String(ed.estado)}
-                        onChange={(e) =>
-                          setHorarioEdits((prev) => {
-                            const cur = prev[f.id] ?? {
-                              fecha: tiempoYmdEnAr(f.tiempo),
-                              hora: tiempoHmsEnAr(f.tiempo),
-                              estado: f.estado,
-                            };
-                            return {
-                              ...prev,
-                              [f.id]: { ...cur, estado: Number(e.target.value) as 0 | 1 },
-                            };
-                          })
-                        }
-                        className="w-full min-w-[6.5rem] rounded-md border border-border bg-background px-2 py-1 text-xs"
-                      >
-                        <option value="0">Entrada</option>
-                        <option value="1">Salida</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2 align-middle">
-                      <input
-                        type="date"
-                        value={ed.fecha}
-                        onChange={(e) =>
-                          setHorarioEdits((prev) => {
-                            const cur = prev[f.id] ?? {
-                              fecha: tiempoYmdEnAr(f.tiempo),
-                              hora: tiempoHmsEnAr(f.tiempo),
-                              estado: f.estado,
-                            };
-                            return { ...prev, [f.id]: { ...cur, fecha: e.target.value } };
-                          })
-                        }
-                        className="w-full min-w-[9.5rem] rounded-md border border-border bg-background px-2 py-1 text-xs"
-                      />
-                    </td>
-                    <td className="px-3 py-2 align-middle">
-                      <input
-                        type="time"
-                        step={1}
-                        value={ed.hora}
-                        onChange={(e) =>
-                          setHorarioEdits((prev) => {
-                            const cur = prev[f.id] ?? {
-                              fecha: tiempoYmdEnAr(f.tiempo),
-                              hora: tiempoHmsEnAr(f.tiempo),
-                              estado: f.estado,
-                            };
-                            return { ...prev, [f.id]: { ...cur, hora: e.target.value } };
-                          })
-                        }
-                        className="w-full min-w-[7.5rem] rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="max-h-[80vh] overflow-y-auto space-y-5 pr-1">
+          {aggregates.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">Sin fichajes para este día</p>
+          )}
+          {aggregates.map((agg) => {
+            const firstF = agg.fichajes[0];
+            const empPlanta = firstF?.planta ?? null;
+            return (
+              <div key={agg.key} className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-1.5">
+                  {employeeDisplayLabel(agg)}
+                  {empPlanta ? <span className="font-normal"> · {plantaDisplayName(empPlanta)}</span> : null}
+                </h4>
+
+                {agg.pairs.map((pair, i) => (
+                  <div key={i} className="pl-3 border-l-2 border-blue-400/60 space-y-0.5">
+                    <p className="text-xs text-blue-500 font-medium mb-1">Turno {i + 1}</p>
+                    {renderEditRow(editDrafts[pair.entrada.id], 'Entrada')}
+                    {renderEditRow(editDrafts[pair.salida.id], 'Salida')}
+                  </div>
+                ))}
+
+                {agg.orphanEntradas.map((f) => {
+                  const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
+                  return (
+                    <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
+                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Entrada sin emparejar</p>
+                      {renderEditRow(editDrafts[f.id], 'Entrada')}
+                      {Object.values(editDrafts)
+                        .filter((d) => d.forOrphanId === f.id)
+                        .map((d) => renderEditRow(d, 'Salida (nueva)'))}
+                      {!hasComplement && (
+                        <button
+                          type="button"
+                          onClick={() => addComplementRow(f)}
+                          className="mt-1 text-xs border border-dashed border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                        >
+                          + Agregar Salida
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {agg.orphanSalidas.map((f) => {
+                  const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
+                  return (
+                    <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
+                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Salida sin emparejar</p>
+                      {renderEditRow(editDrafts[f.id], 'Salida')}
+                      {Object.values(editDrafts)
+                        .filter((d) => d.forOrphanId === f.id)
+                        .map((d) => renderEditRow(d, 'Entrada (nueva)'))}
+                      {!hasComplement && (
+                        <button
+                          type="button"
+                          onClick={() => addComplementRow(f)}
+                          className="mt-1 text-xs border border-dashed border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                        >
+                          + Agregar Entrada
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
-        <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setEditHorariosOpen(false)}
-            disabled={savingHorarios}
-          >
-            Cancelar
-          </Button>
-          <Button type="button" onClick={() => void saveHorariosModal()} disabled={savingHorarios}>
-            {savingHorarios ? 'Guardando…' : 'Guardar cambios'}
+        <div className="flex justify-end mt-4 pt-3 border-t border-border">
+          <Button type="button" variant="outline" onClick={() => setEditHorariosOpen(false)}>
+            Cerrar
           </Button>
         </div>
       </Dialog>
@@ -1197,11 +1457,6 @@ export function RrhhPage() {
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Registros del día</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">{itemsMismoDiaAr.length}</p>
-          {registrosFueraDelDia > 0 && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-              {total} recibidos · {registrosFueraDelDia} otro día AR
-            </p>
-          )}
         </div>
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sin empleado</p>
@@ -1252,15 +1507,7 @@ export function RrhhPage() {
           <option value="0">Solo entradas</option>
           <option value="1">Solo salidas</option>
         </select>
-        <select
-          value={planta}
-          onChange={(e) => { setPlanta(e.target.value as '' | Planta); }}
-          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-        >
-          <option value="">Todas las plantas</option>
-          <option value="villa_nueva">Villa Nueva</option>
-          <option value="tucuman">Tucuman</option>
-        </select>
+        <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
       </div>
         </>
       )}
@@ -1271,7 +1518,13 @@ export function RrhhPage() {
           <h2 className="text-base font-semibold text-foreground">Reporte por empleado</h2>
         </div>
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_repeat(3,auto)_auto_auto] gap-3 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-[auto_minmax(220px,1fr)_repeat(3,auto)_auto_auto] gap-3 items-end">
+            <label className="space-y-1 text-sm">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Planta
+              </span>
+              <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
+            </label>
             <label className="space-y-1 text-sm">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Empleado
@@ -1474,14 +1727,8 @@ export function RrhhPage() {
 
       {activeView === 'general' && (
         <>
-      {registrosFueraDelDia > 0 && (
-        <p className="text-sm rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-950 dark:text-amber-100">
-          {registrosFueraDelDia} registro(s) llegaron de la API con hora en otro día (Argentina) y no se mezclan en esta tabla. Revisá datos o el filtro en backend.
-        </p>
-      )}
-
       <p className="text-sm text-muted-foreground">
-        Por empleado se suman todos los tramos entrada → salida del día. El saldo compara contra {HORAS_JORNADA} h. Desplegá «Fichajes» para corregir estado o guardar.
+        Por empleado se suman todos los tramos entrada → salida del día. El saldo compara contra {HORAS_JORNADA} h. Los turnos que cruzan la medianoche se computan en el día de salida; el día de entrada los muestra con un ícono informativo. Desplegá «Fichajes» para corregir estado o guardar.
       </p>
 
       <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
@@ -1539,6 +1786,19 @@ export function RrhhPage() {
                             </span>
                           </div>
                         ))}
+                        {agg.pairsSalidaDiaSiguiente.map((p) => (
+                          <div
+                            key={`${p.entrada.id}-${p.salida.id}`}
+                            className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-900 dark:text-sky-100 whitespace-nowrap"
+                            title={`Salida el día siguiente · ${formatFichajeHora(p.salida.tiempo)}. El total se computa en ese día.`}
+                          >
+                            <Info className="h-3.5 w-3.5 shrink-0" />
+                            <span className="font-mono tabular-nums">{formatSoloHora(p.entrada.tiempo)}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-mono tabular-nums">{formatSoloHora(p.salida.tiempo)}</span>
+                            <span className="ml-auto pl-3 text-[11px] opacity-80">salida día sig.</span>
+                          </div>
+                        ))}
                         {agg.orphanEntradas.map((f) => (
                           <div
                             key={f.id}
@@ -1558,6 +1818,7 @@ export function RrhhPage() {
                           </div>
                         ))}
                         {agg.pairs.length === 0 &&
+                          agg.pairsSalidaDiaSiguiente.length === 0 &&
                           agg.orphanEntradas.length === 0 &&
                           agg.orphanSalidas.length === 0 && (
                           <span className="text-muted-foreground text-xs">Sin movimientos</span>
@@ -1745,8 +2006,9 @@ export function RrhhPage() {
                     onChange={(e) => setNuevoEmpForm((f) => ({ ...f, planta: e.target.value as Planta }))}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="tucuman">Tucumán</option>
-                    <option value="villa_nueva">Villa Nueva</option>
+                    {PLANTAS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -1772,15 +2034,7 @@ export function RrhhPage() {
           </Dialog>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={empFilterPlanta}
-              onChange={(e) => setEmpFilterPlanta(e.target.value as '' | Planta)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-            >
-              <option value="">Todas las plantas</option>
-              <option value="villa_nueva">Villa Nueva</option>
-              <option value="tucuman">Tucumán</option>
-            </select>
+            <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
             <button
               type="button"
               onClick={() => void loadTodosEmpleados()}
@@ -1793,7 +2047,7 @@ export function RrhhPage() {
             <button
               type="button"
               onClick={() => {
-                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: 'tucuman', dni: '' });
+                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '' });
                 setNuevoEmpOpen(true);
               }}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90"
@@ -1821,14 +2075,12 @@ export function RrhhPage() {
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
                     </tr>
-                  ) : todosEmpleados.filter((e) => !empFilterPlanta || e.planta === empFilterPlanta).length === 0 ? (
+                  ) : todosEmpleados.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
                     </tr>
                   ) : (
-                    todosEmpleados
-                      .filter((e) => !empFilterPlanta || e.planta === empFilterPlanta)
-                      .map((emp) => {
+                    todosEmpleados.map((emp) => {
                         const isEditing = editingEmpId === emp.id;
                         const isSaving = savingEmpId === emp.id;
                         return (
@@ -1876,12 +2128,13 @@ export function RrhhPage() {
                                   onChange={(e) => setEditEmpDraft((d) => ({ ...d, planta: e.target.value as Planta }))}
                                   className="rounded-md border border-border bg-background px-2 py-1 text-sm"
                                 >
-                                  <option value="tucuman">Tucumán</option>
-                                  <option value="villa_nueva">Villa Nueva</option>
+                                  {PLANTAS.map(({ value, label }) => (
+                                    <option key={value} value={value}>{label}</option>
+                                  ))}
                                 </select>
                               ) : (
-                                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">
-                                  {emp.planta.replace('_', ' ')}
+                                <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                                  {plantaDisplayName(emp.planta)}
                                 </span>
                               )}
                             </td>
@@ -1971,7 +2224,7 @@ export function RrhhPage() {
             open={crearEmpleadoPin !== null}
             onClose={() => !savingCrear && setCrearEmpleadoPin(null)}
             title="Crear empleado"
-            description={`PIN ${crearEmpleadoPin?.pin ?? ''} · ${crearEmpleadoPin?.planta?.replace('_', ' ') ?? ''}`}
+            description={`PIN ${crearEmpleadoPin?.pin ?? ''} · ${crearEmpleadoPin?.planta ? plantaDisplayName(crearEmpleadoPin.planta) : ''}`}
             panelClassName="max-w-md"
           >
             <div className="space-y-3">
@@ -2026,15 +2279,7 @@ export function RrhhPage() {
           </Dialog>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={pinesFilterPlanta}
-              onChange={(e) => setPinesFilterPlanta(e.target.value as '' | Planta)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
-            >
-              <option value="">Todas las plantas</option>
-              <option value="villa_nueva">Villa Nueva</option>
-              <option value="tucuman">Tucumán</option>
-            </select>
+            <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
             <button
               type="button"
               onClick={() => void loadPines()}
@@ -2067,7 +2312,7 @@ export function RrhhPage() {
                         Cargando…
                       </td>
                     </tr>
-                  ) : pines.filter((r) => !pinesFilterPlanta || r.planta === pinesFilterPlanta).length === 0 ? (
+                  ) : pines.filter((r) => r.planta === selectedPlanta).length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                         Sin datos
@@ -2075,7 +2320,7 @@ export function RrhhPage() {
                     </tr>
                   ) : (
                     pines
-                      .filter((r) => !pinesFilterPlanta || r.planta === pinesFilterPlanta)
+                      .filter((r) => r.planta === selectedPlanta)
                       .map((row) => {
                         const key = `${row.pin}:${row.planta}`;
                         const isAssigning = asignandoKey === key;
@@ -2092,7 +2337,7 @@ export function RrhhPage() {
                             </td>
                             <td className="px-4 py-3">
                               <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">
-                                {row.planta.replace('_', ' ')}
+                                {plantaDisplayName(row.planta)}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -2106,7 +2351,7 @@ export function RrhhPage() {
                               {row.empleadoPlanta ? (
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${plantaMismatch ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-muted text-muted-foreground'}`}>
                                   {plantaMismatch && <span title="La planta del empleado no coincide con la del device">⚠</span>}
-                                  {row.empleadoPlanta.replace('_', ' ')}
+                                  {plantaDisplayName(row.empleadoPlanta)}
                                 </span>
                               ) : (
                                 <span className="text-xs text-muted-foreground/60">—</span>
@@ -2129,7 +2374,7 @@ export function RrhhPage() {
                                     if (
                                       next === null &&
                                       !window.confirm(
-                                        `¿Quitar el empleado de TODOS los fichajes del PIN ${row.pin} (${row.planta.replace('_', ' ')})?`,
+                                        `¿Quitar el empleado de TODOS los fichajes del PIN ${row.pin} (${plantaDisplayName(row.planta)})?`,
                                       )
                                     ) {
                                       return;
