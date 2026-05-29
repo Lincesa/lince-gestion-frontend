@@ -210,7 +210,11 @@ function formatDayHeading(dayKey: string): string {
 }
 
 function employeeKey(f: FichajeAsistencia): string {
-  return f.empleadoId ? `id:${f.empleadoId}` : `pin:${f.pin}`;
+  // Agrupamos por planta+pin (identidad física del dispositivo) y NO por empleadoId,
+  // porque fichajes del mismo empleado pueden tener empleadoId=null si aún no fueron
+  // reconciliados. Usar pin garantiza que entrada y salida siempre queden en el mismo
+  // grupo aunque una de las dos tenga empleadoId vacío.
+  return `${f.planta ?? ''}:${f.pin}`;
 }
 
 interface FichajePair {
@@ -410,6 +414,7 @@ export function RrhhPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setItems([]);
     try {
       const [fichajesPage, empleadosData] = await Promise.all([
         asistenciaApi.getFichajes({
