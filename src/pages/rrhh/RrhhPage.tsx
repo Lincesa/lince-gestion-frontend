@@ -147,6 +147,15 @@ function todayYmdAr(): string {
   }).format(new Date());
 }
 
+function esEntradaNocturna(iso: string): boolean {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-CA', { timeZone: AR_TZ, hour: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(iso))
+      .find((p) => p.type === 'hour')?.value ?? '0',
+  );
+  return hour >= 18;
+}
+
 function tiempoYmdEnAr(iso: string): string {
   return new Intl.DateTimeFormat('fr-CA', {
     timeZone: AR_TZ,
@@ -1306,9 +1315,12 @@ export function RrhhPage() {
 
                 {agg.orphanEntradas.map((f) => {
                   const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
+                  const nocturna = esEntradaNocturna(f.tiempo);
                   return (
                     <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
-                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Entrada sin emparejar</p>
+                      <p className="text-xs text-amber-500 font-medium mb-1">
+                        {nocturna ? '🌙 Turno nocturno — salida al día siguiente' : '⚠ Entrada sin emparejar'}
+                      </p>
                       {renderEditRow(editDrafts[f.id], 'Entrada')}
                       {Object.values(editDrafts)
                         .filter((d) => d.forOrphanId === f.id)
@@ -1727,10 +1739,6 @@ export function RrhhPage() {
 
       {activeView === 'general' && (
         <>
-      <p className="text-sm text-muted-foreground">
-        Por empleado se suman todos los tramos entrada → salida del día. El saldo compara contra {HORAS_JORNADA} h. Los turnos que cruzan la medianoche se computan en el día de salida; el día de entrada los muestra con un ícono informativo. Desplegá «Fichajes» para corregir estado o guardar.
-      </p>
-
       <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1320px] table-fixed text-sm">
@@ -1804,8 +1812,10 @@ export function RrhhPage() {
                             key={f.id}
                             className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 whitespace-nowrap overflow-hidden text-ellipsis"
                           >
-                            Entrada sin salida emparejada ·{' '}
-                            <span className="font-mono">{formatSoloHora(f.tiempo)}</span>
+                            {esEntradaNocturna(f.tiempo)
+                              ? <>🌙 Turno nocturno · <span className="font-mono">{formatSoloHora(f.tiempo)}</span></>
+                              : <>Entrada sin salida · <span className="font-mono">{formatSoloHora(f.tiempo)}</span></>
+                            }
                           </div>
                         ))}
                         {agg.orphanSalidas.map((f) => (
