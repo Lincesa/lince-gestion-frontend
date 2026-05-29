@@ -147,14 +147,6 @@ function todayYmdAr(): string {
   }).format(new Date());
 }
 
-function esEntradaNocturna(iso: string): boolean {
-  const hour = Number(
-    new Intl.DateTimeFormat('en-CA', { timeZone: AR_TZ, hour: '2-digit', hourCycle: 'h23' })
-      .formatToParts(new Date(iso))
-      .find((p) => p.type === 'hour')?.value ?? '0',
-  );
-  return hour >= 18;
-}
 
 function tiempoYmdEnAr(iso: string): string {
   return new Intl.DateTimeFormat('fr-CA', {
@@ -1313,14 +1305,19 @@ export function RrhhPage() {
                   </div>
                 ))}
 
+                {agg.pairsSalidaDiaSiguiente.map((pair, i) => (
+                  <div key={i} className="pl-3 border-l-2 border-sky-400/60 space-y-0.5">
+                    <p className="text-xs text-sky-500 font-medium mb-1">🌙 Turno nocturno — salida al día siguiente</p>
+                    {renderEditRow(editDrafts[pair.entrada.id], 'Entrada')}
+                    {renderEditRow(editDrafts[pair.salida.id], 'Salida')}
+                  </div>
+                ))}
+
                 {agg.orphanEntradas.map((f) => {
                   const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
-                  const nocturna = esEntradaNocturna(f.tiempo);
                   return (
                     <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
-                      <p className="text-xs text-amber-500 font-medium mb-1">
-                        {nocturna ? '🌙 Turno nocturno — salida al día siguiente' : '⚠ Entrada sin emparejar'}
-                      </p>
+                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Entrada sin emparejar</p>
                       {renderEditRow(editDrafts[f.id], 'Entrada')}
                       {Object.values(editDrafts)
                         .filter((d) => d.forOrphanId === f.id)
@@ -1812,10 +1809,7 @@ export function RrhhPage() {
                             key={f.id}
                             className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 whitespace-nowrap overflow-hidden text-ellipsis"
                           >
-                            {esEntradaNocturna(f.tiempo)
-                              ? <>🌙 Turno nocturno · <span className="font-mono">{formatSoloHora(f.tiempo)}</span></>
-                              : <>Entrada sin salida · <span className="font-mono">{formatSoloHora(f.tiempo)}</span></>
-                            }
+                            Entrada sin salida · <span className="font-mono">{formatSoloHora(f.tiempo)}</span>
                           </div>
                         ))}
                         {agg.orphanSalidas.map((f) => (
