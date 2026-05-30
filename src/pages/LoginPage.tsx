@@ -42,7 +42,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <img src="/logo_lince.png" alt="Lince SA" className="h-20 w-20 rounded-full object-cover mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground mt-1">Plataforma de gestión</p>
+          <p className="text-sm text-muted-foreground mt-1">Plataforma Integral</p>
         </div>
 
         <form
