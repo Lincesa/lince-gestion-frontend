@@ -76,6 +76,20 @@ export interface OcrConfig {
   updatedAt:      string;
 }
 
+export interface OcrFieldCounts {
+  si:   number;
+  duda: number;
+  no:   number;
+}
+
+export interface OcrStats {
+  total:      number;
+  editados:   number;
+  firma:      OcrFieldCounts;
+  aclaracion: OcrFieldCounts;
+  dni:        OcrFieldCounts;
+}
+
 export interface FilterDocumentsParams {
   type?:             DocumentType;
   status?:           DocumentStatus;

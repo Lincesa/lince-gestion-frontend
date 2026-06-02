@@ -18,7 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadDocumentFile } from '@/api/ocr';
+import { downloadDocumentFile, getOcrStats } from '@/api/ocr';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   clearCurrent,
@@ -26,7 +26,7 @@ import {
   fetchDocument,
   fetchDocuments,
 } from '@/store/ocr/documentsSlice';
-import type { FilterDocumentsParams, OcrDocument } from '@/types/ocr.types';
+import type { FilterDocumentsParams, OcrDocument, OcrStats } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { DocumentDetailModal } from './components/DocumentDetailModal';
 import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
@@ -111,10 +111,13 @@ export function OcrDashboardPage() {
   const [detailDoc, setDetailDoc] = useState<OcrDocument | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [stats, setStats] = useState<OcrStats | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    dispatch(fetchDocuments({ ...filters, type: DocumentType.REMITO }));
+    const filtersWithType = { ...filters, type: DocumentType.REMITO };
+    dispatch(fetchDocuments(filtersWithType));
+    getOcrStats(filtersWithType).then(setStats).catch(() => {});
   }, [dispatch, filters]);
 
   const handleNroRemitoChange = (value: string) => {
@@ -170,13 +173,14 @@ export function OcrDashboardPage() {
   };
 
   const docs = all?.items ?? [];
-  const total = all?.total ?? 0;
+  const total = stats?.total ?? all?.total ?? 0;
   const page = all?.page ?? filters.page ?? 1;
   const pages = all?.pages ?? 1;
-  const complete = docs.filter((doc) =>
-    ['firma', 'aclaracion', 'dni'].every((field) => getPresence(doc, field as 'firma' | 'aclaracion' | 'dni') === 'si'),
-  ).length;
-  const edited = docs.filter((doc) => Boolean(doc.correctedAt)).length;
+  const edited = stats?.editados ?? 0;
+  const firmaCounts     = stats?.firma      ?? { si: 0, duda: 0, no: 0 };
+  const aclaracionCounts = stats?.aclaracion ?? { si: 0, duda: 0, no: 0 };
+  const dniCounts       = stats?.dni         ?? { si: 0, duda: 0, no: 0 };
+  const statsTotal = stats ? stats.firma.si + stats.firma.duda + stats.firma.no : 0;
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -201,18 +205,51 @@ export function OcrDashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{total}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_1fr]">
+        {/* Total + Editados */}
+        <div className="flex flex-col gap-4">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{total}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Editados</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{edited}</p>
+          </div>
         </div>
+
+        {/* Detección por campo */}
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Completos en página</p>
-          <p className="mt-1 text-2xl font-bold text-green-600 dark:text-green-400">{complete}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Editados en página</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{edited}</p>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Detección total</p>
+          <div className="space-y-2.5">
+            {([
+              ['Firma', firmaCounts],
+              ['Aclaración', aclaracionCounts],
+              ['DNI', dniCounts],
+            ] as const).map(([label, counts]) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-sm text-foreground">{label}</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                    <CheckCircle className="h-3.5 w-3.5" />{counts.si}
+                  </span>
+                  <span className="flex items-center gap-1 font-medium text-yellow-600 dark:text-yellow-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />{counts.duda}
+                  </span>
+                  <span className="flex items-center gap-1 font-medium text-red-500 dark:text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />{counts.no}
+                  </span>
+                </div>
+                {statsTotal > 0 && (
+                  <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div className="bg-green-500" style={{ width: `${(counts.si / statsTotal) * 100}%` }} />
+                    <div className="bg-yellow-400" style={{ width: `${(counts.duda / statsTotal) * 100}%` }} />
+                    <div className="bg-red-400" style={{ width: `${(counts.no / statsTotal) * 100}%` }} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
