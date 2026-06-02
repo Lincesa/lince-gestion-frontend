@@ -4,6 +4,7 @@ import type {
   OcrConfig,
   OcrDocument,
   OcrDocumentStatus,
+  OcrStats,
   PaginatedDocuments,
   UploadUrlResponse,
 } from '@/types/ocr.types';
@@ -102,6 +103,12 @@ export async function testExtract(
     method: 'POST',
     body: formData,
   });
+}
+
+/** ADMIN: estadísticas de detección por campo, respetando los mismos filtros que getDocuments */
+export function getOcrStats(params: FilterDocumentsParams = {}): Promise<OcrStats> {
+  const qs = buildQs(params);
+  return api.get<OcrStats>(`${BASE}/stats${qs}`);
 }
 
 /** ADMIN: cola de documentos pendientes de revisión */
