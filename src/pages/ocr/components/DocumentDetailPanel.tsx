@@ -208,8 +208,13 @@ export function DocumentDetailPanel({
     const result = await dispatch(deleteDocument(doc.id));
     if (deleteDocument.fulfilled.match(result)) {
       toast.success('Documento eliminado');
-      onDeleted?.(doc.id);
-      onClose();
+      setDeleting(false);
+      setConfirmDelete(false);
+      if (onDeleted) {
+        onDeleted(doc.id);
+      } else {
+        onClose();
+      }
     } else {
       toast.error(String(result.error?.message ?? 'Error al eliminar'));
       setDeleting(false);

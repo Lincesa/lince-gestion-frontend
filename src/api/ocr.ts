@@ -63,8 +63,15 @@ export async function uploadToS3(
   });
 }
 
+export interface ConfirmUploadResponse {
+  documentId: string;
+  status: string;
+  isDuplicate: boolean;
+  originalUploadedAt?: string;
+}
+
 /** Paso 3: confirmar al backend que el archivo ya está en S3 → dispara OCR */
-export function confirmUpload(documentId: string): Promise<{ documentId: string; status: string }> {
+export function confirmUpload(documentId: string): Promise<ConfirmUploadResponse> {
   return api.post(`${BASE}/confirm-upload`, { documentId });
 }
 

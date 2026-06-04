@@ -216,15 +216,27 @@ export function OcrRemitosPage() {
       // Paso 2: subir a S3 con progreso
       await ocrApi.uploadToS3(uploadUrl, capturedBlob, contentType, setUploadPct);
 
-      // Paso 3: confirmar al backend → dispara OCR
-      await ocrApi.confirmUpload(documentId);
+      // Paso 3: confirmar al backend → dispara OCR (o detecta duplicado)
+      const confirmResult = await ocrApi.confirmUpload(documentId);
+
+      if (confirmResult.isDuplicate) {
+        const fecha = confirmResult.originalUploadedAt
+          ? new Date(confirmResult.originalUploadedAt).toLocaleString('es-AR', {
+              dateStyle: 'short', timeStyle: 'short',
+            })
+          : 'una subida anterior';
+        toast.warning(`Este remito ya fue subido (${fecha}). No se duplicó.`);
+        setStep('idle');
+        setUploadPct(0);
+        return;
+      }
 
       // Agregar a cola local como "synced"
       const newItem: QueueItem = {
         id:         crypto.randomUUID(),
         preview:    previewUrl ?? 'Remito capturado',
         status:     'synced',
-        documentId,
+        documentId: confirmResult.documentId,
         createdAt:  new Date().toISOString(),
       };
       addToQueue(newItem);
@@ -232,7 +244,7 @@ export function OcrRemitosPage() {
       // Paso 4: polling hasta que el OCR termine
       setStep('polling');
       setPollStatus(DocumentStatus.PROCESANDO);
-      await pollDocumentStatus(documentId);
+      await pollDocumentStatus(confirmResult.documentId);
 
     } catch (err) {
       const msg = (err as Error).message;

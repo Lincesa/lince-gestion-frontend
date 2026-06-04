@@ -461,19 +461,33 @@ export function OcrDashboardPage() {
         </div>
       )}
 
-      {detailDoc && (
-        <DocumentDetailPanel
-          documentId={detailDoc.id}
-          onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
-          submitting={submitting}
-          index={currentDocIndex}
-          total={docs.length}
-          hasPrev={currentDocIndex > 0}
-          hasNext={currentDocIndex < docs.length - 1}
-          onPrev={() => { const p = docs[currentDocIndex - 1]; if (p) void openDetail(p); }}
-          onNext={() => { const n = docs[currentDocIndex + 1]; if (n) void openDetail(n); }}
-        />
-      )}
+      {detailDoc && (() => {
+        const nextAfterDelete =
+          currentDocIndex >= 0 && currentDocIndex < docs.length - 1 ? docs[currentDocIndex + 1] :
+          currentDocIndex > 0                                       ? docs[currentDocIndex - 1] :
+          null;
+        return (
+          <DocumentDetailPanel
+            documentId={detailDoc.id}
+            onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
+            onDeleted={() => {
+              if (nextAfterDelete) {
+                void openDetail(nextAfterDelete);
+              } else {
+                setDetailDoc(null);
+                dispatch(clearCurrent());
+              }
+            }}
+            submitting={submitting}
+            index={currentDocIndex}
+            total={docs.length}
+            hasPrev={currentDocIndex > 0}
+            hasNext={currentDocIndex < docs.length - 1}
+            onPrev={() => { const p = docs[currentDocIndex - 1]; if (p) void openDetail(p); }}
+            onNext={() => { const n = docs[currentDocIndex + 1]; if (n) void openDetail(n); }}
+          />
+        );
+      })()}
 
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
