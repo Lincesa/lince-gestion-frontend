@@ -3,11 +3,11 @@
  * Mobile: modal centrado con overlay. Desktop (md+): sidebar fijo a la derecha sin overlay.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDocumentViewUrl } from '@/api/ocr';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { deleteDocument, fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
 import { DocumentStatus } from '@/types/ocr.types';
 import { FilePreviewModal } from './FilePreviewModal';
 
@@ -53,6 +53,7 @@ interface EditForm {
 interface Props {
   documentId: string;
   onClose:    () => void;
+  onDeleted?: (id: string) => void;
   submitting: boolean;
   index:      number;
   total:      number;
@@ -110,6 +111,7 @@ function buildExtraFields(data: Record<string, string> | null | undefined): Reco
 export function DocumentDetailPanel({
   documentId,
   onClose,
+  onDeleted,
   submitting,
   index,
   total,
@@ -129,6 +131,8 @@ export function DocumentDetailPanel({
   const [extraFields, setExtraFields] = useState<Record<string, string>>({});
   const [showExtraFields, setShowExtraFields] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]           = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -196,6 +200,21 @@ export function DocumentDetailPanel({
 
   const updateField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleDelete = async () => {
+    if (!doc) return;
+    setDeleting(true);
+    const result = await dispatch(deleteDocument(doc.id));
+    if (deleteDocument.fulfilled.match(result)) {
+      toast.success('Documento eliminado');
+      onDeleted?.(doc.id);
+      onClose();
+    } else {
+      toast.error(String(result.error?.message ?? 'Error al eliminar'));
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
   };
 
   return (
@@ -394,22 +413,52 @@ export function DocumentDetailPanel({
         )}
 
         {/* Footer fijo */}
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3 shrink-0">
-          <button
-            onClick={onClose}
-            disabled={saving || submitting}
-            className="rounded-md px-4 py-2 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!doc || saving || submitting}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+        <div className="flex items-center justify-between border-t border-border px-5 py-3 shrink-0">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">¿Eliminar documento y su archivo?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sí, eliminar'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={!doc || saving || submitting}
+              title="Eliminar documento"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={saving || submitting}
+              className="rounded-md px-4 py-2 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!doc || saving || submitting}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
         </div>
       </div>
 

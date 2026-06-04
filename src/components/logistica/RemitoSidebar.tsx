@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Loader2 } from 'lucide-react';
+import { X, Download, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { clearSelectedRemito } from '@/store/logistica/remitosSlice';
+import { clearSelectedRemito, removeRemitoFromList } from '@/store/logistica/remitosSlice';
 import { logisticaApi } from '@/api/logistica';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -28,10 +30,27 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 export function RemitoSidebar() {
   const dispatch        = useAppDispatch();
   const { selected, detailLoading } = useAppSelector((s) => s.remitosLogistica);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]           = useState(false);
 
   if (!selected && !detailLoading) return null;
 
-  const close = () => dispatch(clearSelectedRemito());
+  const close = () => { setConfirmDelete(false); dispatch(clearSelectedRemito()); };
+
+  const handleDelete = async () => {
+    if (!selected) return;
+    setDeleting(true);
+    try {
+      await logisticaApi.deleteRemito(selected.id);
+      dispatch(removeRemitoFromList(selected.id));
+      dispatch(clearSelectedRemito());
+      toast.success('Remito eliminado');
+    } catch {
+      toast.error('No se pudo eliminar el remito');
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
 
   return createPortal(
     <>
@@ -112,7 +131,7 @@ export function RemitoSidebar() {
         )}
 
         {selected && (
-          <div className="px-5 py-4 border-t border-border shrink-0">
+          <div className="px-5 py-4 border-t border-border shrink-0 space-y-3">
             <a
               href={logisticaApi.getFileUrl(selected.id)}
               target="_blank"
@@ -122,6 +141,33 @@ export function RemitoSidebar() {
               <Download className="h-4 w-4" />
               Descargar remito
             </a>
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-destructive flex-1">¿Eliminar remito y su imagen?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+                >
+                  {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sí'}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-2 w-full px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Eliminar remito
+              </button>
+            )}
           </div>
         )}
       </aside>
