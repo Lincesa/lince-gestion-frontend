@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { logisticaApi } from '@/api/logistica';
 import type { RemitoDetalle } from '@/types/logistica.types';
 import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
 
 interface Props {
   remitoId: string;
-  onClose:  () => void;
+  onClose:   () => void;
+  onDeleted?: (id: string) => void;
   index:    number;
   total:    number;
   onPrev:   () => void;
@@ -30,6 +32,7 @@ const FIELD_LABELS: { key: keyof RemitoDetalle; label: string }[] = [
 export function RemitoDetailPanel({
   remitoId,
   onClose,
+  onDeleted,
   index,
   total,
   onPrev,
@@ -37,9 +40,11 @@ export function RemitoDetailPanel({
   hasPrev,
   hasNext,
 }: Props) {
-  const [remito, setRemito]           = useState<RemitoDetalle | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [remito, setRemito]             = useState<RemitoDetalle | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [previewOpen, setPreviewOpen]   = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]         = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,12 +65,28 @@ export function RemitoDetailPanel({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (previewOpen) return;
+        if (confirmDelete) { setConfirmDelete(false); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen]);
+  }, [onClose, previewOpen, confirmDelete]);
+
+  async function handleDelete() {
+    if (!remito) return;
+    setDeleting(true);
+    try {
+      await logisticaApi.deleteRemito(remito.id);
+      toast.success('Remito eliminado');
+      onDeleted?.(remito.id);
+      onClose();
+    } catch {
+      toast.error('No se pudo eliminar el remito');
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
 
   return (
     <>
@@ -189,7 +210,35 @@ export function RemitoDetailPanel({
         )}
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-border px-5 py-3 shrink-0">
+        <div className="flex items-center justify-between border-t border-border px-5 py-3 shrink-0">
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-destructive">¿Eliminar remito y su imagen?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sí, eliminar'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={!remito || loading}
+              title="Eliminar remito"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md px-4 py-2 text-sm text-muted-foreground hover:bg-accent"

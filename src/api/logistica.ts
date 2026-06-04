@@ -51,6 +51,8 @@ export const logisticaApi = {
   /** URL de descarga — el backend redirige 302 a S3 presigned URL */
   getFileUrl: (id: string) => `${API_BASE_URL}${BASE}/${id}/file`,
 
+  deleteRemito: (id: string) => api.delete<{ deleted: boolean }>(`${BASE}/${id}`),
+
   getGeoLayers: () => api.get<GeoLayer[]>('/logistica/geo-layers'),
 
   createGeoPoint: (data: Omit<GeoPoint, 'id' | 'orden' | 'createdAt' | 'updatedAt'>) =>

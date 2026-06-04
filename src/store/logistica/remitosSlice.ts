@@ -39,12 +39,20 @@ export const fetchRemitoDetalle = createAsyncThunk(
   (id: string) => logisticaApi.getRemito(id),
 );
 
+
 const remitosSlice = createSlice({
   name: 'remitosLogistica',
   initialState,
   reducers: {
     clearSelectedRemito(state) {
       state.selected = null;
+    },
+    removeRemitoFromList(state, action: { payload: string }) {
+      const id = action.payload;
+      state.list      = state.list.filter(r => r.id !== id);
+      state.mapaItems = state.mapaItems.filter(r => r.id !== id);
+      state.pagination.total = Math.max(0, state.pagination.total - 1);
+      if (state.selected?.id === id) state.selected = null;
     },
   },
   extraReducers: (builder) => {
@@ -91,9 +99,10 @@ const remitosSlice = createSlice({
       })
       .addCase(fetchRemitoDetalle.rejected, (state) => {
         state.detailLoading = false;
-      });
+      })
+
   },
 });
 
-export const { clearSelectedRemito } = remitosSlice.actions;
+export const { clearSelectedRemito, removeRemitoFromList } = remitosSlice.actions;
 export default remitosSlice.reducer;

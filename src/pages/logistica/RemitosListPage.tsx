@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { fetchRemitos } from '@/store/logistica/remitosSlice';
+import { fetchRemitos, removeRemitoFromList } from '@/store/logistica/remitosSlice';
 import { type ListRemitosParams } from '@/api/logistica';
 import { RemitoDetailPanel } from '@/components/logistica/RemitoDetailPanel';
 import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
@@ -207,6 +207,10 @@ export function RemitosListPage() {
         <RemitoDetailPanel
           remitoId={selectedId}
           onClose={() => setSelectedId(null)}
+          onDeleted={(id) => {
+            dispatch(removeRemitoFromList(id));
+            setSelectedId(null);
+          }}
           index={currentIndex}
           total={list.length}
           hasPrev={currentIndex > 0}
