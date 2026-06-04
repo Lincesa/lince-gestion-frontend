@@ -28,7 +28,7 @@ import {
 } from '@/store/ocr/documentsSlice';
 import type { FilterDocumentsParams, OcrDocument, OcrStats } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
-import { DocumentDetailModal } from './components/DocumentDetailModal';
+import { DocumentDetailPanel } from './components/DocumentDetailPanel';
 import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
@@ -148,6 +148,11 @@ export function OcrDashboardPage() {
   const openDetail = async (doc: OcrDocument) => {
     await dispatch(fetchDocument(doc.id));
     setDetailDoc(doc);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-doc-id="${doc.id}"]`)?.scrollIntoView({
+        block: 'nearest', behavior: 'smooth',
+      });
+    });
   };
 
   const handleDownload = async (doc: OcrDocument) => {
@@ -172,6 +177,27 @@ export function OcrDashboardPage() {
   };
 
   const docs = all?.items ?? [];
+  const currentDocIndex = detailDoc ? docs.findIndex((d) => d.id === detailDoc.id) : -1;
+
+  useEffect(() => {
+    if (!detailDoc || docs.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = docs[currentDocIndex + 1];
+        if (next) void openDetail(next);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = docs[currentDocIndex - 1];
+        if (prev) void openDetail(prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [detailDoc, docs, currentDocIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const total = stats?.total ?? all?.total ?? 0;
   const page = all?.page ?? filters.page ?? 1;
   const pages = all?.pages ?? 1;
@@ -347,7 +373,12 @@ export function OcrDashboardPage() {
                 </tr>
               ) : (
                 docs.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-muted/50">
+                  <tr
+                    key={doc.id}
+                    data-doc-id={doc.id}
+                    onClick={() => void openDetail(doc)}
+                    className={`cursor-pointer hover:bg-accent/60 ${detailDoc?.id === doc.id ? 'bg-primary/[0.08] ring-1 ring-inset ring-primary/20' : ''}`}
+                  >
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
@@ -358,7 +389,7 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => handleDownload(doc)}
+                          onClick={(e) => { e.stopPropagation(); void handleDownload(doc); }}
                           disabled={downloadingId === doc.id}
                           title="Descargar foto del remito"
                           className="rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -368,13 +399,7 @@ export function OcrDashboardPage() {
                             : <Download className="h-3.5 w-3.5" />}
                         </button>
                         <button
-                          onClick={() => openDetail(doc)}
-                          className="rounded bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
-                        >
-                          Ver
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(doc.id)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteId(doc.id); }}
                           disabled={submitting}
                           title="Eliminar documento"
                           className="rounded p-1 text-xs text-muted-foreground hover:bg-red-100 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/30 dark:hover:text-red-400"
@@ -416,10 +441,16 @@ export function OcrDashboardPage() {
       )}
 
       {detailDoc && (
-        <DocumentDetailModal
+        <DocumentDetailPanel
           documentId={detailDoc.id}
           onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
           submitting={submitting}
+          index={currentDocIndex}
+          total={docs.length}
+          hasPrev={currentDocIndex > 0}
+          hasNext={currentDocIndex < docs.length - 1}
+          onPrev={() => { const p = docs[currentDocIndex - 1]; if (p) void openDetail(p); }}
+          onNext={() => { const n = docs[currentDocIndex + 1]; if (n) void openDetail(n); }}
         />
       )}
 

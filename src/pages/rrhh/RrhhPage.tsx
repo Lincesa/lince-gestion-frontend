@@ -552,6 +552,17 @@ export function RrhhPage() {
     [items, diaFecha],
   );
 
+  const absentEmpleados = useMemo(() => {
+    if (pin.trim() || nombre.trim()) return [];
+    const presentEmpIds = new Set<string>();
+    for (const agg of aggregates) {
+      for (const f of agg.fichajes) {
+        if (f.empleadoId) presentEmpIds.add(f.empleadoId);
+      }
+    }
+    return empleados.filter((emp) => !presentEmpIds.has(emp.id));
+  }, [aggregates, empleados, pin, nombre]);
+
   const reportExpectedHoursNum = Math.max(0, Number(reportHorasEsperadas) || 0);
 
   const hasReport = reportData !== null;
@@ -791,12 +802,15 @@ export function RrhhPage() {
 
     setExportLoading(true);
     try {
-      const dayData = await Promise.all(
-        fechas.map(async (fecha) => {
-          const page = await asistenciaApi.getFichajes({ fecha, planta: selectedPlanta });
-          return { fecha, aggs: buildEmployeeDayAggregates(page.items, fecha) };
-        }),
-      );
+      const [empleadosExport, dayData] = await Promise.all([
+        asistenciaApi.getEmpleados(selectedPlanta),
+        Promise.all(
+          fechas.map(async (fecha) => {
+            const page = await asistenciaApi.getFichajes({ fecha, planta: selectedPlanta });
+            return { fecha, aggs: buildEmployeeDayAggregates(page.items, fecha) };
+          }),
+        ),
+      ]);
 
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Lince RRHH';
@@ -891,6 +905,31 @@ export function RrhhPage() {
         if (aggs.length === 0) {
           const emptyRow = ws.addRow(['Sin fichajes para este día']);
           emptyRow.getCell(1).font = { italic: true, color: { argb: COLOR_GRAY_FG } };
+        }
+
+        const presentEmpIdsExport = new Set<string>();
+        for (const agg of aggs) {
+          for (const f of agg.fichajes) {
+            if (f.empleadoId) presentEmpIdsExport.add(f.empleadoId);
+          }
+        }
+        for (const emp of empleadosExport.filter((e) => !presentEmpIdsExport.has(e.id))) {
+          const dataRow = ws.addRow([
+            `${emp.firstName} ${emp.lastName}`,
+            plantaDisplayName(emp.planta),
+            '—',
+            '—',
+            '—',
+            'AUSENTE',
+          ]);
+          dataRow.height = 20;
+          dataRow.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_RED_BG } };
+            cell.font = { color: { argb: COLOR_RED_FG }, size: 10 };
+            cell.alignment = { vertical: 'middle' };
+            cell.border = { bottom: { style: 'hair', color: { argb: 'FFD0D0D0' } } };
+          });
+          dataRow.getCell(1).font = { bold: true, color: { argb: COLOR_RED_FG }, size: 10 };
         }
 
         ws.columns = [
@@ -1932,9 +1971,40 @@ export function RrhhPage() {
                 </tbody>
               );
             })}
+            {absentEmpleados.map((emp) => (
+              <tbody key={`absent-${emp.id}`} className="border-b border-border last:border-0">
+                <tr className="bg-red-500/8 hover:bg-red-500/12 align-top">
+                  <td className="px-5 py-5">
+                    <p className="font-medium text-red-700 dark:text-red-300 leading-snug">
+                      {emp.firstName} {emp.lastName}
+                    </p>
+                    <p className="text-xs text-red-500/70 mt-0.5">Sin fichajes</p>
+                  </td>
+                  <td className="px-5 py-5">
+                    <span className="text-xs text-red-600/60 dark:text-red-400/60 italic">— Sin movimientos</span>
+                  </td>
+                  <td className="px-5 py-5 text-xs text-muted-foreground align-middle capitalize whitespace-nowrap">
+                    {plantaDisplayName(emp.planta)}
+                  </td>
+                  <td className="px-5 py-5 align-middle">
+                    <div className="inline-flex w-full flex-col rounded-lg bg-red-500/15 px-3 py-3 text-center text-red-700 dark:text-red-300">
+                      <span className="text-[10px] font-medium uppercase tracking-wider opacity-80">En planta</span>
+                      <span className="text-lg tabular-nums leading-tight mt-0.5">—</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-5 align-middle">
+                    <div className="inline-flex w-full flex-col rounded-lg bg-red-500/15 px-3 py-3 text-center text-red-700 dark:text-red-300">
+                      <span className="text-[10px] font-medium uppercase tracking-wider opacity-80">Diferencia</span>
+                      <span className="text-base tabular-nums leading-tight mt-0.5">—</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-5 text-right align-middle" />
+                </tr>
+              </tbody>
+            ))}
           </table>
         </div>
-        {!loading && itemsMismoDiaAr.length === 0 && (
+        {!loading && itemsMismoDiaAr.length === 0 && absentEmpleados.length === 0 && (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
             No hay fichajes en este día con esos filtros.
           </p>
