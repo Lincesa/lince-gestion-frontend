@@ -178,6 +178,18 @@ export function OcrDashboardPage() {
 
   const docs = all?.items ?? [];
   const currentDocIndex = detailDoc ? docs.findIndex((d) => d.id === detailDoc.id) : -1;
+  const hasProcessingDocs = docs.some(
+    (d) => d.status === DocumentStatus.PENDIENTE || d.status === DocumentStatus.PROCESANDO,
+  );
+
+  useEffect(() => {
+    if (!hasProcessingDocs) return;
+    const interval = setInterval(() => {
+      const filtersWithType = { ...filters, type: DocumentType.REMITO };
+      void dispatch(fetchDocuments(filtersWithType));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasProcessingDocs, dispatch, filters]);
 
   useEffect(() => {
     if (!detailDoc || docs.length === 0) return;
@@ -385,7 +397,16 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'firma')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'dni')} /></td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{formatEditedAt(doc)}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {doc.status === DocumentStatus.PENDIENTE || doc.status === DocumentStatus.PROCESANDO ? (
+                        <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-400">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Procesando OCR…
+                        </span>
+                      ) : (
+                        formatEditedAt(doc)
+                      )}
+                    </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <button

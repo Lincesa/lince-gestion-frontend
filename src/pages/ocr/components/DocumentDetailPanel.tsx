@@ -7,7 +7,8 @@ import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, X } from 'l
 import { toast } from 'sonner';
 import { getDocumentViewUrl } from '@/api/ocr';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { DocumentStatus } from '@/types/ocr.types';
 import { FilePreviewModal } from './FilePreviewModal';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
@@ -154,6 +155,17 @@ export function DocumentDetailPanel({
     scrollRef.current?.scrollTo({ top: 0 });
   }, [documentId]);
 
+  const isProcessing =
+    doc?.status === DocumentStatus.PENDIENTE || doc?.status === DocumentStatus.PROCESANDO;
+
+  useEffect(() => {
+    if (!isProcessing) return;
+    const interval = setInterval(() => {
+      void dispatch(fetchDocument(documentId));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isProcessing, dispatch, documentId]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -208,6 +220,12 @@ export function DocumentDetailPanel({
             </h2>
             {total > 0 && (
               <span className="text-xs text-muted-foreground shrink-0">{index + 1} / {total}</span>
+            )}
+            {isProcessing && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-800 shrink-0 dark:bg-yellow-900/30 dark:text-yellow-300">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Procesando OCR…
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
