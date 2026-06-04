@@ -78,9 +78,9 @@ function formatDocumentDate(doc: OcrDocument): string {
 }
 
 function formatUploadDate(doc: OcrDocument): string {
-  return new Date(doc.createdAt).toLocaleDateString('es-AR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
+  const d = new Date(doc.createdAt);
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatEditedAt(doc: OcrDocument): string {
@@ -91,9 +91,8 @@ function formatEditedAt(doc: OcrDocument): string {
 function PresenceBadge({ status }: { status: PresenceStatus }) {
   const config = PRESENCE_CONFIG[status];
   return (
-    <span className={`inline-flex min-w-[112px] items-center justify-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${config.className}`}>
+    <span title={config.label} className={`inline-flex items-center justify-center rounded-full p-1 ${config.className}`}>
       {config.icon}
-      {config.label}
     </span>
   );
 }
