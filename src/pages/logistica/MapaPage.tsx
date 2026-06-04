@@ -434,7 +434,7 @@ export function MapaPage() {
             key={remito.id}
             position={[remito.latitude!, remito.longitude!]}
             icon={DEFAULT_ICON}
-            eventHandlers={{ click: () => dispatch(fetchRemitoDetalle(remito.id)) }}
+            eventHandlers={{ click: () => { dispatch(fetchRemitoDetalle(remito.id)); flyToPoint(remito.latitude!, remito.longitude!); } }}
           >
             <Tooltip permanent direction="top" offset={[0, -41]}>
               <span className="text-xs font-medium">{remito.uploadedByName}</span>

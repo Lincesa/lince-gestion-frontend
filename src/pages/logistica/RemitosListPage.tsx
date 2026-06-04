@@ -3,21 +3,52 @@ import { Search } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchRemitos } from '@/store/logistica/remitosSlice';
 import { type ListRemitosParams } from '@/api/logistica';
-import { RemitoDetailModal } from '@/components/logistica/RemitoDetailModal';
+import { RemitoDetailPanel } from '@/components/logistica/RemitoDetailPanel';
 import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
+import type { RemitoLogistica } from '@/types/logistica.types';
 
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();
   const { list, loading, error, pagination } = useAppSelector((s) => s.remitosLogistica);
 
-  const [filters, setFilters] = useState<ListRemitosParams>({ page: 1, limit: 20 });
-  const [nroInput, setNroInput] = useState('');
+  const [filters, setFilters]       = useState<ListRemitosParams>({ page: 1, limit: 20 });
+  const [nroInput, setNroInput]     = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentIndex = selectedId ? list.findIndex((r) => r.id === selectedId) : -1;
 
   useEffect(() => {
     void dispatch(fetchRemitos(filters));
   }, [dispatch, filters]);
+
+  useEffect(() => {
+    if (!selectedId || list.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = list[currentIndex + 1];
+        if (next) openDetail(next);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = list[currentIndex - 1];
+        if (prev) openDetail(prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [selectedId, list, currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openDetail = (remito: RemitoLogistica) => {
+    setSelectedId(remito.id);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-remito-id="${remito.id}"]`)?.scrollIntoView({
+        block: 'nearest', behavior: 'smooth',
+      });
+    });
+  };
 
   const handleNroChange = (value: string) => {
     setNroInput(value);
@@ -119,8 +150,11 @@ export function RemitosListPage() {
                 list.map((remito) => (
                   <tr
                     key={remito.id}
-                    onClick={() => setSelectedId(remito.id)}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    data-remito-id={remito.id}
+                    onClick={() => openDetail(remito)}
+                    className={`cursor-pointer transition-colors hover:bg-accent/60 ${
+                      selectedId === remito.id ? 'bg-primary/[0.08] ring-1 ring-inset ring-primary/20' : ''
+                    }`}
                   >
                     <td className="px-4 py-3 text-muted-foreground">
                       {new Date(remito.createdAt).toLocaleString('es-AR', {
@@ -169,10 +203,16 @@ export function RemitosListPage() {
         </div>
       )}
 
-      {selectedId && (
-        <RemitoDetailModal
+      {selectedId !== null && (
+        <RemitoDetailPanel
           remitoId={selectedId}
           onClose={() => setSelectedId(null)}
+          index={currentIndex}
+          total={list.length}
+          hasPrev={currentIndex > 0}
+          hasNext={currentIndex < list.length - 1}
+          onPrev={() => { const p = list[currentIndex - 1]; if (p) openDetail(p); }}
+          onNext={() => { const n = list[currentIndex + 1]; if (n) openDetail(n); }}
         />
       )}
     </div>
