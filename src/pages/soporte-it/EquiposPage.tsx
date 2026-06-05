@@ -89,7 +89,6 @@ export function EquiposPage() {
       graficos: e.graficos ?? '',
       almacenamiento: e.almacenamiento ?? '',
       adaptadorRed: e.adaptadorRed ?? '',
-      ipv6: e.ipv6 ?? '',
       controladorUsbHost: e.controladorUsbHost ?? '',
       estado: e.estado,
       notas: e.notas ?? '',
@@ -264,7 +263,7 @@ export function EquiposPage() {
             {field('graficos', 'Gráficos')}
             {field('almacenamiento', 'Almacenamiento')}
             {field('adaptadorRed', 'Adaptador de red')}
-            {field('ipv6', 'IPv6')}
+            {field('fechaInstalacionSO', 'Fecha instalación SO')}
             {field('controladorUsbHost', 'Controlador USB Host')}
             <div>
               <Label>Usuario asignado (plataforma)</Label>

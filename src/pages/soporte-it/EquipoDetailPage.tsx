@@ -96,8 +96,8 @@ export function EquipoDetailPage() {
         <Row label="Gráficos" value={equipo.graficos} />
         <Row label="Almacenamiento" value={equipo.almacenamiento} />
         <Row label="Adaptador de red" value={equipo.adaptadorRed} />
-        <Row label="IPv6" value={equipo.ipv6} />
         <Row label="Controlador USB" value={equipo.controladorUsbHost} />
+        <Row label="Fecha instalación SO" value={equipo.fechaInstalacionSO} />
         {equipo.notas && <Row label="Notas" value={equipo.notas} />}
       </div>
 
