@@ -24,8 +24,8 @@ export interface Equipo {
   graficos: string | null;
   almacenamiento: string | null;
   adaptadorRed: string | null;
-  ipv6: string | null;
   controladorUsbHost: string | null;
+  fechaInstalacionSO: string | null;
   estado: EstadoEquipo;
   notas: string | null;
   usuarioPlatId: string | null;
@@ -102,8 +102,8 @@ export interface CreateEquipoPayload {
   graficos?: string;
   almacenamiento?: string;
   adaptadorRed?: string;
-  ipv6?: string;
   controladorUsbHost?: string;
+  fechaInstalacionSO?: string;
   estado?: EstadoEquipo;
   notas?: string;
   usuarioPlatId?: string | null;
