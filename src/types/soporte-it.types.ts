@@ -28,8 +28,6 @@ export interface Equipo {
   controladorUsbHost: string | null;
   estado: EstadoEquipo;
   notas: string | null;
-  deviceToken: string | null;
-  lastSeenAt: string | null;
   usuarioPlatId: string | null;
   usuarioPlat: UsuarioPlatResumen | null;
   createdAt: string;

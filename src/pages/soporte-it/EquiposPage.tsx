@@ -30,26 +30,6 @@ const ESTADO_COLORS: Record<EstadoEquipo, string> = {
   baja: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
-function formatLastSeen(lastSeenAt: string | null): React.ReactNode {
-  if (!lastSeenAt) return <span className="text-muted-foreground">—</span>;
-  const diff = Date.now() - new Date(lastSeenAt).getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  let label: string;
-  if (minutes < 2) label = 'hace un momento';
-  else if (minutes < 60) label = `hace ${minutes} min`;
-  else if (hours < 24) label = `hace ${hours} h`;
-  else label = `hace ${days} d`;
-  const isRecent = hours < 24;
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`h-1.5 w-1.5 rounded-full ${isRecent ? 'bg-green-500' : 'bg-muted-foreground'}`} />
-      <span className={isRecent ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
-    </span>
-  );
-}
-
 const emptyForm = (): CreateEquipoPayload => ({
   hostname: '',
   fabricante: '',
@@ -190,7 +170,6 @@ export function EquiposPage() {
               <th className="px-4 py-3 text-left">Fabricante / Modelo</th>
               <th className="px-4 py-3 text-left">Usuario asignado</th>
               <th className="px-4 py-3 text-left">Estado</th>
-              <th className="px-4 py-3 text-left">Última sincronización</th>
               <th className="px-4 py-3 text-left">Acciones</th>
             </tr>
           </thead>
@@ -220,7 +199,6 @@ export function EquiposPage() {
                     {ESTADO_LABELS[e.estado]}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm">{formatLastSeen(e.lastSeenAt)}</td>
                 <td
                   className="px-4 py-3"
                   onClick={(ev) => ev.stopPropagation()}
@@ -244,7 +222,7 @@ export function EquiposPage() {
             ))}
             {filtered.length === 0 && !loading && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                   No hay equipos registrados
                 </td>
               </tr>
