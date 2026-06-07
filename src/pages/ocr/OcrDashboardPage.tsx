@@ -15,17 +15,20 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  X,
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadDocumentFile, getOcrStats } from '@/api/ocr';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
+  bulkDeleteDocuments,
   clearCurrent,
   deleteDocument,
   fetchDocument,
   fetchDocuments,
 } from '@/store/ocr/documentsSlice';
+import { GlobalRole } from '@/types/auth.types';
 import type { FilterDocumentsParams, OcrDocument, OcrStats } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { DocumentDetailPanel } from './components/DocumentDetailPanel';
@@ -100,6 +103,8 @@ function PresenceBadge({ status }: { status: PresenceStatus }) {
 export function OcrDashboardPage() {
   const dispatch = useAppDispatch();
   const { all, loading, submitting, error } = useAppSelector((s) => s.ocrDocuments);
+  const user = useAppSelector((s) => s.auth.user);
+  const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
 
   const [filters, setFilters] = useState<FilterDocumentsParams>({
     page: 1,
@@ -112,6 +117,8 @@ export function OcrDashboardPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [stats, setStats] = useState<OcrStats | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
   useEffect(() => {
     const filtersWithType = { ...filters, type: DocumentType.REMITO };
@@ -140,6 +147,46 @@ export function OcrDashboardPage() {
     if (deleteDocument.fulfilled.match(result)) {
       toast.success('Documento eliminado');
       setDeleteId(null);
+    } else {
+      toast.error(String(result.error?.message ?? 'Error al eliminar'));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectPage = () => {
+    const pageIds = docs.map((d) => d.id);
+    const allSelected = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    const result = await dispatch(bulkDeleteDocuments(ids));
+    if (bulkDeleteDocuments.fulfilled.match(result)) {
+      const { deleted, failed } = result.payload;
+      if (failed.length === 0) {
+        toast.success(`${deleted} remito${deleted !== 1 ? 's' : ''} eliminado${deleted !== 1 ? 's' : ''}`);
+      } else {
+        toast.success(`${deleted} eliminados, ${failed.length} no se pudieron eliminar`);
+      }
+      setSelectedIds(new Set());
+      setShowBulkConfirm(false);
+      dispatch(fetchDocuments({ ...filters, type: DocumentType.REMITO }));
     } else {
       toast.error(String(result.error?.message ?? 'Error al eliminar'));
     }
@@ -352,11 +399,47 @@ export function OcrDashboardPage() {
         />
       </div>
 
+      {isSuperAdmin && selectedIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2.5 text-sm">
+          <span className="text-foreground">
+            <span className="font-semibold">{selectedIds.size}</span> remito{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpiar selección
+            </button>
+            <button
+              onClick={() => setShowBulkConfirm(true)}
+              disabled={submitting}
+              className="flex items-center gap-1.5 rounded bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar seleccionados
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1020px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
+                {isSuperAdmin && (
+                  <th className="w-9 px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      title="Seleccionar todo (esta página)"
+                      checked={docs.length > 0 && docs.every((d) => selectedIds.has(d.id))}
+                      onChange={toggleSelectPage}
+                      className="h-3.5 w-3.5 cursor-pointer accent-primary"
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha subida</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha remito</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Número de remito</th>
@@ -370,7 +453,7 @@ export function OcrDashboardPage() {
             <tbody className="divide-y divide-border">
               {loading && docs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={isSuperAdmin ? 9 : 8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="h-4 w-4 animate-spin" />
                       Cargando...
@@ -379,7 +462,7 @@ export function OcrDashboardPage() {
                 </tr>
               ) : docs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={isSuperAdmin ? 9 : 8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     No hay remitos con los filtros seleccionados
                   </td>
                 </tr>
@@ -391,6 +474,16 @@ export function OcrDashboardPage() {
                     onClick={() => void openDetail(doc)}
                     className={`cursor-pointer hover:bg-accent/60 ${detailDoc?.id === doc.id ? 'bg-primary/[0.08] ring-1 ring-inset ring-primary/20' : ''}`}
                   >
+                    {isSuperAdmin && (
+                      <td className="w-9 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(doc.id)}
+                          onChange={() => toggleSelect(doc.id)}
+                          className="h-3.5 w-3.5 cursor-pointer accent-primary"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
@@ -510,6 +603,34 @@ export function OcrDashboardPage() {
                 className="rounded bg-destructive px-3 py-1.5 text-sm text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
               >
                 {submitting ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-sm rounded-lg bg-background p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-foreground">¿Eliminar {selectedIds.size} remito{selectedIds.size !== 1 ? 's' : ''}?</h3>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Estás por eliminar <span className="font-semibold text-foreground">{selectedIds.size} remito{selectedIds.size !== 1 ? 's' : ''}</span> y sus archivos de S3.
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkConfirm(false)}
+                disabled={submitting}
+                className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={submitting}
+                className="rounded bg-destructive px-3 py-1.5 text-sm text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {submitting ? 'Eliminando…' : `Eliminar ${selectedIds.size}`}
               </button>
             </div>
           </div>

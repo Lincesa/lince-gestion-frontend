@@ -82,6 +82,11 @@ export const deleteDocument = createAsyncThunk(
   (id: string) => ocrApi.deleteDocument(id).then(() => id),
 );
 
+export const bulkDeleteDocuments = createAsyncThunk(
+  'ocrDocuments/bulkDelete',
+  (ids: string[]) => ocrApi.bulkDeleteDocuments(ids).then((res) => ({ ...res, ids })),
+);
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 function updateDocInList(
@@ -228,6 +233,30 @@ const documentsSlice = createSlice({
       .addCase(deleteDocument.rejected,  (state, action) => {
         state.submitting = false;
         state.error = action.error.message ?? 'Error al eliminar documento';
+      });
+
+    // bulkDeleteDocuments
+    builder
+      .addCase(bulkDeleteDocuments.pending,   (state) => { state.submitting = true; })
+      .addCase(bulkDeleteDocuments.fulfilled, (state, action) => {
+        state.submitting = false;
+        const deletedIds = new Set(action.payload.ids.filter(
+          (id) => !action.payload.failed.includes(id),
+        ));
+        const removeFromList = (list: PaginatedDocuments | null) => {
+          if (!list) return list;
+          const filtered = list.items.filter((d) => !deletedIds.has(d.id));
+          return { ...list, items: filtered, total: list.total - (list.items.length - filtered.length) };
+        };
+        state.all           = removeFromList(state.all);
+        state.reviewQueue   = removeFromList(state.reviewQueue);
+        state.myFacturas    = removeFromList(state.myFacturas);
+        state.myRetenciones = removeFromList(state.myRetenciones);
+        if (state.current && deletedIds.has(state.current.id)) state.current = null;
+      })
+      .addCase(bulkDeleteDocuments.rejected, (state, action) => {
+        state.submitting = false;
+        state.error = action.error.message ?? 'Error al eliminar documentos';
       });
   },
 });

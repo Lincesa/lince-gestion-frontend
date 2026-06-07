@@ -180,6 +180,11 @@ export function deleteDocument(id: string): Promise<{ deleted: boolean }> {
   return api.delete<{ deleted: boolean }>(`${BASE}/${id}`);
 }
 
+/** SUPERADMIN: eliminar múltiples documentos en bulk (DB + S3) */
+export function bulkDeleteDocuments(ids: string[]): Promise<{ deleted: number; failed: string[] }> {
+  return api.delete<{ deleted: number; failed: string[] }>(`${BASE}/bulk`, { body: JSON.stringify({ ids }) });
+}
+
 // ── Configuración (SUPERADMIN) ────────────────────────────────────────────────
 
 export function getOcrConfigs(): Promise<OcrConfig[]> {
