@@ -145,9 +145,9 @@ export function OcrDashboardPage() {
     }
   };
 
-  const openDetail = async (doc: OcrDocument) => {
-    await dispatch(fetchDocument(doc.id));
+  const openDetail = (doc: OcrDocument) => {
     setDetailDoc(doc);
+    void dispatch(fetchDocument(doc.id));
     requestAnimationFrame(() => {
       document.querySelector(`[data-doc-id="${doc.id}"]`)?.scrollIntoView({
         block: 'nearest', behavior: 'smooth',

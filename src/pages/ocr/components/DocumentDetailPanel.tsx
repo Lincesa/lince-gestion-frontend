@@ -140,13 +140,17 @@ export function DocumentDetailPanel({
     if (!documentId) return;
     if (current?.id === documentId && current.viewUrl) {
       setViewUrl(current.viewUrl);
+      setLoadingUrl(false);
       return;
     }
+    let cancelled = false;
+    setViewUrl(null);
     setLoadingUrl(true);
     getDocumentViewUrl(documentId)
-      .then(({ viewUrl: url }) => setViewUrl(url))
-      .catch(() => setViewUrl(null))
-      .finally(() => setLoadingUrl(false));
+      .then(({ viewUrl: url }) => { if (!cancelled) setViewUrl(url); })
+      .catch(() => { if (!cancelled) setViewUrl(null); })
+      .finally(() => { if (!cancelled) setLoadingUrl(false); });
+    return () => { cancelled = true; };
   }, [documentId, current?.id, current?.viewUrl]);
 
   useEffect(() => {
