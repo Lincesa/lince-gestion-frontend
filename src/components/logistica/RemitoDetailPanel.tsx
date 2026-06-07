@@ -49,12 +49,14 @@ export function RemitoDetailPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setRemito(null);
     logisticaApi.getRemito(remitoId)
-      .then(setRemito)
-      .catch(() => setRemito(null))
-      .finally(() => setLoading(false));
+      .then((r) => { if (!cancelled) setRemito(r); })
+      .catch(() => { if (!cancelled) setRemito(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [remitoId]);
 
   useEffect(() => {
