@@ -35,6 +35,7 @@ export interface CreateEmpleadoPayload {
   planta: Planta;
   dni?: string;
   activo?: boolean;
+  horasEsperadasDia?: number | null;
 }
 
 export interface UpdateEmpleadoPayload {
@@ -44,6 +45,7 @@ export interface UpdateEmpleadoPayload {
   planta?: Planta;
   dni?: string;
   activo?: boolean;
+  horasEsperadasDia?: number | null;
 }
 
 export const asistenciaApi = {

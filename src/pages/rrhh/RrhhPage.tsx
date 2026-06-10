@@ -8,6 +8,7 @@ import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
 import type { EmpleadoAsistencia, FichajeAsistencia, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
+import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
 
 type EstadoOption = '' | '0' | '1';
 
@@ -30,9 +31,23 @@ interface EditRowDraft {
 }
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
-const HORAS_JORNADA = 9;
-const MS_JORNADA = HORAS_JORNADA * 60 * 60 * 1000;
 const DEFAULT_PLANTA: Planta = 'villa_nueva';
+
+/** Devuelve las horas esperadas para la jornada de este agg.
+ *  Resuelve por empleado (su override o el default de su planta).
+ *  Si no se puede identificar al empleado, cae a 8 (el default más bajo). */
+function jornadaHsForAgg(agg: { fichajes: FichajeAsistencia[] }): number {
+  const emp = agg.fichajes.find((f) => f.empleado)?.empleado ?? null;
+  if (!emp) return 8;
+  return resolveHorasEsperadasDia({
+    planta: emp.planta,
+    horasEsperadasDia: emp.horasEsperadasDia,
+  });
+}
+
+function jornadaMsForAgg(agg: { fichajes: FichajeAsistencia[] }): number {
+  return jornadaHsForAgg(agg) * 60 * 60 * 1000;
+}
 const PLANTAS: { value: Planta; label: string }[] = [
   { value: 'villa_nueva', label: 'Villa María' },
   { value: 'tucuman', label: 'Tucumán' },
@@ -115,11 +130,11 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
-function duracionTotalClass(totalMs: number, tieneIntervalosValidos: boolean): string {
+function duracionTotalClass(totalMs: number, tieneIntervalosValidos: boolean, msJornada: number): string {
   if (!tieneIntervalosValidos) {
     return 'bg-muted/40 text-muted-foreground';
   }
-  if (totalMs >= MS_JORNADA) {
+  if (totalMs >= msJornada) {
     return 'bg-emerald-500/25 text-emerald-900 dark:text-emerald-100 font-semibold ring-1 ring-emerald-500/30';
   }
   return 'bg-red-500/25 text-red-900 dark:text-red-100 font-semibold ring-1 ring-red-500/30';
@@ -387,7 +402,9 @@ export function RrhhPage() {
   const [reportEmpleadoId, setReportEmpleadoId] = useState('');
   const [reportDesde, setReportDesde] = useState(() => addDaysYmdAr(todayYmdAr(), -30));
   const [reportHasta, setReportHasta] = useState(todayYmdAr);
-  const [reportHorasEsperadas, setReportHorasEsperadas] = useState(String(HORAS_JORNADA));
+  const [reportHorasEsperadas, setReportHorasEsperadas] = useState(String(DEFAULT_HORAS_POR_PLANTA[DEFAULT_PLANTA]));
+  // Si el usuario tocó manualmente el input, no lo pisamos al cambiar de empleado.
+  const [reportHsTouched, setReportHsTouched] = useState(false);
   const [reportData, setReportData] = useState<ReporteEmpleadoRango | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -409,7 +426,7 @@ export function RrhhPage() {
   const [editEmpDraft, setEditEmpDraft] = useState<UpdateEmpleadoPayload & { firstName: string; lastName: string; pin: string; planta: Planta }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA });
   const [savingEmpId, setSavingEmpId] = useState<string | null>(null);
   const [nuevoEmpOpen, setNuevoEmpOpen] = useState(false);
-  const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '' });
+  const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string; horasEsperadasDia: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '', horasEsperadasDia: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
 
   const loadData = async () => {
@@ -464,6 +481,17 @@ export function RrhhPage() {
       setReportData(null);
     }
   }, [selectedPlanta, empleados, reportEmpleadoId]);
+
+  // Prefill del input "Hs/día" según el empleado seleccionado.
+  // Si el usuario ya tocó el input manualmente, lo respetamos.
+  useEffect(() => {
+    if (reportHsTouched) return;
+    const emp = empleados.find((e) => e.id === reportEmpleadoId);
+    const hs = emp
+      ? resolveHorasEsperadasDia({ planta: emp.planta, horasEsperadasDia: emp.horasEsperadasDia })
+      : DEFAULT_HORAS_POR_PLANTA[selectedPlanta];
+    setReportHorasEsperadas(String(hs));
+  }, [reportEmpleadoId, empleados, selectedPlanta, reportHsTouched]);
 
   const onRefresh = async () => {
     await loadData();
@@ -615,7 +643,7 @@ export function RrhhPage() {
 
   const startEditEmp = (emp: EmpleadoAsistencia) => {
     setEditingEmpId(emp.id);
-    setEditEmpDraft({ firstName: emp.firstName, lastName: emp.lastName, pin: emp.pin, planta: emp.planta, dni: emp.dni ?? '', activo: emp.activo });
+    setEditEmpDraft({ firstName: emp.firstName, lastName: emp.lastName, pin: emp.pin, planta: emp.planta, dni: emp.dni ?? '', activo: emp.activo, horasEsperadasDia: emp.horasEsperadasDia });
   };
 
   const saveEditEmp = async (id: string) => {
@@ -650,6 +678,13 @@ export function RrhhPage() {
     }
     setSavingNuevo(true);
     try {
+      const overrideStr = nuevoEmpForm.horasEsperadasDia.trim();
+      const overrideNum = overrideStr === '' ? null : Number(overrideStr);
+      if (overrideStr !== '' && (!Number.isFinite(overrideNum!) || overrideNum! < 0 || overrideNum! > 24)) {
+        toast.error('Horas/día inválidas (0–24)');
+        setSavingNuevo(false);
+        return;
+      }
       const created = await asistenciaApi.createEmpleado({
         firstName: nuevoEmpForm.firstName.trim(),
         lastName: nuevoEmpForm.lastName.trim(),
@@ -657,10 +692,11 @@ export function RrhhPage() {
         planta: nuevoEmpForm.planta,
         dni: nuevoEmpForm.dni.trim() || undefined,
         activo: true,
+        horasEsperadasDia: overrideNum,
       });
       setTodosEmpleados((prev) => [...prev, created].sort((a, b) => a.lastName.localeCompare(b.lastName)));
       setNuevoEmpOpen(false);
-      setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '' });
+      setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '', horasEsperadasDia: '' });
       toast.success('Empleado creado');
     } catch (err) {
       toast.error((err as Error).message);
@@ -841,7 +877,7 @@ export function RrhhPage() {
         ws.addRow([]);
 
         const headerRow = ws.addRow([
-          'Empleado', 'Planta', 'Tramos entrada→salida', 'Total del día', `Saldo ${HORAS_JORNADA}h`, 'Observaciones',
+          'Empleado', 'Planta', 'Tramos entrada→salida', 'Total del día', 'Saldo jornada', 'Observaciones',
         ]);
         headerRow.height = 20;
         headerRow.eachCell((cell) => {
@@ -853,7 +889,8 @@ export function RrhhPage() {
 
         for (const agg of aggs) {
           const tieneValidos = agg.pairs.length > 0;
-          const saldoMs = agg.totalMs - MS_JORNADA;
+          const msJornada = jornadaMsForAgg(agg);
+          const saldoMs = agg.totalMs - msJornada;
 
           const tramos = agg.pairs
             .map((p) => `${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`)
@@ -883,7 +920,7 @@ export function RrhhPage() {
           let rowFgArgb: string;
           if (!tieneValidos) {
             rowBgArgb = COLOR_GRAY_BG; rowFgArgb = COLOR_GRAY_FG;
-          } else if (agg.totalMs >= MS_JORNADA) {
+          } else if (agg.totalMs >= msJornada) {
             rowBgArgb = COLOR_GREEN_BG; rowFgArgb = COLOR_GREEN_FG;
           } else {
             rowBgArgb = COLOR_RED_BG; rowFgArgb = COLOR_RED_FG;
@@ -1060,7 +1097,14 @@ export function RrhhPage() {
   const addComplementRow = (orphan: FichajeAsistencia) => {
     const complementEstado: 0 | 1 = orphan.estado === 0 ? 1 : 0;
     const orphanMs = new Date(orphan.tiempo).getTime();
-    const delta = orphan.estado === 0 ? MS_JORNADA : -MS_JORNADA;
+    const jornadaHs = orphan.empleado
+      ? resolveHorasEsperadasDia({
+          planta: orphan.empleado.planta,
+          horasEsperadasDia: orphan.empleado.horasEsperadasDia,
+        })
+      : 8;
+    const jornadaMs = jornadaHs * 3600000;
+    const delta = orphan.estado === 0 ? jornadaMs : -jornadaMs;
     const suggestedIso = new Date(orphanMs + delta).toISOString();
     const newId = `new-${Math.random().toString(36).slice(2)}`;
     setEditDrafts((prev) => ({
@@ -1586,6 +1630,7 @@ export function RrhhPage() {
                 value={reportEmpleadoId}
                 onChange={(e) => {
                   setReportEmpleadoId(e.target.value);
+                  setReportHsTouched(false);
                   setReportData(null);
                 }}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
@@ -1638,6 +1683,7 @@ export function RrhhPage() {
                 value={reportHorasEsperadas}
                 onChange={(e) => {
                   setReportHorasEsperadas(e.target.value);
+                  setReportHsTouched(true);
                   setReportData(null);
                 }}
                 className="w-24 rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums"
@@ -1798,7 +1844,7 @@ export function RrhhPage() {
                   Total del día
                 </th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-[10rem]">
-                  Saldo {HORAS_JORNADA} h
+                  Saldo jornada
                 </th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide w-[8rem]">
                   Detalle
@@ -1807,7 +1853,9 @@ export function RrhhPage() {
             </thead>
             {aggregates.map((agg) => {
               const tieneValidos = agg.pairs.length > 0;
-              const saldoMs = agg.totalMs - MS_JORNADA;
+              const jornadaHs = jornadaHsForAgg(agg);
+              const msJornada = jornadaHs * 3600000;
+              const saldoMs = agg.totalMs - msJornada;
               const expanded = expandedKeys.has(agg.key);
 
               return (
@@ -1878,7 +1926,7 @@ export function RrhhPage() {
                     </td>
                     <td className="px-5 py-5 align-middle">
                       <div
-                        className={`inline-flex w-full flex-col rounded-lg px-3 py-3 text-center ${duracionTotalClass(agg.totalMs, tieneValidos)}`}
+                        className={`inline-flex w-full flex-col rounded-lg px-3 py-3 text-center ${duracionTotalClass(agg.totalMs, tieneValidos, msJornada)}`}
                         title={
                           tieneValidos
                             ? `${(agg.totalMs / 3600000).toLocaleString('es-AR', { maximumFractionDigits: 2 })} h totales`
@@ -1893,7 +1941,7 @@ export function RrhhPage() {
                         </span>
                         {tieneValidos && (
                           <span className="text-[10px] opacity-70 mt-1">
-                            {agg.totalMs >= MS_JORNADA ? `≥ ${HORAS_JORNADA} h` : `< ${HORAS_JORNADA} h`}
+                            {agg.totalMs >= msJornada ? `≥ ${jornadaHs} h` : `< ${jornadaHs} h`}
                           </span>
                         )}
                       </div>
@@ -1903,7 +1951,7 @@ export function RrhhPage() {
                         className={`inline-flex w-full flex-col rounded-lg px-3 py-3 text-center font-semibold ${saldoJornadaClass(saldoMs, tieneValidos)}`}
                         title={
                           tieneValidos
-                            ? `Diferencia contra ${HORAS_JORNADA} h: ${formatSaldoJornada(saldoMs)}`
+                            ? `Diferencia contra ${jornadaHs} h: ${formatSaldoJornada(saldoMs)}`
                             : 'Requiere al menos un tramo entrada→salida válido'
                         }
                       >
@@ -2091,16 +2139,33 @@ export function RrhhPage() {
                   </select>
                 </label>
               </div>
-              <label className="block space-y-1 text-sm">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI (opcional)</span>
-                <input
-                  type="text"
-                  value={nuevoEmpForm.dni}
-                  onChange={(e) => setNuevoEmpForm((f) => ({ ...f, dni: e.target.value }))}
-                  placeholder="DNI"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI (opcional)</span>
+                  <input
+                    type="text"
+                    value={nuevoEmpForm.dni}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, dni: e.target.value }))}
+                    placeholder="DNI"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Hs/día (override)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    step={0.5}
+                    value={nuevoEmpForm.horasEsperadasDia}
+                    onChange={(e) => setNuevoEmpForm((f) => ({ ...f, horasEsperadasDia: e.target.value }))}
+                    placeholder={`Default ${DEFAULT_HORAS_POR_PLANTA[nuevoEmpForm.planta]} hs`}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums"
+                  />
+                </label>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border">
               <Button type="button" variant="outline" onClick={() => setNuevoEmpOpen(false)} disabled={savingNuevo}>
@@ -2126,7 +2191,7 @@ export function RrhhPage() {
             <button
               type="button"
               onClick={() => {
-                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '' });
+                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '', horasEsperadasDia: '' });
                 setNuevoEmpOpen(true);
               }}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90"
@@ -2145,6 +2210,7 @@ export function RrhhPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-24">PIN</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-28">Hs/día</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-20">Activo</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Acciones</th>
                   </tr>
@@ -2152,11 +2218,11 @@ export function RrhhPage() {
                 <tbody>
                   {empLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
                     </tr>
                   ) : todosEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
                     </tr>
                   ) : (
                     todosEmpleados.map((emp) => {
@@ -2228,6 +2294,37 @@ export function RrhhPage() {
                                 />
                               ) : (
                                 <span className="text-muted-foreground">{emp.dni ?? '—'}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={24}
+                                  step={0.5}
+                                  value={editEmpDraft.horasEsperadasDia ?? ''}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setEditEmpDraft((d) => ({
+                                      ...d,
+                                      horasEsperadasDia: v === '' ? null : Number(v),
+                                    }));
+                                  }}
+                                  placeholder={`${DEFAULT_HORAS_POR_PLANTA[editEmpDraft.planta]}`}
+                                  className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm tabular-nums"
+                                />
+                              ) : emp.horasEsperadasDia != null ? (
+                                <span
+                                  className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                  title="Override individual"
+                                >
+                                  {emp.horasEsperadasDia} h
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs" title="Usa el default de la planta">
+                                  {DEFAULT_HORAS_POR_PLANTA[emp.planta]} h (default)
+                                </span>
                               )}
                             </td>
                             <td className="px-4 py-2.5">
@@ -2387,13 +2484,13 @@ export function RrhhPage() {
                 <tbody>
                   {pinesLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                         Cargando…
                       </td>
                     </tr>
                   ) : pines.filter((r) => r.planta === selectedPlanta).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">
                         Sin datos
                       </td>
                     </tr>

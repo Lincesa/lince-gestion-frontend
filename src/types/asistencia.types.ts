@@ -10,6 +10,7 @@ export interface EmpleadoAsistencia {
   departamento?: string | null;
   cargo?: string | null;
   activo: boolean;
+  horasEsperadasDia: number | null;
   createdAt: string;
   updatedAt: string;
 }
