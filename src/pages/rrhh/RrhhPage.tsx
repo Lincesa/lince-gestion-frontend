@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Info, Mail, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Info, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { CalendarioLaboralModal } from './CalendarioLaboralModal';
 import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -426,7 +427,7 @@ export function RrhhPage() {
   const [exportDesde, setExportDesde] = useState(todayYmdAr);
   const [exportHasta, setExportHasta] = useState(todayYmdAr);
   const [exportLoading, setExportLoading] = useState(false);
-  const [sendingReport, setSendingReport] = useState(false);
+  const [calendarioOpen, setCalendarioOpen] = useState(false);
   const [pines, setPines] = useState<PinSummaryRow[]>([]);
   const [pinesLoading, setPinesLoading] = useState(false);
   const [crearEmpleadoPin, setCrearEmpleadoPin] = useState<PinSummaryRow | null>(null);
@@ -1333,22 +1334,11 @@ export function RrhhPage() {
           </button>
           <button
             type="button"
-            disabled={sendingReport}
-            onClick={async () => {
-              setSendingReport(true);
-              try {
-                await asistenciaApi.sendDailyReport(diaFecha);
-                toast.success(`Reporte enviado por correo (${diaFecha})`);
-              } catch {
-                toast.error('Error al enviar el correo — revisá los logs del servidor');
-              } finally {
-                setSendingReport(false);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
+            onClick={() => setCalendarioOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent"
           >
-            <Mail className={`h-3.5 w-3.5 ${sendingReport ? 'animate-pulse' : ''}`} />
-            {sendingReport ? 'Enviando…' : 'Enviar correo'}
+            <CalendarDays className="h-3.5 w-3.5" />
+            Calendario laboral
           </button>
           <button
             type="button"
@@ -1757,7 +1747,7 @@ export function RrhhPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Días hábiles
@@ -1765,6 +1755,13 @@ export function RrhhPage() {
               <p className="mt-1 text-xl font-semibold tabular-nums">
                 {reportData ? reportData.resumen.diasHabiles : '—'}
               </p>
+              {reportData && ((reportData.resumen.diasFeriado ?? 0) + (reportData.resumen.diasAusencia ?? 0)) > 0 && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {reportData.resumen.diasFeriado ? `${reportData.resumen.diasFeriado} feriado(s)` : ''}
+                  {reportData.resumen.diasFeriado && reportData.resumen.diasAusencia ? ' · ' : ''}
+                  {reportData.resumen.diasAusencia ? `${reportData.resumen.diasAusencia} ausencia(s)` : ''}
+                </p>
+              )}
             </div>
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1788,6 +1785,14 @@ export function RrhhPage() {
               </p>
               <p className="mt-1 text-xl font-semibold tabular-nums">
                 {reportData ? formatSaldoJornada(reportData.resumen.saldoMs) : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-800 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                Horas extra
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-violet-800 dark:text-violet-200">
+                {reportData ? formatDuracion(reportData.resumen.horasExtraMs ?? 0) : '—'}
               </p>
             </div>
           </div>
@@ -1820,12 +1825,28 @@ export function RrhhPage() {
                       ...day.entradasSinSalida.map((f) => `Entrada sin salida ${formatSoloHora(f.tiempo)}`),
                       ...day.salidasSinEntrada.map((f) => `Salida sin entrada ${formatSoloHora(f.tiempo)}`),
                     ];
+                    const noLaborableLabel = day.esAusencia
+                      ? `🏖 ${day.tipoAusencia ?? 'Ausencia'}${day.motivoNoLaborable ? ` — ${day.motivoNoLaborable}` : ''}`
+                      : day.esFeriado
+                        ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
+                        : null;
+                    const rowClass = day.isHoraExtra
+                      ? 'border-b border-border/80 last:border-0 align-top bg-violet-50/60 dark:bg-violet-950/30'
+                      : 'border-b border-border/80 last:border-0 align-top';
                     return (
-                      <tr key={day.fecha} className="border-b border-border/80 last:border-0 align-top">
+                      <tr key={day.fecha} className={rowClass}>
                         <td className="px-3 py-3">
                           <p className="font-medium capitalize text-foreground">{formatDayHeading(day.fecha)}</p>
-                          {!day.diaHabil && (
+                          {noLaborableLabel && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{noLaborableLabel}</p>
+                          )}
+                          {!noLaborableLabel && !day.diaHabil && (
                             <p className="mt-0.5 text-[11px] text-muted-foreground">No hábil</p>
+                          )}
+                          {day.isHoraExtra && (
+                            <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                              ★ Horas extra
+                            </span>
                           )}
                         </td>
                         <td className="px-3 py-3 font-mono tabular-nums">
@@ -1835,9 +1856,15 @@ export function RrhhPage() {
                           {day.tramos.length > 0 ? formatDuracion(day.trabajadoMs) : '—'}
                         </td>
                         <td className="px-3 py-3">
-                          <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums ${saldoJornadaClass(day.saldoMs, day.diaHabil || day.tramos.length > 0)}`}>
-                            {day.diaHabil || day.tramos.length > 0 ? formatSaldoJornada(day.saldoMs) : '—'}
-                          </span>
+                          {day.isHoraExtra ? (
+                            <span className="inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums bg-violet-200 text-violet-900 dark:bg-violet-900/60 dark:text-violet-100">
+                              + {formatDuracion(day.trabajadoMs)} (extra)
+                            </span>
+                          ) : (
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums ${saldoJornadaClass(day.saldoMs, day.diaHabil || day.tramos.length > 0)}`}>
+                              {day.diaHabil || day.tramos.length > 0 ? formatSaldoJornada(day.saldoMs) : '—'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
                           <div className="space-y-1.5">
@@ -2640,6 +2667,11 @@ export function RrhhPage() {
           </div>
         </>
       )}
+
+      <CalendarioLaboralModal
+        open={calendarioOpen}
+        onClose={() => setCalendarioOpen(false)}
+      />
     </div>
   );
 }
