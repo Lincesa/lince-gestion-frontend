@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Info, Mail, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -249,6 +249,17 @@ interface EmployeeDayAgg {
 }
 
 function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: string): EmployeeDayAgg[] {
+  // Precomputamos los ms para evitar parsear `Date` decenas de veces por fichaje.
+  const tiempoMs = new Map<string, number>();
+  const msOf = (f: FichajeAsistencia): number => {
+    let v = tiempoMs.get(f.id);
+    if (v === undefined) {
+      v = new Date(f.tiempo).getTime();
+      tiempoMs.set(f.id, v);
+    }
+    return v;
+  };
+
   const byEmp = new Map<string, FichajeAsistencia[]>();
   for (const r of items) {
     const k = employeeKey(r);
@@ -260,9 +271,7 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
   const aggs: EmployeeDayAgg[] = [];
 
   for (const [key, evs] of byEmp) {
-    const sorted = [...evs].sort(
-      (a, b) => new Date(a.tiempo).getTime() - new Date(b.tiempo).getTime(),
-    );
+    const sorted = [...evs].sort((a, b) => msOf(a) - msOf(b));
     const allPairs: FichajePair[] = [];
     const allOrphanEntradas: FichajeAsistencia[] = [];
     const allOrphanSalidas: FichajeAsistencia[] = [];
@@ -272,16 +281,16 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
       if (ev.estado === 0) {
         openEntradas.push(ev);
       } else {
-        const salidaMs = new Date(ev.tiempo).getTime();
+        const salidaMs = msOf(ev);
         while (
           openEntradas.length > 0 &&
-          new Date(openEntradas[0].tiempo).getTime() >= salidaMs
+          msOf(openEntradas[0]) >= salidaMs
         ) {
           allOrphanEntradas.push(openEntradas.shift()!);
         }
         const entrada = openEntradas.shift();
         if (entrada) {
-          const ms = salidaMs - new Date(entrada.tiempo).getTime();
+          const ms = salidaMs - msOf(entrada);
           if (ms >= 0) {
             allPairs.push({ entrada, salida: ev, ms });
           } else {
@@ -334,9 +343,7 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
     }
     for (const f of orphanEntradas) fichajesMap.set(f.id, f);
     for (const f of orphanSalidas) fichajesMap.set(f.id, f);
-    const fichajes = [...fichajesMap.values()].sort(
-      (a, b) => new Date(a.tiempo).getTime() - new Date(b.tiempo).getTime(),
-    );
+    const fichajes = [...fichajesMap.values()].sort((a, b) => msOf(a) - msOf(b));
 
     aggs.push({
       key,
@@ -350,8 +357,14 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
   }
 
   aggs.sort((a, b) => {
-    const t = (x: EmployeeDayAgg) =>
-      Math.max(...x.fichajes.map((f) => new Date(f.tiempo).getTime()), 0);
+    const t = (x: EmployeeDayAgg) => {
+      let max = 0;
+      for (const f of x.fichajes) {
+        const v = msOf(f);
+        if (v > max) max = v;
+      }
+      return max;
+    };
     return t(b) - t(a);
   });
 
@@ -429,9 +442,28 @@ export function RrhhPage() {
   const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string; horasEsperadasDia: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '', horasEsperadasDia: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
 
+  // Cache de empleados (activos) y pines por planta. Se invalida en CRUD de empleados
+  // y al reasignar/reconciliar pines. Evita re-fetch al togglear planta.
+  const empleadosCacheRef = useRef<Map<Planta, EmpleadoAsistencia[]>>(new Map());
+  const pinesCacheRef = useRef<Map<Planta, PinSummaryRow[]>>(new Map());
+
+  const invalidateEmpleadosCache = () => {
+    empleadosCacheRef.current.clear();
+  };
+  const invalidatePinesCache = () => {
+    pinesCacheRef.current.clear();
+  };
+
+  const fetchEmpleadosCached = async (planta: Planta): Promise<EmpleadoAsistencia[]> => {
+    const cached = empleadosCacheRef.current.get(planta);
+    if (cached) return cached;
+    const data = await asistenciaApi.getEmpleados(planta);
+    empleadosCacheRef.current.set(planta, data);
+    return data;
+  };
+
   const loadData = async () => {
     setLoading(true);
-    setItems([]);
     try {
       const [fichajesPage, empleadosData] = await Promise.all([
         asistenciaApi.getFichajes({
@@ -441,7 +473,7 @@ export function RrhhPage() {
           estado,
           planta: selectedPlanta,
         }),
-        asistenciaApi.getEmpleados(selectedPlanta),
+        fetchEmpleadosCached(selectedPlanta),
       ]);
       setItems(fichajesPage.items);
       setTotal(fichajesPage.total);
@@ -455,7 +487,7 @@ export function RrhhPage() {
 
   const loadReportEmployees = async () => {
     try {
-      setEmpleados(await asistenciaApi.getEmpleados(selectedPlanta));
+      setEmpleados(await fetchEmpleadosCached(selectedPlanta));
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -494,15 +526,26 @@ export function RrhhPage() {
   }, [reportEmpleadoId, empleados, selectedPlanta, reportHsTouched]);
 
   const onRefresh = async () => {
+    // Botón "Refrescar": forzamos refetch de empleados también, por si alguien
+    // los cambió en otra pestaña/ventana.
+    invalidateEmpleadosCache();
+    invalidatePinesCache();
     await loadData();
   };
 
   const loadPines = async () => {
     setPinesLoading(true);
     try {
+      const cachedPines = pinesCacheRef.current.get(selectedPlanta);
+      const pinesPromise = cachedPines
+        ? Promise.resolve(cachedPines)
+        : asistenciaApi.getPinesSummary(selectedPlanta).then((data) => {
+            pinesCacheRef.current.set(selectedPlanta, data);
+            return data;
+          });
       const [data, emps] = await Promise.all([
-        asistenciaApi.getPinesSummary(),
-        asistenciaApi.getEmpleados(selectedPlanta),
+        pinesPromise,
+        fetchEmpleadosCached(selectedPlanta),
       ]);
       setPines(data);
       setEmpleados(emps);
@@ -523,6 +566,7 @@ export function RrhhPage() {
           ? `Empleado asignado a ${updated} fichaje(s) del PIN`
           : `${updated} fichaje(s) quedaron sin empleado`,
       );
+      invalidatePinesCache();
       await loadPines();
     } catch (err) {
       toast.error((err as Error).message);
@@ -551,6 +595,8 @@ export function RrhhPage() {
       toast.success('Empleado creado y fichajes asociados');
       setCrearEmpleadoPin(null);
       setCrearForm({ firstName: '', lastName: '', dni: '' });
+      invalidateEmpleadosCache();
+      invalidatePinesCache();
       await loadPines();
     } catch (err) {
       toast.error((err as Error).message);
@@ -652,6 +698,7 @@ export function RrhhPage() {
       const updated = await asistenciaApi.updateEmpleado(id, editEmpDraft);
       setTodosEmpleados((prev) => prev.map((e) => (e.id === id ? updated : e)));
       setEditingEmpId(null);
+      invalidateEmpleadosCache();
       toast.success('Empleado actualizado');
     } catch (err) {
       toast.error((err as Error).message);
@@ -665,6 +712,7 @@ export function RrhhPage() {
     try {
       await asistenciaApi.deleteEmpleado(id);
       setTodosEmpleados((prev) => prev.filter((e) => e.id !== id));
+      invalidateEmpleadosCache();
       toast.success('Empleado eliminado');
     } catch (err) {
       toast.error((err as Error).message);
@@ -697,6 +745,7 @@ export function RrhhPage() {
       setTodosEmpleados((prev) => [...prev, created].sort((a, b) => a.lastName.localeCompare(b.lastName)));
       setNuevoEmpOpen(false);
       setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '', horasEsperadasDia: '' });
+      invalidateEmpleadosCache();
       toast.success('Empleado creado');
     } catch (err) {
       toast.error((err as Error).message);

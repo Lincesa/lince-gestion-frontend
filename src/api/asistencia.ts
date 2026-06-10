@@ -86,8 +86,12 @@ export const asistenciaApi = {
     return api.get<ReporteEmpleadoRango>(`/asistencia/reports/employee/${empleadoId}/range?${qs.toString()}`);
   },
 
-  getPinesSummary: () =>
-    api.get<PinSummaryRow[]>('/asistencia/logs/pines-summary'),
+  getPinesSummary: (planta?: Planta) =>
+    api.get<PinSummaryRow[]>(
+      planta
+        ? `/asistencia/logs/pines-summary?planta=${planta}`
+        : '/asistencia/logs/pines-summary',
+    ),
 
   getAllEmpleados: (planta?: Planta) =>
     api.get<EmpleadoAsistencia[]>(
