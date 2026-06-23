@@ -10,6 +10,7 @@ import { LocationSearch } from './LocationSearch';
 interface ClientFormModalProps {
   customer?: Customer | null;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 type FormData = {
@@ -59,7 +60,7 @@ function toFormData(c: Customer): FormData {
   };
 }
 
-export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
+export function ClientFormModal({ customer, onClose, readOnly = false }: ClientFormModalProps) {
   const dispatch = useAppDispatch();
   const isEdit = !!customer;
 
@@ -142,7 +143,7 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
   }
 
   const inputClass =
-    'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring';
+    'w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-default';
   const selectClass = inputClass;
   const labelClass = 'block text-sm font-medium text-foreground mb-1';
 
@@ -152,7 +153,7 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold text-foreground">
-              {isEdit ? 'Editar cliente' : 'Nuevo cliente'}
+              {readOnly ? 'Ver cliente' : isEdit ? 'Editar cliente' : 'Nuevo cliente'}
             </h2>
             {customer?.isReconsulta && (
               <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary font-medium">
@@ -173,34 +174,34 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Nombre</label>
-                <input type="text" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Nombre" className={inputClass} />
+                <input type="text" value={form.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Nombre" className={inputClass} disabled={readOnly} />
               </div>
               <div>
                 <label className={labelClass}>Apellido</label>
-                <input type="text" value={form.apellido} onChange={(e) => set('apellido', e.target.value)} placeholder="Apellido" className={inputClass} />
+                <input type="text" value={form.apellido} onChange={(e) => set('apellido', e.target.value)} placeholder="Apellido" className={inputClass} disabled={readOnly} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Teléfono <span className="text-destructive">*</span></label>
-                <input type="text" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="+54 9 ..." className={inputClass} />
+                <input type="text" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="+54 9 ..." className={inputClass} disabled={readOnly} />
               </div>
               <div>
                 <label className={labelClass}>Correo</label>
-                <input type="email" value={form.correo} onChange={(e) => set('correo', e.target.value)} placeholder="email@ejemplo.com" className={inputClass} />
+                <input type="email" value={form.correo} onChange={(e) => set('correo', e.target.value)} placeholder="email@ejemplo.com" className={inputClass} disabled={readOnly} />
               </div>
             </div>
 
             <div>
               <label className={labelClass}>Producto</label>
-              <ProductSelect value={form.producto} onChange={(v) => set('producto', v)} />
+              <ProductSelect value={form.producto} onChange={(v) => set('producto', v)} disabled={readOnly} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Actividad</label>
-                <select value={form.actividad} onChange={(e) => set('actividad', e.target.value)} className={selectClass}>
+                <select value={form.actividad} onChange={(e) => set('actividad', e.target.value)} className={selectClass} disabled={readOnly}>
                   <option value="">Seleccionar...</option>
                   <option value="CRIA">Cría</option>
                   <option value="RECRIA">Recría</option>
@@ -210,7 +211,7 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
               </div>
               <div>
                 <label className={labelClass}>Medio de adquisición</label>
-                <select value={form.medioAdquisicion} onChange={(e) => set('medioAdquisicion', e.target.value)} className={selectClass}>
+                <select value={form.medioAdquisicion} onChange={(e) => set('medioAdquisicion', e.target.value)} className={selectClass} disabled={readOnly}>
                   <option value="">Seleccionar...</option>
                   <option value="INSTAGRAM">Instagram</option>
                   <option value="WEB">Web</option>
@@ -224,7 +225,7 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Estado</label>
-                <select value={form.estado} onChange={(e) => set('estado', e.target.value)} className={selectClass}>
+                <select value={form.estado} onChange={(e) => set('estado', e.target.value)} className={selectClass} disabled={readOnly}>
                   <option value="">Seleccionar...</option>
                   <option value="PENDIENTE">Pendiente</option>
                   <option value="DERIVADO_A_DISTRIBUIDOR">Derivado a distribuidor</option>
@@ -236,7 +237,7 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
               </div>
               <div>
                 <label className={labelClass}>Asesor asignado</label>
-                <select value={form.siguiendo} onChange={(e) => set('siguiendo', e.target.value)} className={selectClass}>
+                <select value={form.siguiendo} onChange={(e) => set('siguiendo', e.target.value)} className={selectClass} disabled={readOnly}>
                   <option value="">Seleccionar...</option>
                   <option value="EZEQUIEL">Ezequiel</option>
                   <option value="DENIS">Denis</option>
@@ -249,23 +250,23 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
 
             <div>
               <label className={labelClass}>Ubicación</label>
-              <LocationSearch value={geoResult} onSelect={setGeoResult} placeholder="Buscar localidad o provincia..." />
+              <LocationSearch value={geoResult} onSelect={setGeoResult} placeholder="Buscar localidad o provincia..." disabled={readOnly} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Cabezas</label>
-                <input type="number" value={form.cabezas} onChange={(e) => set('cabezas', e.target.value)} placeholder="0" min="0" className={inputClass} />
+                <input type="number" value={form.cabezas} onChange={(e) => set('cabezas', e.target.value)} placeholder="0" min="0" className={inputClass} disabled={readOnly} />
               </div>
               <div>
                 <label className={labelClass}>Meses de suplemento</label>
-                <input type="number" value={form.mesesSuplemento} onChange={(e) => set('mesesSuplemento', e.target.value)} placeholder="0" min="0" className={inputClass} />
+                <input type="number" value={form.mesesSuplemento} onChange={(e) => set('mesesSuplemento', e.target.value)} placeholder="0" min="0" className={inputClass} disabled={readOnly} />
               </div>
             </div>
 
             <div>
               <label className={labelClass}>Observaciones</label>
-              <textarea value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} rows={3} placeholder="Notas adicionales..." className={`${inputClass} resize-none`} />
+              <textarea value={form.observaciones} onChange={(e) => set('observaciones', e.target.value)} rows={3} placeholder="Notas adicionales..." className={`${inputClass} resize-none`} disabled={readOnly} />
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -273,11 +274,13 @@ export function ClientFormModal({ customer, onClose }: ClientFormModalProps) {
 
           <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground">
-              Cancelar
+              {readOnly ? 'Cerrar' : 'Cancelar'}
             </button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {loading ? 'Guardando...' : isEdit ? 'Actualizar' : 'Guardar'}
-            </button>
+            {!readOnly && (
+              <button type="submit" disabled={loading} className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {loading ? 'Guardando...' : isEdit ? 'Actualizar' : 'Guardar'}
+              </button>
+            )}
           </div>
         </form>
       </div>

@@ -24,9 +24,10 @@ interface ProductSelectProps {
   value?: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }
 
-export function ProductSelect({ value, onChange, placeholder = 'Buscar producto...' }: ProductSelectProps) {
+export function ProductSelect({ value, onChange, placeholder = 'Buscar producto...', disabled = false }: ProductSelectProps) {
   const [query, setQuery] = useState(value ?? '');
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -79,14 +80,15 @@ export function ProductSelect({ value, onChange, placeholder = 'Buscar producto.
         type="text"
         value={query}
         placeholder={placeholder}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        disabled={disabled}
+        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-default"
         onChange={(e) => {
           setQuery(e.target.value);
           onChange(e.target.value);
           setOpen(true);
           setHighlighted(0);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { if (!disabled) setOpen(true); }}
         onKeyDown={handleKeyDown}
       />
       {open && filtered.length > 0 && (

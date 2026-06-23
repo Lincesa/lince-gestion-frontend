@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { Plus, Download, Search, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import { fetchCustomers, deleteCustomer } from '@/store/crm/clientsSlice';
 import { exportCustomersExcel } from '@/api/crm';
 import type { Customer } from '@/types/crm.types';
@@ -33,6 +35,7 @@ type SortDir = 'asc' | 'desc';
 export function ClientsPage() {
   const dispatch = useAppDispatch();
   const { list: customers, loading, error } = useAppSelector((s) => s.clients);
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.CRM);
 
   const [search, setSearch] = useState('');
   const [filterSiguiendo, setFilterSiguiendo] = useState('');
@@ -136,7 +139,8 @@ export function ClientsPage() {
           </button>
           <button
             onClick={() => setModalCustomer(null)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={!canEdit}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             Nuevo cliente
@@ -271,12 +275,16 @@ export function ClientsPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => setModalCustomer(c)} className="p-1 rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground" title="Editar">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => setDeleteTarget(c)} className="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Eliminar">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {canEdit && (
+                            <button onClick={() => setModalCustomer(c)} className="p-1 rounded text-muted-foreground hover:bg-accent hover:text-accent-foreground" title="Editar">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {canAdmin && (
+                            <button onClick={() => setDeleteTarget(c)} className="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Eliminar">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -306,6 +314,7 @@ export function ClientsPage() {
         <ClientFormModal
           customer={modalCustomer}
           onClose={() => setModalCustomer(undefined)}
+          readOnly={!canEdit}
         />
       )}
 
