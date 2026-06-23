@@ -131,6 +131,25 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
+function unmatchedFichajeText(
+  fichaje: { estado: 0 | 1; tiempo: string; planta?: Planta | null },
+  fallbackPlanta?: Planta | string | null,
+  warning = false,
+): string {
+  const marker = warning ? '⚠ ' : '';
+  const planta = fichaje.planta ?? fallbackPlanta ?? null;
+  if (planta === 'villa_nueva') {
+    return `${marker}Fichaje sin emparejar · ${formatSoloHora(fichaje.tiempo)}`;
+  }
+  const label = fichaje.estado === 0 ? 'Entrada sin salida' : 'Salida sin entrada';
+  return `${marker}${label} ${formatSoloHora(fichaje.tiempo)}`;
+}
+
+function unmatchedFichajeHeading(fichaje: { estado: 0 | 1; planta?: Planta | null }): string {
+  if (fichaje.planta === 'villa_nueva') return 'Fichaje sin emparejar';
+  return fichaje.estado === 0 ? 'Entrada sin emparejar' : 'Salida sin emparejar';
+}
+
 function duracionTotalClass(totalMs: number, tieneIntervalosValidos: boolean, msJornada: number): string {
   if (!tieneIntervalosValidos) {
     return 'bg-muted/40 text-muted-foreground';
@@ -832,8 +851,8 @@ export function RrhhPage() {
         .map((p) => `${formatSoloHora(p.entrada.tiempo)} - ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`)
         .join(' | ');
       const observaciones = [
-        ...day.entradasSinSalida.map((f) => `Entrada sin salida ${formatSoloHora(f.tiempo)}`),
-        ...day.salidasSinEntrada.map((f) => `Salida sin entrada ${formatSoloHora(f.tiempo)}`),
+        ...day.entradasSinSalida.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
+        ...day.salidasSinEntrada.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
       ].join(' | ');
       return {
         Fecha: day.fecha,
@@ -950,8 +969,8 @@ export function RrhhPage() {
             ...agg.pairsSalidaDiaSiguiente.map(
               (p) => `↗ Turno cruza al día siguiente: ${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (total computado en el día de salida)`,
             ),
-            ...agg.orphanEntradas.map((f) => `⚠ Entrada sin salida: ${formatSoloHora(f.tiempo)}`),
-            ...agg.orphanSalidas.map((f) => `⚠ Salida sin entrada: ${formatSoloHora(f.tiempo)}`),
+            ...agg.orphanEntradas.map((f) => unmatchedFichajeText(f, f.planta, true)),
+            ...agg.orphanSalidas.map((f) => unmatchedFichajeText(f, f.planta, true)),
           ].join('  |  ');
 
           const totalLabel = tieneValidos ? formatDuracion(agg.totalMs) : '—';
@@ -1444,7 +1463,7 @@ export function RrhhPage() {
                   const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
                   return (
                     <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
-                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Entrada sin emparejar</p>
+                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ {unmatchedFichajeHeading(f)}</p>
                       {renderEditRow(editDrafts[f.id], 'Entrada')}
                       {Object.values(editDrafts)
                         .filter((d) => d.forOrphanId === f.id)
@@ -1466,7 +1485,7 @@ export function RrhhPage() {
                   const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
                   return (
                     <div key={f.id} className="pl-3 border-l-2 border-amber-400/60 space-y-0.5">
-                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ Salida sin emparejar</p>
+                      <p className="text-xs text-amber-500 font-medium mb-1">⚠ {unmatchedFichajeHeading(f)}</p>
                       {renderEditRow(editDrafts[f.id], 'Salida')}
                       {Object.values(editDrafts)
                         .filter((d) => d.forOrphanId === f.id)
@@ -1822,8 +1841,8 @@ export function RrhhPage() {
                 <tbody>
                   {reportData.dias.map((day) => {
                     const observaciones = [
-                      ...day.entradasSinSalida.map((f) => `Entrada sin salida ${formatSoloHora(f.tiempo)}`),
-                      ...day.salidasSinEntrada.map((f) => `Salida sin entrada ${formatSoloHora(f.tiempo)}`),
+                      ...day.entradasSinSalida.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
+                      ...day.salidasSinEntrada.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
                     ];
                     const noLaborableLabel = day.esAusencia
                       ? `🏖 ${day.tipoAusencia ?? 'Ausencia'}${day.motivoNoLaborable ? ` — ${day.motivoNoLaborable}` : ''}`
@@ -1977,7 +1996,8 @@ export function RrhhPage() {
                             key={f.id}
                             className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 whitespace-nowrap overflow-hidden text-ellipsis"
                           >
-                            Entrada sin salida · <span className="font-mono">{formatSoloHora(f.tiempo)}</span>
+                            {f.planta === 'villa_nueva' ? 'Fichaje sin emparejar' : 'Entrada sin salida'} ·{' '}
+                            <span className="font-mono">{formatSoloHora(f.tiempo)}</span>
                           </div>
                         ))}
                         {agg.orphanSalidas.map((f) => (
@@ -1985,7 +2005,7 @@ export function RrhhPage() {
                             key={f.id}
                             className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100 whitespace-nowrap overflow-hidden text-ellipsis"
                           >
-                            Salida sin entrada emparejada ·{' '}
+                            {f.planta === 'villa_nueva' ? 'Fichaje sin emparejar' : 'Salida sin entrada emparejada'} ·{' '}
                             <span className="font-mono">{formatSoloHora(f.tiempo)}</span>
                           </div>
                         ))}
