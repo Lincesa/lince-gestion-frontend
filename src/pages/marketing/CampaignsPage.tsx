@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Play, ChevronRight, Trash2, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import {
   fetchCampaigns,
   fetchTemplates,
@@ -580,6 +582,7 @@ export function CampaignsPage() {
   const navigate = useNavigate();
   const { campaigns, templates, filterOptions, loadingCampaigns, loadingTemplates, submitting } =
     useAppSelector((s) => s.marketing);
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.MARKETING);
 
   const [showWizard, setShowWizard] = useState(false);
   const [showSendSingle, setShowSendSingle] = useState(false);
@@ -646,11 +649,11 @@ export function CampaignsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-foreground">Campañas</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowSendSingle(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowSendSingle(true)} disabled={!canEdit}>
             <Send className="h-4 w-4 mr-1.5" />
             Envío rápido
           </Button>
-          <Button size="sm" onClick={() => setShowWizard(true)}>
+          <Button size="sm" onClick={() => setShowWizard(true)} disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-1.5" />
             Nueva campaña
           </Button>
@@ -687,7 +690,7 @@ export function CampaignsPage() {
       ) : campaigns.length === 0 ? (
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <p className="text-sm text-muted-foreground mb-3">No hay campañas todavía.</p>
-          <Button size="sm" onClick={() => setShowWizard(true)}>
+          <Button size="sm" onClick={() => setShowWizard(true)} disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-1.5" />
             Crear primera campaña
           </Button>
@@ -731,7 +734,7 @@ export function CampaignsPage() {
                         {c.status === 'DRAFT' && (
                           <>
                             <button
-                              disabled={executingId === c.id}
+                              disabled={executingId === c.id || !canEdit}
                               onClick={() => setConfirmCampaign(c)}
                               className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
                             >
@@ -739,7 +742,7 @@ export function CampaignsPage() {
                               <span className="hidden sm:inline">Ejecutar</span>
                             </button>
                             <button
-                              disabled={deletingId === c.id}
+                              disabled={deletingId === c.id || !canAdmin}
                               onClick={() => void handleDelete(c)}
                               className="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                               title="Eliminar borrador"

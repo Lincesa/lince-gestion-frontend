@@ -6,6 +6,8 @@ import {
 import { Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import { fetchSatisfactions, deleteSatisfaction } from '@/store/crm/satisfactionSlice';
 import type { Satisfaction } from '@/types/crm.types';
 
@@ -48,6 +50,7 @@ function KpiCard({ label, value, max }: { label: string; value: string; max?: st
 export function SatisfactionPage() {
   const dispatch = useAppDispatch();
   const { list: items, loading, error } = useAppSelector((s) => s.satisfaction);
+  const { canAdmin } = useCanPerform(ModuleKey.CRM);
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Satisfaction | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -236,9 +239,11 @@ export function SatisfactionPage() {
                         </td>
                         <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{formatDate(s.createdAt)}</td>
                         <td className="px-4 py-2.5">
-                          <button onClick={() => setDeleteTarget(s)} className="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Eliminar">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {canAdmin && (
+                            <button onClick={() => setDeleteTarget(s)} className="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Eliminar">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))

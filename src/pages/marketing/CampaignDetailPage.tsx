@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, RefreshCw, Plus, Trash2, Pencil, Check, X, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import {
   fetchCampaign,
   fetchRecipients,
@@ -137,6 +139,7 @@ export function CampaignDetailPage() {
   const navigate = useNavigate();
   const { currentCampaign, recipients, loadingCurrent, loadingRecipients, submitting } =
     useAppSelector((s) => s.marketing);
+  const { canEdit } = useCanPerform(ModuleKey.MARKETING);
   const [showConfirm, setShowConfirm] = useState(false);
   const [preview, setPreview] = useState<CampaignPreviewItem[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -475,7 +478,7 @@ export function CampaignDetailPage() {
           )}
 
           {c.status === 'DRAFT' && (
-            <Button size="sm" onClick={() => setShowConfirm(true)}>
+            <Button size="sm" onClick={() => setShowConfirm(true)} disabled={!canEdit}>
               <Play className="h-3.5 w-3.5 mr-1.5" />
               Ejecutar
             </Button>
@@ -633,7 +636,7 @@ export function CampaignDetailPage() {
                 {' '}/ {waveTarget}
               </p>
             </div>
-            {waveDrafts.length < 3 && (
+            {waveDrafts.length < 3 && canEdit && (
               <button
                 onClick={addWave}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2.5 py-1.5 hover:bg-muted transition-colors"
@@ -691,7 +694,7 @@ export function CampaignDetailPage() {
                 size="sm"
                 variant="outline"
                 onClick={() => void handleSaveWaves()}
-                disabled={savingWaves || !!waveCountError || waveTarget === 0}
+                disabled={!canEdit || savingWaves || !!waveCountError || waveTarget === 0}
               >
                 {savingWaves ? 'Guardando…' : 'Guardar oleadas'}
               </Button>
@@ -853,7 +856,7 @@ export function CampaignDetailPage() {
               </p>
             </div>
             {!reconfiguringWaves ? (
-              <Button size="sm" variant="outline" onClick={openReconfigure}>
+              <Button size="sm" variant="outline" onClick={openReconfigure} disabled={!canEdit}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
                 Editar
               </Button>
@@ -1051,7 +1054,7 @@ export function CampaignDetailPage() {
                       </td>
                       {/* Acciones — solo para FAILED */}
                       <td className="px-4 py-2.5">
-                        {r.status === 'FAILED' && editingPhoneId !== r.id && (
+                        {r.status === 'FAILED' && editingPhoneId !== r.id && canEdit && (
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => void handleRetry(r.id)}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import { fetchFollowUpEvents, completeFollowUpEvent } from '@/store/crm/analyticsSlice';
 
 const ASESORES = ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN', 'SIN_ASIGNAR'];
@@ -44,6 +46,7 @@ function formatScheduled(iso: string) {
 export function FollowUpEventsWidget() {
   const dispatch = useAppDispatch();
   const { followUpEvents, loading } = useAppSelector((s) => s.analytics);
+  const { canEdit } = useCanPerform(ModuleKey.CRM);
   const [assignedTo, setAssignedTo] = useState('');
   const [followStatus, setFollowStatus] = useState('READY');
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -135,7 +138,7 @@ export function FollowUpEventsWidget() {
                     </span>
                   </td>
                   <td className="px-4 py-2">
-                    {(event.status === 'READY' || event.status === 'SCHEDULED') && (
+                    {(event.status === 'READY' || event.status === 'SCHEDULED') && canEdit && (
                       <button
                         disabled={completingId === event.id}
                         onClick={() => void handleComplete(event.id)}

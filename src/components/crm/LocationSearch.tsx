@@ -6,9 +6,10 @@ interface LocationSearchProps {
   value?: GeoResult | null;
   onSelect: (result: GeoResult | null) => void;
   placeholder?: string;
+  disabled?: boolean;
 }
 
-export function LocationSearch({ value, onSelect, placeholder = 'Buscar localidad...' }: LocationSearchProps) {
+export function LocationSearch({ value, onSelect, placeholder = 'Buscar localidad...', disabled = false }: LocationSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GeoResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -87,9 +88,10 @@ export function LocationSearch({ value, onSelect, placeholder = 'Buscar localida
         type="text"
         value={query}
         placeholder={placeholder}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        disabled={disabled}
+        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-default"
         onChange={handleChange}
-        onFocus={() => { if (results.length > 0) setOpen(true); }}
+        onFocus={() => { if (!disabled && results.length > 0) setOpen(true); }}
         onKeyDown={handleKeyDown}
       />
       {loading && (
