@@ -6,9 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { conciliacionesApi } from '@/api/conciliaciones';
+import { groupConceptVariants, normConcept } from '@/utils/conciliaciones';
 import type { ExtractLine, ExpenseCategory } from '@/types/conciliaciones.types';
-
-const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 interface ExcludeConceptsModalProps {
   open: boolean;
@@ -37,28 +36,38 @@ export function ExcludeConceptsModal({
   const [loading, setLoading] = useState(false);
   const [loadingCategory, setLoadingCategory] = useState(false);
 
-  const excludedSet = useMemo(() => new Set(excludeConcepts.map((c) => norm(c))), [excludeConcepts]);
+  const excludedSet = useMemo(() => new Set(excludeConcepts.map(normConcept)), [excludeConcepts]);
 
   const conceptOptions = useMemo(() => {
     const active = extractLines.filter((l) => !l.excluded);
-    const byConcept = new Map<string, { categoryName: string | null; count: number }>();
+    const rawConcepts: string[] = [];
+    const categoryByKey = new Map<string, string | null>();
+    const countByKey = new Map<string, number>();
     for (const l of active) {
       const c = (l.concept ?? '').trim();
-      if (!c || excludedSet.has(norm(c))) continue;
-      const cur = byConcept.get(c);
-      const catName = l.category?.name ?? null;
-      if (!cur) byConcept.set(c, { categoryName: catName, count: 1 });
-      else byConcept.set(c, { categoryName: cur.categoryName || catName, count: cur.count + 1 });
+      if (!c) continue;
+      const key = normConcept(c);
+      if (excludedSet.has(key)) continue;
+      rawConcepts.push(c);
+      countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
+      if (!categoryByKey.get(key) && l.category?.name) categoryByKey.set(key, l.category.name);
     }
-    return Array.from(byConcept.entries())
-      .map(([concept, { categoryName, count }]) => ({ concept, categoryName, count }))
-      .sort((a, b) => a.concept.localeCompare(b.concept));
+    return groupConceptVariants(rawConcepts).map((g) => ({
+      ...g,
+      categoryName: categoryByKey.get(g.key) ?? null,
+      count: countByKey.get(g.key) ?? 0,
+    }));
   }, [extractLines, excludedSet]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return conceptOptions;
-    const q = norm(search);
-    return conceptOptions.filter((o) => norm(o.concept).includes(q) || (o.categoryName && norm(o.categoryName).includes(q)));
+    const q = normConcept(search);
+    return conceptOptions.filter(
+      (o) =>
+        normConcept(o.label).includes(q) ||
+        o.variants.some((v) => normConcept(v).includes(q)) ||
+        (o.categoryName && normConcept(o.categoryName).includes(q)),
+    );
   }, [conceptOptions, search]);
 
   useEffect(() => {
@@ -69,13 +78,22 @@ export function ExcludeConceptsModal({
     if (!open) { setSearch(''); setSelected(new Set()); setCategoryToExclude(''); }
   }, [open]);
 
-  const toggle = (concept: string) => setSelected((prev) => { const next = new Set(prev); if (next.has(concept)) next.delete(concept); else next.add(concept); return next; });
+  const toggle = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const handleExcludeSelected = async () => {
     if (selected.size === 0) return;
+    const concepts = conceptOptions
+      .filter((o) => selected.has(o.key))
+      .flatMap((o) => o.variants);
     setLoading(true);
     try {
-      await onExcludeConcepts(Array.from(selected));
+      await onExcludeConcepts(concepts);
       onSuccess();
       onClose();
     } catch (e: unknown) {
@@ -119,7 +137,7 @@ export function ExcludeConceptsModal({
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">{filtered.length} concepto(s) disponibles{search.trim() && ` (filtrado por "${search}")`}</p>
           <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setSelected((prev) => { const next = new Set(prev); filtered.forEach((o) => next.add(o.concept)); return next; })}>Seleccionar todos</Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set(filtered.map((o) => o.key)))}>Seleccionar todos</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Quitar selección</Button>
           </div>
         </div>
@@ -129,9 +147,9 @@ export function ExcludeConceptsModal({
           ) : (
             <ul className="p-1 divide-y">
               {filtered.map((o) => (
-                <li key={o.concept} className="flex items-center gap-3 py-2 px-2 hover:bg-muted/50 rounded">
-                  <input type="checkbox" checked={selected.has(o.concept)} onChange={() => toggle(o.concept)} className="h-4 w-4 rounded border-input" />
-                  <span className="flex-1 truncate text-sm" title={o.concept}>{o.concept}</span>
+                <li key={o.key} className="flex items-center gap-3 py-2 px-2 hover:bg-muted/50 rounded">
+                  <input type="checkbox" checked={selected.has(o.key)} onChange={() => toggle(o.key)} className="h-4 w-4 rounded border-input" />
+                  <span className="flex-1 truncate text-sm" title={o.label}>{o.label}</span>
                   {o.categoryName && <span className="text-xs text-muted-foreground shrink-0">{o.categoryName}</span>}
                   {o.count > 1 && <span className="text-xs text-muted-foreground tabular-nums">×{o.count}</span>}
                 </li>

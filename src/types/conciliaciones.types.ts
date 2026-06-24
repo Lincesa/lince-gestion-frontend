@@ -146,6 +146,7 @@ export type RunDetail = {
   title?: string;
   bankName?: string | null;
   company?: string | null;
+  windowDays?: number;
   status?: RunStatus;
   createdById?: string;
   excludeConcepts?: string[];

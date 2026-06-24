@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import { useAppSelector } from '@/store';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
@@ -35,6 +36,7 @@ export function RunDetailPage() {
   const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updateSystemDialogOpen, setUpdateSystemDialogOpen] = useState(false);
+  const [updatingWindowDays, setUpdatingWindowDays] = useState(false);
 
   const isClosed = detail?.status === 'CLOSED';
   const isCreator = !!(detail?.createdById && user?.id && detail.createdById === user.id);
@@ -135,6 +137,20 @@ export function RunDetailPage() {
     } catch { toast.error('Error al actualizar empresa'); }
   };
 
+  const handleWindowDaysChange = async (days: number) => {
+    if (!id || !detail || Number.isNaN(days) || days < 0) return;
+    setUpdatingWindowDays(true);
+    try {
+      await conciliacionesApi.updateRun(id, { windowDays: days });
+      await fetchDetail();
+      toast.success('Ventana de días actualizada y matches recalculados');
+    } catch {
+      toast.error('Error al actualizar ventana de días');
+    } finally {
+      setUpdatingWindowDays(false);
+    }
+  };
+
   const handleWorkspaceFinalize = async () => {
     if (!id || !detail) return;
     const pendingItems = detail.pendingItems || [];
@@ -210,12 +226,27 @@ export function RunDetailPage() {
                   <option value="">Sin definir</option>
                   {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
                 </Select>
+                <Label className="text-muted-foreground font-normal">Ventana días:</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  className="w-20 h-8 text-sm"
+                  defaultValue={detail.windowDays ?? 0}
+                  key={`window-${detail.windowDays}-${detail.matches.length}`}
+                  disabled={updatingWindowDays}
+                  onBlur={(e) => {
+                    const next = Number(e.target.value);
+                    if (next !== (detail.windowDays ?? 0)) void handleWindowDaysChange(next);
+                  }}
+                />
               </>
             ) : (
               <>
                 {detail.company && <span className="font-medium text-foreground">{detail.company}</span>}
                 {detail.company && <span>·</span>}
                 <span>{detail.bankName || 'Sin banco'}</span>
+                <span>·</span>
+                <span>Ventana: {detail.windowDays ?? 0} días</span>
               </>
             )}
           </p>

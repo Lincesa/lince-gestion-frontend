@@ -70,6 +70,17 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
     return m;
   }, [matches]);
 
+  const blockedExtractIdsForDialog = useMemo(() => {
+    if (!changeMatchSystem) return new Set<string>();
+    const blocked = new Set<string>();
+    for (const match of matches) {
+      if (match.systemLineId !== changeMatchSystem.id) {
+        blocked.add(match.extractLineId);
+      }
+    }
+    return blocked;
+  }, [matches, changeMatchSystem]);
+
   const allIncorrect = [
     ...unmatchedSystem.map((u) => ({ id: u.systemLineId, type: u.status as 'OVERDUE' | 'DEFERRED', systemLine: systemById.get(u.systemLineId), status: u.status as 'OVERDUE' | 'DEFERRED' })),
   ].sort((a, b) => (a.status === 'OVERDUE' && b.status !== 'OVERDUE' ? -1 : a.status !== 'OVERDUE' && b.status === 'OVERDUE' ? 1 : 0));
@@ -330,6 +341,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
           systemLine={changeMatchSystem}
           extractLines={extractLines}
           currentExtractIds={systemToExtracts.get(changeMatchSystem.id) || []}
+          blockedExtractIds={blockedExtractIdsForDialog}
           onSuccess={() => { onChangeMatchSuccess?.(); setChangeMatchSystem(null); }}
         />
       )}

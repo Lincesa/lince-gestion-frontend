@@ -12,6 +12,7 @@ interface ChangeMatchDialogProps {
   systemLine: SystemLine;
   extractLines: ExtractLine[];
   currentExtractIds: string[];
+  blockedExtractIds?: Set<string>;
   onSuccess: () => void;
 }
 
@@ -22,6 +23,7 @@ export function ChangeMatchDialog({
   systemLine,
   extractLines,
   currentExtractIds,
+  blockedExtractIds = new Set(),
   onSuccess,
 }: ChangeMatchDialogProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set(currentExtractIds));
@@ -31,14 +33,21 @@ export function ChangeMatchDialog({
     if (open) setSelected(new Set(currentExtractIds));
   }, [open, currentExtractIds]);
 
+  const availableExtracts = useMemo(() => {
+    const current = new Set(currentExtractIds);
+    return extractLines.filter(
+      (ext) => current.has(ext.id) || !blockedExtractIds.has(ext.id),
+    );
+  }, [extractLines, currentExtractIds, blockedExtractIds]);
+
   const sum = useMemo(() => {
     let s = 0;
     selected.forEach((id) => {
-      const ext = extractLines.find((e) => e.id === id);
+      const ext = availableExtracts.find((e) => e.id === id);
       if (ext) s += ext.amount;
     });
     return s;
-  }, [selected, extractLines]);
+  }, [selected, availableExtracts]);
 
   const isValid = Math.abs(sum - systemLine.amount) < 0.02;
 
@@ -83,7 +92,7 @@ export function ChangeMatchDialog({
               </tr>
             </thead>
             <tbody>
-              {extractLines.map((ext) => (
+              {availableExtracts.map((ext) => (
                 <tr key={ext.id} className="border-b last:border-0 cursor-pointer hover:bg-muted/30" onClick={() => toggle(ext.id)}>
                   <td className="p-2">
                     <input

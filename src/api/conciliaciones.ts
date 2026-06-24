@@ -25,7 +25,7 @@ export const conciliacionesApi = {
       body: JSON.stringify(payload),
     }),
 
-  updateRun: (id: string, data: { status?: 'OPEN' | 'CLOSED'; bankName?: string | null; company?: string | null; enabledCategoryIds?: string[] }) =>
+  updateRun: (id: string, data: { status?: 'OPEN' | 'CLOSED'; bankName?: string | null; company?: string | null; enabledCategoryIds?: string[]; windowDays?: number }) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

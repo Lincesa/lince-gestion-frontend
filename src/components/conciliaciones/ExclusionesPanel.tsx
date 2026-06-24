@@ -7,7 +7,7 @@ import { ExcludeConceptsModal } from './ExcludeConceptsModal';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import type { ExtractLine, ExpenseCategory } from '@/types/conciliaciones.types';
 
-const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+import { normConcept } from '@/utils/conciliaciones';
 
 interface ExclusionesPanelProps {
   excludeConcepts: string[];
@@ -34,7 +34,7 @@ export function ExclusionesPanel({ excludeConcepts, extractLines, canEdit, isClo
     }
   }, [excludeConcepts.length]);
 
-  const categoryNamesSet = useMemo(() => new Set(categories.map((c) => norm(c.name))), [categories]);
+  const categoryNamesSet = useMemo(() => new Set(categories.map((c) => normConcept(c.name))), [categories]);
 
   const canAdd = canEdit && !isClosed && runId && onExcludeConcepts && onExcludeByCategory && onSuccess;
   const canRemove = canEdit && !isClosed && onRemoveExcludedConcept;
@@ -68,7 +68,7 @@ export function ExclusionesPanel({ excludeConcepts, extractLines, canEdit, isClo
                   <li key={c} className={`flex items-center justify-between gap-2 rounded-md border px-3 py-2 ${isRemoving ? 'bg-muted/60 opacity-80' : 'bg-muted/30'}`}>
                     <span className="text-sm font-medium truncate">
                       {c}
-                      {categoryNamesSet.has(norm(c)) && <span className="text-muted-foreground font-normal"> (categoría)</span>}
+                      {categoryNamesSet.has(normConcept(c)) && <span className="text-muted-foreground font-normal"> (categoría)</span>}
                     </span>
                     {canRemove && (
                       <Button variant="ghost" size="sm" className="shrink-0 h-8 gap-1.5" disabled={removing !== null} onClick={() => void handleRemove(c)} title="Quitar esta exclusión">

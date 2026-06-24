@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import type { ExtractMapping, SystemMapping, ExpenseCategory } from '@/types/conciliaciones.types';
+import { groupConceptVariants, normConcept } from '@/utils/conciliaciones';
 
 type FileState = {
   file: File | null;
@@ -57,7 +58,7 @@ export function NewReconciliationPage() {
   const [systemMapping, setSystemMapping] = useState<SystemMapping>(initSystemMapping());
   const [bankName, setBankName] = useState('');
   const [company, setCompany] = useState('');
-  const [windowDays, setWindowDays] = useState(3);
+  const [windowDays, setWindowDays] = useState(0);
   const [cutDate, setCutDate] = useState('');
   const [excludeConcepts, setExcludeConcepts] = useState<string[]>([]);
   const [conceptSearch, setConceptSearch] = useState('');
@@ -104,14 +105,14 @@ export function NewReconciliationPage() {
 
   const conceptOptions = (() => {
     if (!extractMapping.conceptCol) return [];
-    const set = new Set<string>();
+    const raw: string[] = [];
     for (const row of extract.rows) {
-      const raw = row[extractMapping.conceptCol];
-      if (raw == null) continue;
-      const text = String(raw).trim();
-      if (text) set.add(text);
+      const value = row[extractMapping.conceptCol];
+      if (value == null) continue;
+      const text = String(value).trim();
+      if (text) raw.push(text);
     }
-    return Array.from(set).sort();
+    return groupConceptVariants(raw);
   })();
 
   const handleRun = async () => {
@@ -279,6 +280,7 @@ export function NewReconciliationPage() {
             <div className="space-y-2">
               <Label>Ventana de días</Label>
               <Input type="number" min={0} value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))} />
+              <p className="text-xs text-muted-foreground">0 = matchear solo por importe (comportamiento de la app anterior)</p>
             </div>
             <div className="space-y-2">
               <Label>Fecha de corte</Label>
@@ -300,9 +302,18 @@ export function NewReconciliationPage() {
                   />
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground">
-                      {conceptSearch.trim()
-                        ? `${conceptOptions.filter((c) => c.toLowerCase().includes(conceptSearch.toLowerCase())).length} de ${conceptOptions.length} conceptos`
-                        : `${conceptOptions.length} concepto${conceptOptions.length !== 1 ? 's' : ''}`}
+                      {(() => {
+                        const q = conceptSearch.trim().toLowerCase();
+                        const filtered = conceptOptions.filter(
+                          (o) =>
+                            !q ||
+                            o.label.toLowerCase().includes(q) ||
+                            o.variants.some((v) => v.toLowerCase().includes(q)),
+                        );
+                        return q
+                          ? `${filtered.length} de ${conceptOptions.length} conceptos`
+                          : `${conceptOptions.length} concepto${conceptOptions.length !== 1 ? 's' : ''}`;
+                      })()}
                       {excludeConcepts.length > 0 && ` · ${excludeConcepts.length} seleccionado${excludeConcepts.length !== 1 ? 's' : ''}`}
                     </p>
                     <div className="flex gap-1">
@@ -310,8 +321,16 @@ export function NewReconciliationPage() {
                         type="button"
                         className="text-xs text-primary underline hover:no-underline"
                         onClick={() => {
-                          const visible = conceptOptions.filter((c) => !conceptSearch.trim() || c.toLowerCase().includes(conceptSearch.toLowerCase()));
-                          setExcludeConcepts((prev) => Array.from(new Set([...prev, ...visible])));
+                          const q = conceptSearch.trim().toLowerCase();
+                          const visible = conceptOptions.filter(
+                            (o) =>
+                              !q ||
+                              o.label.toLowerCase().includes(q) ||
+                              o.variants.some((v) => v.toLowerCase().includes(q)),
+                          );
+                          setExcludeConcepts((prev) =>
+                            Array.from(new Set([...prev, ...visible.flatMap((o) => o.variants)])),
+                          );
                         }}
                       >
                         Seleccionar todos
@@ -329,14 +348,48 @@ export function NewReconciliationPage() {
                 </div>
                 <div className="max-h-[200px] overflow-y-auto p-2 space-y-0.5">
                   {conceptOptions
-                    .filter((concept) => !conceptSearch.trim() || concept.toLowerCase().includes(conceptSearch.toLowerCase()))
-                    .map((concept) => (
-                      <label key={concept} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors">
-                        <input type="checkbox" checked={excludeConcepts.includes(concept)} onChange={(e) => { if (e.target.checked) setExcludeConcepts([...excludeConcepts, concept]); else setExcludeConcepts(excludeConcepts.filter((c) => c !== concept)); }} className="h-4 w-4 rounded border-input text-primary" />
-                        <span className="text-sm flex-1">{concept}</span>
-                      </label>
-                    ))}
-                  {conceptOptions.filter((concept) => !conceptSearch.trim() || concept.toLowerCase().includes(conceptSearch.toLowerCase())).length === 0 && (
+                    .filter(
+                      (o) =>
+                        !conceptSearch.trim() ||
+                        o.label.toLowerCase().includes(conceptSearch.toLowerCase()) ||
+                        o.variants.some((v) => v.toLowerCase().includes(conceptSearch.toLowerCase())),
+                    )
+                    .map((group) => {
+                      const excluded = group.variants.some((v) =>
+                        excludeConcepts.some((e) => normConcept(e) === normConcept(v)),
+                      );
+                      return (
+                        <label key={group.key} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={excluded}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setExcludeConcepts((prev) =>
+                                  Array.from(new Set([...prev, ...group.variants])),
+                                );
+                              } else {
+                                const keys = new Set(group.variants.map(normConcept));
+                                setExcludeConcepts((prev) =>
+                                  prev.filter((c) => !keys.has(normConcept(c))),
+                                );
+                              }
+                            }}
+                            className="h-4 w-4 rounded border-input text-primary"
+                          />
+                          <span className="text-sm flex-1">{group.label}</span>
+                          {group.variants.length > 1 && (
+                            <span className="text-xs text-muted-foreground">{group.variants.length} variantes</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  {conceptOptions.filter(
+                    (o) =>
+                      !conceptSearch.trim() ||
+                      o.label.toLowerCase().includes(conceptSearch.toLowerCase()) ||
+                      o.variants.some((v) => v.toLowerCase().includes(conceptSearch.toLowerCase())),
+                  ).length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-3">Sin resultados para "{conceptSearch}"</p>
                   )}
                 </div>
