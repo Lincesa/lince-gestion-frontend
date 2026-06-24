@@ -262,10 +262,15 @@ interface EmployeeDayAgg {
   key: string;
   fichajes: FichajeAsistencia[];
   pairs: FichajePair[];
+  pairsEntradaDiaAnterior: FichajePair[];
   pairsSalidaDiaSiguiente: FichajePair[];
   orphanEntradas: FichajeAsistencia[];
   orphanSalidas: FichajeAsistencia[];
   totalMs: number;
+}
+
+function aggHasValidPairs(agg: EmployeeDayAgg): boolean {
+  return agg.pairs.length > 0 || agg.pairsEntradaDiaAnterior.length > 0;
 }
 
 function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: string): EmployeeDayAgg[] {
@@ -324,12 +329,16 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
     }
     allOrphanEntradas.push(...openEntradas);
 
-    // Turnos nocturnos: el backend devuelve desde las 18:00 del día anterior
+    // Turnos nocturnos (Tucumán): el backend devuelve desde las 00:00 del día anterior
     // y hasta las 14:00 del día siguiente. El total se imputa al día de salida.
-    // - pairs: tramos cuya salida cae en el día consultado (suman al total).
-    // - pairsSalidaDiaSiguiente: tramos que empiezan en el día consultado pero
-    //   cierran al día siguiente; se muestran como informativos y NO suman.
-    const pairs = allPairs.filter((p) => tiempoYmdEnAr(p.salida.tiempo) === requestedDay);
+    // - pairs: tramos del mismo día calendario (suman al total).
+    // - pairsEntradaDiaAnterior: cierran hoy pero empezaron ayer (suman al total).
+    // - pairsSalidaDiaSiguiente: empiezan hoy y cierran mañana (informativos, no suman).
+    const pairsSalidaEnDia = allPairs.filter((p) => tiempoYmdEnAr(p.salida.tiempo) === requestedDay);
+    const pairs = pairsSalidaEnDia.filter((p) => tiempoYmdEnAr(p.entrada.tiempo) === requestedDay);
+    const pairsEntradaDiaAnterior = pairsSalidaEnDia.filter(
+      (p) => tiempoYmdEnAr(p.entrada.tiempo) !== requestedDay,
+    );
     const pairsSalidaDiaSiguiente = allPairs.filter(
       (p) =>
         tiempoYmdEnAr(p.entrada.tiempo) === requestedDay &&
@@ -340,6 +349,7 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
 
     if (
       pairs.length === 0 &&
+      pairsEntradaDiaAnterior.length === 0 &&
       pairsSalidaDiaSiguiente.length === 0 &&
       orphanEntradas.length === 0 &&
       orphanSalidas.length === 0
@@ -348,16 +358,12 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
     }
 
     let totalMs = 0;
-    for (const p of pairs) {
+    for (const p of [...pairs, ...pairsEntradaDiaAnterior]) {
       totalMs += p.ms;
     }
 
     const fichajesMap = new Map<string, FichajeAsistencia>();
-    for (const p of pairs) {
-      fichajesMap.set(p.entrada.id, p.entrada);
-      fichajesMap.set(p.salida.id, p.salida);
-    }
-    for (const p of pairsSalidaDiaSiguiente) {
+    for (const p of [...pairs, ...pairsEntradaDiaAnterior, ...pairsSalidaDiaSiguiente]) {
       fichajesMap.set(p.entrada.id, p.entrada);
       fichajesMap.set(p.salida.id, p.salida);
     }
@@ -369,6 +375,7 @@ function buildEmployeeDayAggregates(items: FichajeAsistencia[], requestedDay: st
       key,
       fichajes,
       pairs,
+      pairsEntradaDiaAnterior,
       pairsSalidaDiaSiguiente,
       orphanEntradas,
       orphanSalidas,
@@ -957,13 +964,18 @@ export function RrhhPage() {
         });
 
         for (const agg of aggs) {
-          const tieneValidos = agg.pairs.length > 0;
+          const tieneValidos = aggHasValidPairs(agg);
           const msJornada = jornadaMsForAgg(agg);
           const saldoMs = agg.totalMs - msJornada;
 
-          const tramos = agg.pairs
-            .map((p) => `${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`)
-            .join('  |  ');
+          const tramos = [
+            ...agg.pairs.map(
+              (p) => `${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`,
+            ),
+            ...agg.pairsEntradaDiaAnterior.map(
+              (p) => `${formatSoloHora(p.entrada.tiempo)} → ${formatSoloHora(p.salida.tiempo)} (${formatDuracion(p.ms)})`,
+            ),
+          ].join('  |  ');
 
           const observaciones = [
             ...agg.pairsSalidaDiaSiguiente.map(
@@ -1459,6 +1471,14 @@ export function RrhhPage() {
                   </div>
                 ))}
 
+                {agg.pairsEntradaDiaAnterior.map((pair, i) => (
+                  <div key={i} className="pl-3 border-l-2 border-sky-400/60 space-y-0.5">
+                    <p className="text-xs text-sky-500 font-medium mb-1">🌙 Turno nocturno — entrada del día anterior</p>
+                    {renderEditRow(editDrafts[pair.entrada.id], 'Entrada')}
+                    {renderEditRow(editDrafts[pair.salida.id], 'Salida')}
+                  </div>
+                ))}
+
                 {agg.orphanEntradas.map((f) => {
                   const hasComplement = Object.values(editDrafts).some((d) => d.forOrphanId === f.id);
                   return (
@@ -1947,7 +1967,7 @@ export function RrhhPage() {
               </tr>
             </thead>
             {aggregates.map((agg) => {
-              const tieneValidos = agg.pairs.length > 0;
+              const tieneValidos = aggHasValidPairs(agg);
               const jornadaHs = jornadaHsForAgg(agg);
               const msJornada = jornadaHs * 3600000;
               const saldoMs = agg.totalMs - msJornada;
@@ -1976,6 +1996,20 @@ export function RrhhPage() {
                             <span className="ml-auto pl-4 font-medium tabular-nums text-foreground">
                               {formatDuracion(p.ms)}
                             </span>
+                          </div>
+                        ))}
+                        {agg.pairsEntradaDiaAnterior.map((p) => (
+                          <div
+                            key={`${p.entrada.id}-${p.salida.id}`}
+                            className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-900 dark:text-sky-100 whitespace-nowrap"
+                            title={`Entrada el día anterior · ${formatFichajeHora(p.entrada.tiempo)}. El total se computa en este día.`}
+                          >
+                            <Info className="h-3.5 w-3.5 shrink-0" />
+                            <span className="font-mono tabular-nums">{formatSoloHora(p.entrada.tiempo)}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="font-mono tabular-nums">{formatSoloHora(p.salida.tiempo)}</span>
+                            <span className="ml-auto pl-3 font-medium tabular-nums">{formatDuracion(p.ms)}</span>
+                            <span className="text-[11px] opacity-80">entrada día ant.</span>
                           </div>
                         ))}
                         {agg.pairsSalidaDiaSiguiente.map((p) => (
@@ -2010,6 +2044,7 @@ export function RrhhPage() {
                           </div>
                         ))}
                         {agg.pairs.length === 0 &&
+                          agg.pairsEntradaDiaAnterior.length === 0 &&
                           agg.pairsSalidaDiaSiguiente.length === 0 &&
                           agg.orphanEntradas.length === 0 &&
                           agg.orphanSalidas.length === 0 && (
