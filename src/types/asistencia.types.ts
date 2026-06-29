@@ -133,3 +133,112 @@ export interface ReporteEmpleadoRango {
   };
   dias: DiaReporteEmpleado[];
 }
+
+export type MonthlyEmployeeStatus = 'ok' | 'review' | 'critical';
+
+export interface MonthlyAttendanceDay {
+  fecha: string;
+  expectedMs: number;
+  workedMs: number;
+  balanceMs: number;
+  pairs: number;
+  orphanEntradas: number;
+  orphanSalidas: number;
+  isWorkday: boolean;
+  isJustifiedAbsence: boolean;
+  isNoLaborable: boolean;
+  hasIncompletePunches: boolean;
+  isUnjustifiedAbsence: boolean;
+  isExtraDay: boolean;
+}
+
+export interface MonthlyAttendanceEmployeeRow {
+  empleadoId: string;
+  pin: string;
+  nombre: string;
+  planta: Planta;
+  departamento: string | null;
+  cargo: string | null;
+  diasEsperados: number;
+  diasTrabajados: number;
+  diasAusenciaJustificada: number;
+  diasAusenteInjustificado: number;
+  diasNoLaborables: number;
+  diasConFichajeIncompleto: number;
+  expectedMs: number;
+  workedMs: number;
+  extraMs: number;
+  balanceMs: number;
+  cumplimientoPct: number;
+  ausentismoPct: number;
+  status: MonthlyEmployeeStatus;
+  days: MonthlyAttendanceDay[];
+}
+
+export interface MonthlyAttendanceSummary {
+  month: string;
+  desde: string;
+  hasta: string;
+  planta: Planta | 'todas';
+  totals: {
+    empleados: number;
+    diasEsperados: number;
+    diasTrabajados: number;
+    diasAusenciaJustificada: number;
+    diasAusenteInjustificado: number;
+    diasConFichajeIncompleto: number;
+    expectedMs: number;
+    workedMs: number;
+    extraMs: number;
+    balanceMs: number;
+    cumplimientoPct: number;
+    ausentismoPct: number;
+    fichajesSinEmpleado: number;
+  };
+  employees: MonthlyAttendanceEmployeeRow[];
+}
+
+export interface AttendanceKpis {
+  month: string;
+  planta: Planta | 'todas';
+  cards: {
+    empleados: number;
+    presentismoPct: number;
+    ausentismoPct: number;
+    cumplimientoPct: number;
+    balanceMs: number;
+    fichajesSinEmpleado: number;
+    diasConFichajeIncompleto: number;
+  };
+  byPlant: Array<{
+    planta: Planta;
+    empleados: number;
+    expectedMs: number;
+    workedMs: number;
+    balanceMs: number;
+    cumplimientoPct: number;
+    ausentismoPct: number;
+    diasConFichajeIncompleto: number;
+  }>;
+  weeklyTrend: Array<{
+    semana: string;
+    expectedMs: number;
+    workedMs: number;
+    balanceMs: number;
+    cumplimientoPct: number;
+  }>;
+  alerts: Array<{
+    severity: 'info' | 'warning' | 'critical';
+    title: string;
+    detail: string;
+  }>;
+  incompletePunches: Array<{
+    empleadoId: string;
+    empleadoNombre: string;
+    planta: Planta;
+    fecha: string;
+    orphanEntradas: number;
+    orphanSalidas: number;
+  }>;
+  topReview: MonthlyAttendanceEmployeeRow[];
+}

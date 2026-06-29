@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, FileSpreadsheet, Info, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { CalendarioLaboralModal } from './CalendarioLaboralModal';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
-import type { EmpleadoAsistencia, FichajeAsistencia, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
+import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -29,6 +29,9 @@ interface EditRowDraft {
   hora: string;
   saving: boolean;
   forOrphanId?: string;
+  originalEstado?: 0 | 1;
+  originalFecha?: string;
+  originalHora?: string;
 }
 
 const AR_TZ = 'America/Argentina/Buenos_Aires';
@@ -58,6 +61,28 @@ function plantaDisplayName(planta: Planta | string): string {
   if (planta === 'villa_nueva') return 'Villa María';
   if (planta === 'tucuman') return 'Tucumán';
   return planta.replace(/_/g, ' ');
+}
+
+function formatPct(value: number): string {
+  return `${value.toFixed(1).replace(/\.0$/, '')}%`;
+}
+
+function statusLabel(status: MonthlyAttendanceEmployeeRow['status']): string {
+  if (status === 'ok') return 'OK';
+  if (status === 'critical') return 'Crítico';
+  return 'Revisar';
+}
+
+function statusClass(status: MonthlyAttendanceEmployeeRow['status']): string {
+  if (status === 'ok') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200 ring-1 ring-emerald-500/25';
+  if (status === 'critical') return 'bg-red-500/15 text-red-700 dark:text-red-200 ring-1 ring-red-500/25';
+  return 'bg-amber-500/15 text-amber-700 dark:text-amber-200 ring-1 ring-amber-500/25';
+}
+
+function alertClass(severity: AttendanceKpis['alerts'][number]['severity']): string {
+  if (severity === 'critical') return 'border-red-500/30 bg-red-500/10 text-red-900 dark:text-red-100';
+  if (severity === 'warning') return 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100';
+  return 'border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-100';
 }
 
 function PlantaToggle({
@@ -180,6 +205,21 @@ function todayYmdAr(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+function currentMonthAr(): string {
+  return todayYmdAr().slice(0, 7);
+}
+
+function monthRangeFromMonth(month: string): { desde: string; hasta: string } {
+  const [year, monthNumber] = month.split('-').map((part) => Number(part));
+  const last = new Date(Date.UTC(year, monthNumber, 0, 12, 0, 0));
+  const hasta = [
+    last.getUTCFullYear(),
+    String(last.getUTCMonth() + 1).padStart(2, '0'),
+    String(last.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+  return { desde: `${month}-01`, hasta: hasta > todayYmdAr() ? todayYmdAr() : hasta };
 }
 
 
@@ -418,8 +458,13 @@ function plantasLabel(agg: EmployeeDayAgg): string {
 
 export function RrhhPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const activeView = location.pathname.endsWith('/reportes')
     ? 'reportes'
+    : location.pathname.endsWith('/mensual')
+    ? 'mensual'
+    : location.pathname.endsWith('/indicadores')
+    ? 'indicadores'
     : location.pathname.endsWith('/pines')
     ? 'pines'
     : location.pathname.endsWith('/empleados')
@@ -468,6 +513,14 @@ export function RrhhPage() {
   const [nuevoEmpOpen, setNuevoEmpOpen] = useState(false);
   const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string; horasEsperadasDia: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '', horasEsperadasDia: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
+  const [monthlyMonth, setMonthlyMonth] = useState(currentMonthAr);
+  const [monthlyData, setMonthlyData] = useState<MonthlyAttendanceSummary | null>(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [kpisData, setKpisData] = useState<AttendanceKpis | null>(null);
+  const [kpisLoading, setKpisLoading] = useState(false);
+  const [reportFixOpen, setReportFixOpen] = useState(false);
+  const [reportFixTitle, setReportFixTitle] = useState('');
+  const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
   // Cache de empleados (activos) y pines por planta. Se invalida en CRUD de empleados
   // y al reasignar/reconciliar pines. Evita re-fetch al togglear planta.
@@ -520,9 +573,35 @@ export function RrhhPage() {
     }
   };
 
+  const loadMonthlySummary = async () => {
+    setMonthlyLoading(true);
+    try {
+      setMonthlyData(await asistenciaApi.getMonthlySummary({ month: monthlyMonth, planta: selectedPlanta }));
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setMonthlyLoading(false);
+    }
+  };
+
+  const loadKpis = async () => {
+    setKpisLoading(true);
+    try {
+      setKpisData(await asistenciaApi.getKpis({ month: monthlyMonth, planta: selectedPlanta }));
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setKpisLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeView === 'general') {
       void loadData();
+    } else if (activeView === 'mensual') {
+      void loadMonthlySummary();
+    } else if (activeView === 'indicadores') {
+      void loadKpis();
     } else if (activeView === 'pines') {
       void loadPines();
     } else if (activeView === 'empleados') {
@@ -530,7 +609,7 @@ export function RrhhPage() {
     } else {
       void loadReportEmployees();
     }
-  }, [activeView, diaFecha, estado, selectedPlanta]);
+  }, [activeView, diaFecha, estado, selectedPlanta, monthlyMonth]);
 
   useEffect(() => {
     if (!reportEmpleadoId) return;
@@ -813,8 +892,9 @@ export function RrhhPage() {
       const data = await asistenciaApi.getReporteEmpleado(reportEmpleadoId, {
         desde: reportDesde,
         hasta: reportHasta,
-        horasEsperadasPorDia: reportExpectedHoursNum,
+        horasEsperadasPorDia: reportHsTouched ? reportExpectedHoursNum : undefined,
       });
+      setReportHorasEsperadas(String(data.horasEsperadasPorDia));
       setReportData(data);
       toast.success(`Reporte generado: ${data.dias.length} día(s)`);
     } catch (err) {
@@ -823,6 +903,26 @@ export function RrhhPage() {
       setReportLoading(false);
     }
   };
+
+  const openEmployeeMonthlyReport = (params: { empleadoId: string; planta: Planta; fecha?: string }) => {
+    const range = params.fecha
+      ? { desde: params.fecha, hasta: params.fecha }
+      : monthRangeFromMonth(monthlyMonth);
+    setSelectedPlanta(params.planta);
+    setReportEmpleadoId(params.empleadoId);
+    setReportDesde(range.desde);
+    setReportHasta(range.hasta);
+    setReportHsTouched(false);
+    setReportData(null);
+    setPendingReportAutoLoad(true);
+    navigate('/rrhh/reportes');
+  };
+
+  useEffect(() => {
+    if (!pendingReportAutoLoad || activeView !== 'reportes' || !reportEmpleadoId) return;
+    setPendingReportAutoLoad(false);
+    void loadEmployeeReport();
+  }, [pendingReportAutoLoad, activeView, reportEmpleadoId, reportDesde, reportHasta, reportHorasEsperadas]);
 
   const exportEmployeeReportExcel = () => {
     if (!reportData) {
@@ -1083,6 +1183,8 @@ export function RrhhPage() {
   const openEditHorariosModal = () => {
     const next: Record<string, EditRowDraft> = {};
     for (const f of items) {
+      const fecha = tiempoYmdEnAr(f.tiempo);
+      const hora = tiempoHmsEnAr(f.tiempo);
       next[f.id] = {
         fichajeId: f.id,
         isNew: false,
@@ -1090,13 +1192,86 @@ export function RrhhPage() {
         planta: f.planta,
         empleadoId: f.empleadoId ?? null,
         estado: f.estado,
-        fecha: tiempoYmdEnAr(f.tiempo),
-        hora: tiempoHmsEnAr(f.tiempo),
+        fecha,
+        hora,
         saving: false,
+        originalEstado: f.estado,
+        originalFecha: fecha,
+        originalHora: hora,
       };
     }
     setEditDrafts(next);
     setEditHorariosOpen(true);
+  };
+
+  const openReportFixModal = (day: ReporteEmpleadoRango['dias'][number]) => {
+    if (!reportData) return;
+    const next: Record<string, EditRowDraft> = {};
+    for (const f of day.fichajes) {
+      const fecha = tiempoYmdEnAr(f.tiempo);
+      const hora = tiempoHmsEnAr(f.tiempo);
+      next[f.id] = {
+        fichajeId: f.id,
+        isNew: false,
+        pin: reportData.empleado.pin,
+        planta: reportData.empleado.planta,
+        empleadoId: reportData.empleado.id,
+        estado: f.estado,
+        fecha,
+        hora,
+        saving: false,
+        originalEstado: f.estado,
+        originalFecha: fecha,
+        originalHora: hora,
+      };
+    }
+    setEditDrafts(next);
+    setReportFixTitle(formatDayHeading(day.fecha));
+    setReportFixOpen(true);
+  };
+
+  const refreshAfterFichajeEdit = async () => {
+    if (activeView === 'reportes') {
+      await loadEmployeeReport();
+      setReportFixOpen(false);
+      return;
+    }
+
+    const fichajesPage = await asistenciaApi.getFichajes({
+      fecha: diaFecha,
+      pin: pin || undefined,
+      nombre: nombre.trim() || undefined,
+      estado,
+      planta: selectedPlanta,
+    });
+    setItems(fichajesPage.items);
+    setTotal(fichajesPage.total);
+
+    setEditDrafts((prev) => {
+      const next: Record<string, EditRowDraft> = {};
+      for (const f of fichajesPage.items) {
+        const fecha = tiempoYmdEnAr(f.tiempo);
+        const hora = tiempoHmsEnAr(f.tiempo);
+        next[f.id] = {
+          fichajeId: f.id,
+          isNew: false,
+          pin: f.pin,
+          planta: f.planta,
+          empleadoId: f.empleadoId ?? null,
+          estado: f.estado,
+          fecha,
+          hora,
+          saving: false,
+          originalEstado: f.estado,
+          originalFecha: fecha,
+          originalHora: hora,
+        };
+      }
+      for (const [key, d] of Object.entries(prev)) {
+        if (d.isNew && key !== 'discarded') next[key] = d;
+      }
+      return next;
+    });
   };
 
   const saveEditRow = async (fichajeId: string) => {
@@ -1135,37 +1310,7 @@ export function RrhhPage() {
       }
 
       toast.success('Guardado');
-
-      const fichajesPage = await asistenciaApi.getFichajes({
-        fecha: diaFecha,
-        pin: pin || undefined,
-        nombre: nombre.trim() || undefined,
-        estado,
-        planta: selectedPlanta,
-      });
-      setItems(fichajesPage.items);
-      setTotal(fichajesPage.total);
-
-      setEditDrafts((prev) => {
-        const next: Record<string, EditRowDraft> = {};
-        for (const f of fichajesPage.items) {
-          next[f.id] = {
-            fichajeId: f.id,
-            isNew: false,
-            pin: f.pin,
-            planta: f.planta,
-            empleadoId: f.empleadoId ?? null,
-            estado: f.estado,
-            fecha: tiempoYmdEnAr(f.tiempo),
-            hora: tiempoHmsEnAr(f.tiempo),
-            saving: false,
-          };
-        }
-        for (const [key, d] of Object.entries(prev)) {
-          if (d.isNew && key !== fichajeId) next[key] = d;
-        }
-        return next;
-      });
+      await refreshAfterFichajeEdit();
     } catch (err) {
       toast.error((err as Error).message);
       setEditDrafts((prev) => ({
@@ -1205,6 +1350,30 @@ export function RrhhPage() {
     }));
   };
 
+  const addReportComplementRow = (orphan: ReporteEmpleadoRango['dias'][number]['fichajes'][number]) => {
+    if (!reportData) return;
+    const complementEstado: 0 | 1 = orphan.estado === 0 ? 1 : 0;
+    const orphanMs = new Date(orphan.tiempo).getTime();
+    const jornadaMs = reportData.horasEsperadasPorDia * 3600000;
+    const suggestedIso = new Date(orphanMs + (orphan.estado === 0 ? jornadaMs : -jornadaMs)).toISOString();
+    const newId = `new-${Math.random().toString(36).slice(2)}`;
+    setEditDrafts((prev) => ({
+      ...prev,
+      [newId]: {
+        fichajeId: newId,
+        isNew: true,
+        pin: reportData.empleado.pin,
+        planta: reportData.empleado.planta,
+        empleadoId: reportData.empleado.id,
+        estado: complementEstado,
+        fecha: tiempoYmdEnAr(suggestedIso),
+        hora: tiempoHmsEnAr(suggestedIso),
+        saving: false,
+        forOrphanId: orphan.id,
+      },
+    }));
+  };
+
   const deleteEditRow = async (fichajeId: string) => {
     const draft = editDrafts[fichajeId];
     if (!draft) return;
@@ -1226,37 +1395,7 @@ export function RrhhPage() {
     try {
       await asistenciaApi.deleteFichaje(fichajeId);
       toast.success('Fichaje eliminado');
-
-      const fichajesPage = await asistenciaApi.getFichajes({
-        fecha: diaFecha,
-        pin: pin || undefined,
-        nombre: nombre.trim() || undefined,
-        estado,
-        planta: selectedPlanta,
-      });
-      setItems(fichajesPage.items);
-      setTotal(fichajesPage.total);
-
-      setEditDrafts((prev) => {
-        const next: Record<string, EditRowDraft> = {};
-        for (const f of fichajesPage.items) {
-          next[f.id] = {
-            fichajeId: f.id,
-            isNew: false,
-            pin: f.pin,
-            planta: f.planta,
-            empleadoId: f.empleadoId ?? null,
-            estado: f.estado,
-            fecha: tiempoYmdEnAr(f.tiempo),
-            hora: tiempoHmsEnAr(f.tiempo),
-            saving: false,
-          };
-        }
-        for (const [key, d] of Object.entries(prev)) {
-          if (d.isNew) next[key] = d;
-        }
-        return next;
-      });
+      await refreshAfterFichajeEdit();
     } catch (err) {
       toast.error((err as Error).message);
       setEditDrafts((prev) => ({
@@ -1268,6 +1407,13 @@ export function RrhhPage() {
 
   const isEditRowDirty = (draft: EditRowDraft): boolean => {
     if (draft.isNew) return true;
+    if (draft.originalEstado !== undefined) {
+      return (
+        draft.estado !== draft.originalEstado ||
+        draft.fecha !== draft.originalFecha ||
+        draft.hora !== draft.originalHora
+      );
+    }
     const orig = items.find((f) => f.id === draft.fichajeId);
     if (!orig) return false;
     return (
@@ -1396,6 +1542,28 @@ export function RrhhPage() {
           }
         >
           Vista general
+        </NavLink>
+        <NavLink
+          to="/rrhh/mensual"
+          className={({ isActive }) =>
+            [
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            ].join(' ')
+          }
+        >
+          Acumulado mensual
+        </NavLink>
+        <NavLink
+          to="/rrhh/indicadores"
+          className={({ isActive }) =>
+            [
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              isActive ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            ].join(' ')
+          }
+        >
+          Indicadores
         </NavLink>
         <NavLink
           to="/rrhh/reportes"
@@ -1687,7 +1855,311 @@ export function RrhhPage() {
         </>
       )}
 
+      {activeView === 'mensual' && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap rounded-xl border border-border bg-card/50 p-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Mes
+              <input
+                type="month"
+                value={monthlyMonth}
+                max={currentMonthAr()}
+                onChange={(e) => setMonthlyMonth(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+              />
+            </label>
+            <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
+            <button
+              type="button"
+              onClick={() => void loadMonthlySummary()}
+              disabled={monthlyLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${monthlyLoading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+          </div>
+
+          {monthlyData && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dotación</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{monthlyData.totals.empleados}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cumplimiento</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{formatPct(monthlyData.totals.cumplimientoPct)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ausentismo</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-600">{formatPct(monthlyData.totals.ausentismoPct)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Saldo mensual</p>
+                  <p className={`mt-1 text-2xl font-semibold tabular-nums ${monthlyData.totals.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {formatSaldoJornada(monthlyData.totals.balanceMs)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Fichajes a revisar</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-600">
+                    {monthlyData.totals.diasConFichajeIncompleto + monthlyData.totals.fichajesSinEmpleado}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                <div className="border-b border-border bg-muted/30 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Acumulado del mes</h2>
+                    <p className="text-xs text-muted-foreground">{monthlyData.desde} al {monthlyData.hasta} · {plantaDisplayName(monthlyData.planta)}</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Empleado</th>
+                        <th className="px-4 py-3 text-right">Trabajado</th>
+                        <th className="px-4 py-3 text-right">Esperado</th>
+                        <th className="px-4 py-3 text-right">Saldo</th>
+                        <th className="px-4 py-3 text-right">Cumpl.</th>
+                        <th className="px-4 py-3 text-right">Aus.</th>
+                        <th className="px-4 py-3 text-right">Inc.</th>
+                        <th className="px-4 py-3 text-left">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {monthlyData.employees.map((row) => (
+                        <tr key={row.empleadoId} className="hover:bg-muted/20">
+                          <td className="px-4 py-3 min-w-[220px]">
+                            <p className="font-medium text-foreground">{row.nombre}</p>
+                            <p className="text-xs text-muted-foreground">PIN {row.pin} · {row.departamento || row.cargo || plantaDisplayName(row.planta)}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">{formatDuracion(row.workedMs)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
+                          <td className={`px-4 py-3 text-right tabular-nums font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {formatSaldoJornada(row.balanceMs)}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">{formatPct(row.cumplimientoPct)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">{row.diasAusenteInjustificado}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">{row.diasConFichajeIncompleto}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
+                              {statusLabel(row.status)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {monthlyLoading && <p className="text-sm text-muted-foreground">Calculando acumulado mensual…</p>}
+        </section>
+      )}
+
+      {activeView === 'indicadores' && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap rounded-xl border border-border bg-card/50 p-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Mes
+              <input
+                type="month"
+                value={monthlyMonth}
+                max={currentMonthAr()}
+                onChange={(e) => setMonthlyMonth(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+              />
+            </label>
+            <PlantaToggle value={selectedPlanta} onChange={setSelectedPlanta} />
+            <button
+              type="button"
+              onClick={() => void loadKpis()}
+              disabled={kpisLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${kpisLoading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+          </div>
+
+          {kpisData && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Presentismo</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{formatPct(kpisData.cards.presentismoPct)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cumplimiento horario</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{formatPct(kpisData.cards.cumplimientoPct)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Saldo neto</p>
+                  <p className={`mt-1 text-2xl font-semibold tabular-nums ${kpisData.cards.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {formatSaldoJornada(kpisData.cards.balanceMs)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Calidad de datos</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-amber-600">
+                    {kpisData.cards.fichajesSinEmpleado + kpisData.cards.diasConFichajeIncompleto}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
+                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="border-b border-border bg-muted/30 px-4 py-3">
+                    <h2 className="text-base font-semibold text-foreground">Personas a revisar</h2>
+                    <p className="text-xs text-muted-foreground">Priorizado por ausencias, fichajes incompletos y saldo negativo.</p>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {kpisData.topReview.length === 0 && <p className="p-4 text-sm text-muted-foreground">No hay empleados en revisión para este período.</p>}
+                    {kpisData.topReview.map((row) => (
+                      <div key={row.empleadoId} className="p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-foreground">{row.nombre}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {row.diasAusenteInjustificado} aus. · {row.diasConFichajeIncompleto} inc. · saldo {formatSaldoJornada(row.balanceMs)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openEmployeeMonthlyReport({ empleadoId: row.empleadoId, planta: row.planta })}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                          >
+                            Ver reporte
+                          </button>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
+                            {statusLabel(row.status)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="border-b border-border bg-muted/30 px-4 py-3">
+                      <h2 className="text-base font-semibold text-foreground">Fichajes incompletos</h2>
+                      <p className="text-xs text-muted-foreground">Entradas o salidas sin pareja detectadas en el mes. Abrí el día exacto para corregirlo.</p>
+                    </div>
+                    <div className="divide-y divide-border max-h-[360px] overflow-y-auto">
+                      {kpisData.incompletePunches.length === 0 && (
+                        <p className="p-4 text-sm text-muted-foreground">No hay fichajes incompletos en este período.</p>
+                      )}
+                      {kpisData.incompletePunches.map((item) => (
+                        <div key={`${item.empleadoId}-${item.fecha}-${item.orphanEntradas}-${item.orphanSalidas}`} className="p-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{item.empleadoNombre}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.fecha} · {item.orphanEntradas} entrada(s) sin salida · {item.orphanSalidas} salida(s) sin entrada
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openEmployeeMonthlyReport({ empleadoId: item.empleadoId, planta: item.planta, fecha: item.fecha })}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                          >
+                            Corregir día
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="border-b border-border bg-muted/30 px-4 py-3">
+                      <h2 className="text-base font-semibold text-foreground">Alertas accionables</h2>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {kpisData.alerts.map((alert, i) => (
+                        <div key={`${alert.title}-${i}`} className={`rounded-lg border p-3 ${alertClass(alert.severity)}`}>
+                          <p className="text-sm font-semibold">{alert.title}</p>
+                          <p className="text-xs mt-1 opacity-90">{alert.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                    <div className="border-b border-border bg-muted/30 px-4 py-3">
+                      <h2 className="text-base font-semibold text-foreground">Tendencia semanal</h2>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {kpisData.weeklyTrend.map((week) => (
+                        <div key={week.semana}>
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>{week.semana}</span>
+                            <span>{formatPct(week.cumplimientoPct)} · {formatSaldoJornada(week.balanceMs)}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-primary"
+                              style={{ width: `${Math.min(100, week.cumplimientoPct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {kpisLoading && <p className="text-sm text-muted-foreground">Calculando indicadores…</p>}
+        </section>
+      )}
+
       {activeView === 'reportes' && (
+      <>
+      <Dialog
+        open={reportFixOpen}
+        onClose={() => setReportFixOpen(false)}
+        title="Corregir fichajes del reporte"
+        description={`${reportFixTitle} · ${reportData ? `${reportData.empleado.firstName} ${reportData.empleado.lastName}` : ''}`}
+        panelClassName="sm:max-w-3xl"
+      >
+        <div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+          {Object.values(editDrafts).length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">Sin fichajes para editar en este día</p>
+          )}
+          {Object.values(editDrafts)
+            .filter((draft) => !draft.forOrphanId)
+            .sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`))
+            .map((draft) => (
+              <div key={draft.fichajeId} className="rounded-lg border border-border bg-muted/20 p-2">
+                {renderEditRow(draft, draft.estado === 0 ? 'Entrada' : 'Salida')}
+                {Object.values(editDrafts)
+                  .filter((d) => d.forOrphanId === draft.fichajeId)
+                  .map((d) => renderEditRow(d, d.estado === 0 ? 'Entrada nueva' : 'Salida nueva'))}
+                {!Object.values(editDrafts).some((d) => d.forOrphanId === draft.fichajeId) && (
+                  <button
+                    type="button"
+                    onClick={() => addReportComplementRow({ id: draft.fichajeId, tiempo: arFechaYHoraToIso(draft.fecha, draft.hora), estado: draft.estado })}
+                    className="mt-2 text-xs border border-dashed border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                  >
+                    + Agregar {draft.estado === 0 ? 'salida' : 'entrada'} complementaria
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+        <div className="flex justify-end mt-4 pt-3 border-t border-border">
+          <Button type="button" variant="outline" onClick={() => setReportFixOpen(false)}>
+            Cerrar
+          </Button>
+        </div>
+      </Dialog>
       <section className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="border-b border-border bg-muted/30 px-4 py-3">
           <h2 className="text-base font-semibold text-foreground">Reporte por empleado</h2>
@@ -1906,6 +2378,13 @@ export function RrhhPage() {
                           )}
                         </td>
                         <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openReportFixModal(day)}
+                            className="mb-2 inline-flex rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                          >
+                            Corregir fichajes
+                          </button>
                           <div className="space-y-1.5">
                             {day.tramos.map((p) => (
                               <div
@@ -1937,6 +2416,7 @@ export function RrhhPage() {
           )}
         </div>
       </section>
+      </>
       )}
 
       {activeView === 'general' && (

@@ -1,4 +1,4 @@
-import type { EmpleadoAsistencia, FichajeAsistencia, FichajesPage, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
+import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, FichajesPage, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
 import { api } from './client';
 
 export interface FichajesQuery {
@@ -78,11 +78,13 @@ export const asistenciaApi = {
       planta ? `/asistencia/empleados?planta=${planta}&soloActivos=true` : '/asistencia/empleados?soloActivos=true',
     ),
 
-  getReporteEmpleado: (empleadoId: string, query: { desde: string; hasta: string; horasEsperadasPorDia: number }) => {
+  getReporteEmpleado: (empleadoId: string, query: { desde: string; hasta: string; horasEsperadasPorDia?: number }) => {
     const qs = new URLSearchParams();
     qs.set('desde', query.desde);
     qs.set('hasta', query.hasta);
-    qs.set('horasEsperadasPorDia', String(query.horasEsperadasPorDia));
+    if (query.horasEsperadasPorDia !== undefined) {
+      qs.set('horasEsperadasPorDia', String(query.horasEsperadasPorDia));
+    }
     return api.get<ReporteEmpleadoRango>(`/asistencia/reports/employee/${empleadoId}/range?${qs.toString()}`);
   },
 
@@ -115,4 +117,18 @@ export const asistenciaApi = {
 
   sendDailyReport: (ymd: string) =>
     api.post<{ sent: boolean; ymd: string }>(`/asistencia/reports/send-daily?ymd=${ymd}`, {}),
+
+  getMonthlySummary: (query: { month: string; planta?: Planta }) => {
+    const qs = new URLSearchParams();
+    qs.set('month', query.month);
+    if (query.planta) qs.set('planta', query.planta);
+    return api.get<MonthlyAttendanceSummary>(`/asistencia/reports/monthly-summary?${qs.toString()}`);
+  },
+
+  getKpis: (query: { month: string; planta?: Planta }) => {
+    const qs = new URLSearchParams();
+    qs.set('month', query.month);
+    if (query.planta) qs.set('planta', query.planta);
+    return api.get<AttendanceKpis>(`/asistencia/reports/kpis?${qs.toString()}`);
+  },
 };

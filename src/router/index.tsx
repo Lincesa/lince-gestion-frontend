@@ -504,6 +504,22 @@ const router = createBrowserRouter([
                 ),
               },
               {
+                path: 'mensual',
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <RrhhPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'indicadores',
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <RrhhPage />
+                  </Suspense>
+                ),
+              },
+              {
                 path: 'pines',
                 element: (
                   <Suspense fallback={<PageLoader />}>
