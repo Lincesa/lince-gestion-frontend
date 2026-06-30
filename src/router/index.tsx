@@ -5,6 +5,8 @@ import { useAppSelector } from '@/store';
 import { PrivateRoute } from './PrivateRoute';
 import { RequireModule } from './RequireModule';
 import { RequireRole } from './RequireRole';
+import { RequireSoporteItAdmin } from './RequireSoporteItAdmin';
+import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 
@@ -135,7 +137,7 @@ function SoporteItIndexRedirect() {
   if (!user) return <Navigate to="/login" replace />;
   return (
     <Navigate
-      to={user.globalRole === GlobalRole.SUPERADMIN ? 'equipos' : 'mis-equipos'}
+      to={isSoporteItAdmin(user) ? 'equipos' : 'mis-equipos'}
       replace
     />
   );
@@ -326,38 +328,42 @@ const router = createBrowserRouter([
                 ),
                 children: [
                   { index: true, element: <SoporteItIndexRedirect /> },
-                  // Vistas SUPERADMIN
                   {
-                    path: 'equipos',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <EquiposPage />
-                      </Suspense>
-                    ),
-                  },
-                  {
-                    path: 'equipos/:id',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <EquipoDetailPage />
-                      </Suspense>
-                    ),
-                  },
-                  {
-                    path: 'incidentes',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <IncidentesPage />
-                      </Suspense>
-                    ),
-                  },
-                  {
-                    path: 'incidentes/:id',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <IncidenteDetailPage />
-                      </Suspense>
-                    ),
+                    element: <RequireSoporteItAdmin />,
+                    children: [
+                      {
+                        path: 'equipos',
+                        element: (
+                          <Suspense fallback={<PageLoader />}>
+                            <EquiposPage />
+                          </Suspense>
+                        ),
+                      },
+                      {
+                        path: 'equipos/:id',
+                        element: (
+                          <Suspense fallback={<PageLoader />}>
+                            <EquipoDetailPage />
+                          </Suspense>
+                        ),
+                      },
+                      {
+                        path: 'incidentes',
+                        element: (
+                          <Suspense fallback={<PageLoader />}>
+                            <IncidentesPage />
+                          </Suspense>
+                        ),
+                      },
+                      {
+                        path: 'incidentes/:id',
+                        element: (
+                          <Suspense fallback={<PageLoader />}>
+                            <IncidenteDetailPage />
+                          </Suspense>
+                        ),
+                      },
+                    ],
                   },
                   // Vistas usuario final
                   {

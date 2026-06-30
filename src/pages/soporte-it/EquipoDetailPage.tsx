@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { clearSelected, fetchEquipo } from '@/store/soporte-it/equiposSlice';
 import { fetchIncidentesByEquipo } from '@/store/soporte-it/incidentesSlice';
-import { GlobalRole } from '@/types';
+import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import type { EstadoEquipo, UrgenciaIncidente, EstadoIncidente } from '@/types/soporte-it.types';
 import { Button } from '@/components/ui/Button';
 
@@ -43,7 +43,7 @@ export function EquipoDetailPage() {
   const user = useAppSelector((s) => s.auth.user);
   const equipo = useAppSelector((s) => s.equipos.selected);
   const incidentes = useAppSelector((s) => s.incidentes.items);
-  const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
+  const canManageSoporteIt = isSoporteItAdmin(user);
 
   useEffect(() => {
     if (!id) return;
@@ -122,7 +122,7 @@ export function EquipoDetailPage() {
           <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
             Historial de incidentes
           </h2>
-          {!isSuperAdmin && (
+          {!canManageSoporteIt && (
             <Link to={`/soporte-it/reportar?equipoId=${equipo.id}`}>
               <Button size="sm" variant="outline">
                 <AlertCircle className="h-4 w-4 mr-1" /> Reportar incidente
@@ -143,7 +143,7 @@ export function EquipoDetailPage() {
                 <th className="px-4 py-2 text-left">Urgencia</th>
                 <th className="px-4 py-2 text-left">Estado</th>
                 <th className="px-4 py-2 text-left">Fecha</th>
-                {isSuperAdmin && <th className="px-4 py-2 text-left">Acciones</th>}
+                {canManageSoporteIt && <th className="px-4 py-2 text-left">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -162,7 +162,7 @@ export function EquipoDetailPage() {
                   <td className="px-4 py-2 text-muted-foreground text-xs">
                     {new Date(inc.fechaReporte).toLocaleDateString('es-AR')}
                   </td>
-                  {isSuperAdmin && (
+                  {canManageSoporteIt && (
                     <td className="px-4 py-2">
                       <Link
                         to={`/soporte-it/incidentes/${inc.id}`}

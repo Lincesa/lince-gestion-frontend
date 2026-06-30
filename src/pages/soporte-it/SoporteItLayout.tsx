@@ -1,12 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { GlobalRole } from '@/types';
 import { useAppSelector } from '@/store';
+import { isSoporteItAdmin } from '@/permissions/soporteIt';
 
 export function SoporteItLayout() {
   const user = useAppSelector((s) => s.auth.user);
-  const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
+  const canManageSoporteIt = isSoporteItAdmin(user);
 
-  const tabs = isSuperAdmin
+  const tabs = canManageSoporteIt
     ? [
         { to: '/soporte-it/equipos', label: 'Equipos' },
         { to: '/soporte-it/incidentes', label: 'Incidentes' },
