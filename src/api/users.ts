@@ -1,16 +1,17 @@
 import { api } from './client';
-import type { UserDto, CreateUserPayload, UpdateUserPayload } from '@/types/user.types';
+import type { UserDto, CreateUserPayload, UpdateUserPayload, UsersListParams } from '@/types/user.types';
+import type { PaginatedResponse } from '@/types/common.types';
 import type { UserModules } from '@/types';
 
-interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-}
-
 export const usersApi = {
-  async list(): Promise<UserDto[]> {
-    const res = await api.get<PaginatedResponse<UserDto>>('/users');
-    return res.data;
+  list(params: UsersListParams = {}): Promise<PaginatedResponse<UserDto>> {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.search?.trim()) query.set('search', params.search.trim());
+
+    const qs = query.toString();
+    return api.get<PaginatedResponse<UserDto>>(`/users${qs ? `?${qs}` : ''}`);
   },
 
   get(id: string): Promise<UserDto> {

@@ -46,3 +46,9 @@ export interface UpdateUserPayload {
   area?: string | null;
   active?: boolean;
 }
+
+export interface UsersListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}

@@ -91,7 +91,17 @@ function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: 
 
 // ── Edit User Modal ──────────────────────────────────────────────────────────
 
-function EditUserModal({ user, areas, onClose }: { user: UserDto; areas: AreaDto[]; onClose: () => void }) {
+function EditUserModal({
+  user,
+  areas,
+  onClose,
+  onSaved,
+}: {
+  user: UserDto;
+  areas: AreaDto[];
+  onClose: () => void;
+  onSaved?: () => void | Promise<void>;
+}) {
   const dispatch = useAppDispatch();
   const [name, setName] = useState(user.name);
   const [globalRole, setGlobalRole] = useState<GlobalRole>(user.globalRole);
@@ -106,6 +116,7 @@ function EditUserModal({ user, areas, onClose }: { user: UserDto; areas: AreaDto
       const payload: UpdateUserPayload = { name, globalRole, active, area: area || null };
       await dispatch(updateUser({ id: user.id, payload })).unwrap();
       toast.success('Usuario actualizado');
+      await onSaved?.();
       onClose();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al actualizar');
@@ -151,7 +162,15 @@ function EditUserModal({ user, areas, onClose }: { user: UserDto; areas: AreaDto
 
 // ── Modules Modal ────────────────────────────────────────────────────────────
 
-function ModulesModal({ user, onClose }: { user: UserDto; onClose: () => void }) {
+function ModulesModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: UserDto;
+  onClose: () => void;
+  onSaved?: () => void | Promise<void>;
+}) {
   const dispatch = useAppDispatch();
   const [modules, setModules] = useState<UserModules>({ ...user.modules });
   const [saving, setSaving] = useState(false);
@@ -162,6 +181,7 @@ function ModulesModal({ user, onClose }: { user: UserDto; onClose: () => void })
     try {
       await dispatch(updateUserModules({ id: user.id, modules })).unwrap();
       toast.success('Permisos actualizados');
+      await onSaved?.();
       onClose();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al actualizar permisos');
@@ -185,7 +205,15 @@ function ModulesModal({ user, onClose }: { user: UserDto; onClose: () => void })
 
 // ── Create User Modal ────────────────────────────────────────────────────────
 
-function CreateUserModal({ areas, onClose }: { areas: AreaDto[]; onClose: () => void }) {
+function CreateUserModal({
+  areas,
+  onClose,
+  onSaved,
+}: {
+  areas: AreaDto[];
+  onClose: () => void;
+  onSaved?: () => void | Promise<void>;
+}) {
   const dispatch = useAppDispatch();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -215,6 +243,7 @@ function CreateUserModal({ areas, onClose }: { areas: AreaDto[]; onClose: () => 
       if (selectedArea) payload.area = selectedArea;
       await dispatch(createUser(payload)).unwrap();
       toast.success('Usuario creado');
+      await onSaved?.();
       onClose();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al crear usuario');
@@ -377,27 +406,62 @@ function ResetPasswordModal({ user, onClose }: { user: UserDto; onClose: () => v
 
 function UsersTab({ areas }: { areas: AreaDto[] }) {
   const dispatch = useAppDispatch();
-  const { list: users, loading, error } = useAppSelector((s) => s.users);
+  const { list: users, loading, error, total, totalPages } = useAppSelector((s) => s.users);
   const [editUser, setEditUser] = useState<UserDto | null>(null);
   const [modulesUser, setModulesUser] = useState<UserDto | null>(null);
   const [resetUser, setResetUser] = useState<UserDto | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  useEffect(() => { void dispatch(fetchUsers()); }, [dispatch]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setDebouncedSearch(searchInput.trim());
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    void dispatch(fetchUsers({ page, limit, search: debouncedSearch }));
+  }, [dispatch, page, limit, debouncedSearch]);
+
+  const refetchUsers = async (nextPage = page) => {
+    await dispatch(fetchUsers({ page: nextPage, limit, search: debouncedSearch })).unwrap();
+  };
 
   const handleDelete = async (user: UserDto) => {
-    if (!confirm(`¿Desactivar a ${user.name}? El usuario quedará inactivo.`)) return;
+    if (!confirm(`¿Eliminar a ${user.name}? Esta acción no se puede deshacer.`)) return;
     try {
       await dispatch(deleteUser(user.id)).unwrap();
-      toast.success('Usuario desactivado');
+      const nextPage = users.length === 1 && page > 1 ? page - 1 : page;
+      if (nextPage !== page) setPage(nextPage);
+      await refetchUsers(nextPage);
+      toast.success('Usuario eliminado');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error');
     }
   };
 
+  const firstItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const lastItem = Math.min(page * limit, total);
+  const effectiveTotalPages = Math.max(totalPages, 1);
+
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="w-full md:max-w-sm">
+          <Label htmlFor="users-search">Buscar usuarios</Label>
+          <Input
+            id="users-search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Nombre, email, área o rol"
+          />
+        </div>
         <Button onClick={() => setShowCreate(true)}>
           <Plus className="mr-2 h-4 w-4" />Nuevo usuario
         </Button>
@@ -491,7 +555,7 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
                       <Button variant="ghost" size="icon" title="Resetear contraseña" onClick={() => setResetUser(user)}>
                         <KeyRound className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" title="Desactivar" onClick={() => void handleDelete(user)} className="text-destructive hover:text-destructive">
+                      <Button variant="ghost" size="icon" title="Eliminar" onClick={() => void handleDelete(user)} className="text-destructive hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -500,18 +564,69 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay usuarios registrados</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    {debouncedSearch ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
           </div>
+          <div className="flex flex-col gap-3 border-t px-4 py-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <span>
+              Mostrando {firstItem}-{lastItem} de {total}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="users-limit" className="text-sm font-normal">Por página</Label>
+              <Select
+                id="users-limit"
+                value={String(limit)}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="h-8 w-20"
+              >
+                {[20, 50, 100].map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </Select>
+              <span>Página {page} de {effectiveTotalPages}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Anterior
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page >= effectiveTotalPages}
+                onClick={() => setPage((current) => Math.min(effectiveTotalPages, current + 1))}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {showCreate && <CreateUserModal areas={areas} onClose={() => setShowCreate(false)} />}
-      {editUser && <EditUserModal user={editUser} areas={areas} onClose={() => setEditUser(null)} />}
-      {modulesUser && <ModulesModal user={modulesUser} onClose={() => setModulesUser(null)} />}
+      {showCreate && (
+        <CreateUserModal
+          areas={areas}
+          onClose={() => setShowCreate(false)}
+          onSaved={() => {
+            setPage(1);
+            return refetchUsers(1);
+          }}
+        />
+      )}
+      {editUser && <EditUserModal user={editUser} areas={areas} onClose={() => setEditUser(null)} onSaved={() => refetchUsers()} />}
+      {modulesUser && <ModulesModal user={modulesUser} onClose={() => setModulesUser(null)} onSaved={() => refetchUsers()} />}
       {resetUser && <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} />}
     </>
   );

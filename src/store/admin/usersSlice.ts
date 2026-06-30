@@ -1,21 +1,40 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { usersApi } from '@/api/users';
-import type { UserDto, CreateUserPayload, UpdateUserPayload } from '@/types/user.types';
+import type {
+  UserDto,
+  CreateUserPayload,
+  UpdateUserPayload,
+  UsersListParams,
+} from '@/types/user.types';
+import type { PaginatedResponse } from '@/types/common.types';
 import type { UserModules } from '@/types';
 
 interface UsersState {
   list: UserDto[];
   loading: boolean;
   error: string | null;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  search: string;
 }
 
 const initialState: UsersState = {
   list: [],
   loading: false,
   error: null,
+  total: 0,
+  page: 1,
+  limit: 20,
+  totalPages: 0,
+  search: '',
 };
 
-export const fetchUsers = createAsyncThunk('users/fetchAll', () => usersApi.list());
+export const fetchUsers = createAsyncThunk<PaginatedResponse<UserDto>, UsersListParams | undefined>(
+  'users/fetchAll',
+  (params) => usersApi.list(params),
+);
 
 export const createUser = createAsyncThunk(
   'users/create',
@@ -51,9 +70,16 @@ const usersSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchUsers.pending, (state) => { state.loading = true; state.error = null; })
-      .addCase(fetchUsers.fulfilled, (state, action) => { state.loading = false; state.list = action.payload; })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.loading = false;
+        state.list = action.payload.data;
+        state.total = action.payload.total;
+        state.page = action.payload.page;
+        state.limit = action.payload.limit;
+        state.totalPages = action.payload.totalPages;
+        state.search = action.meta.arg?.search?.trim() ?? '';
+      })
       .addCase(fetchUsers.rejected, (state, action) => { state.loading = false; state.error = action.error.message ?? 'Error'; })
-      .addCase(createUser.fulfilled, (state, action) => { state.list.push(action.payload); })
       .addCase(updateUser.fulfilled, (state, action) => {
         const idx = state.list.findIndex((u) => u.id === action.payload.id);
         if (idx !== -1) state.list[idx] = action.payload;
@@ -64,6 +90,8 @@ const usersSlice = createSlice({
       })
       .addCase(deleteUser.fulfilled, (state, action) => {
         state.list = state.list.filter((u) => u.id !== action.payload);
+        state.total = Math.max(0, state.total - 1);
+        state.totalPages = Math.ceil(state.total / state.limit);
       });
   },
 });
