@@ -520,6 +520,7 @@ export function RrhhPage() {
   const [kpisLoading, setKpisLoading] = useState(false);
   const [reportFixOpen, setReportFixOpen] = useState(false);
   const [reportFixTitle, setReportFixTitle] = useState('');
+  const [reportFixSaving, setReportFixSaving] = useState(false);
   const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
   // Cache de empleados (activos) y pines por planta. Se invalida en CRUD de empleados
@@ -877,7 +878,7 @@ export function RrhhPage() {
     void loadData();
   };
 
-  const loadEmployeeReport = async () => {
+  const loadEmployeeReport = async (options?: { silent?: boolean }) => {
     if (!reportEmpleadoId) {
       toast.error('Seleccioná un empleado para generar el reporte');
       return;
@@ -896,7 +897,7 @@ export function RrhhPage() {
       });
       setReportHorasEsperadas(String(data.horasEsperadasPorDia));
       setReportData(data);
-      toast.success(`Reporte generado: ${data.dias.length} día(s)`);
+      if (!options?.silent) toast.success(`Reporte generado: ${data.dias.length} día(s)`);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -1232,8 +1233,7 @@ export function RrhhPage() {
 
   const refreshAfterFichajeEdit = async () => {
     if (activeView === 'reportes') {
-      await loadEmployeeReport();
-      setReportFixOpen(false);
+      await loadEmployeeReport({ silent: true });
       return;
     }
 
@@ -1274,6 +1274,44 @@ export function RrhhPage() {
     });
   };
 
+  const updatePatchForDraft = (draft: EditRowDraft): { tiempo?: string; estado?: 0 | 1 } => {
+    const patch: { tiempo?: string; estado?: 0 | 1 } = {};
+    const tiempo = arFechaYHoraToIso(draft.fecha, draft.hora);
+
+    if (draft.originalFecha !== undefined && draft.originalHora !== undefined) {
+      const originalTiempo = arFechaYHoraToIso(draft.originalFecha, draft.originalHora);
+      if (new Date(tiempo).getTime() !== new Date(originalTiempo).getTime()) patch.tiempo = tiempo;
+      if (draft.originalEstado !== undefined && draft.estado !== draft.originalEstado) patch.estado = draft.estado;
+      return patch;
+    }
+
+    const orig = items.find((f) => f.id === draft.fichajeId);
+    if (!orig) return patch;
+    if (new Date(tiempo).getTime() !== new Date(orig.tiempo).getTime()) patch.tiempo = tiempo;
+    if (draft.estado !== orig.estado) patch.estado = draft.estado;
+    return patch;
+  };
+
+  const persistEditDraft = async (draft: EditRowDraft) => {
+    const tiempo = arFechaYHoraToIso(draft.fecha, draft.hora);
+
+    if (draft.isNew) {
+      await asistenciaApi.createFichaje({
+        pin: draft.pin,
+        planta: draft.planta!,
+        estado: draft.estado,
+        tiempo,
+        empleadoId: draft.empleadoId,
+      });
+      return true;
+    }
+
+    const patch = updatePatchForDraft(draft);
+    if (Object.keys(patch).length === 0) return false;
+    await asistenciaApi.updateFichaje(draft.fichajeId, patch);
+    return true;
+  };
+
   const saveEditRow = async (fichajeId: string) => {
     const draft = editDrafts[fichajeId];
     if (!draft) return;
@@ -1284,29 +1322,11 @@ export function RrhhPage() {
     }));
 
     try {
-      const tiempo = arFechaYHoraToIso(draft.fecha, draft.hora);
-
-      if (draft.isNew) {
-        await asistenciaApi.createFichaje({
-          pin: draft.pin,
-          planta: draft.planta!,
-          estado: draft.estado,
-          tiempo,
-          empleadoId: draft.empleadoId,
-        });
-      } else {
-        const orig = items.find((f) => f.id === fichajeId);
-        if (orig) {
-          const patch: { tiempo?: string; estado?: 0 | 1 } = {};
-          if (new Date(tiempo).getTime() !== new Date(orig.tiempo).getTime()) patch.tiempo = tiempo;
-          if (draft.estado !== orig.estado) patch.estado = draft.estado;
-          if (Object.keys(patch).length === 0) {
-            toast.message('Sin cambios');
-            setEditDrafts((prev) => ({ ...prev, [fichajeId]: { ...prev[fichajeId], saving: false } }));
-            return;
-          }
-          await asistenciaApi.updateFichaje(fichajeId, patch);
-        }
+      const changed = await persistEditDraft(draft);
+      if (!changed) {
+        toast.message('Sin cambios');
+        setEditDrafts((prev) => ({ ...prev, [fichajeId]: { ...prev[fichajeId], saving: false } }));
+        return;
       }
 
       toast.success('Guardado');
@@ -1317,6 +1337,47 @@ export function RrhhPage() {
         ...prev,
         [fichajeId]: { ...prev[fichajeId], saving: false },
       }));
+    }
+  };
+
+  const saveReportFixDrafts = async () => {
+    const dirtyDrafts = Object.values(editDrafts)
+      .filter(isEditRowDirty)
+      .sort((a, b) => Number(a.isNew) - Number(b.isNew));
+
+    if (dirtyDrafts.length === 0) {
+      setReportFixOpen(false);
+      return;
+    }
+
+    setReportFixSaving(true);
+    setEditDrafts((prev) => {
+      const next = { ...prev };
+      for (const draft of dirtyDrafts) {
+        next[draft.fichajeId] = { ...next[draft.fichajeId], saving: true };
+      }
+      return next;
+    });
+
+    try {
+      let saved = 0;
+      for (const draft of dirtyDrafts) {
+        if (await persistEditDraft(draft)) saved += 1;
+      }
+      await loadEmployeeReport({ silent: true });
+      setReportFixOpen(false);
+      toast.success(`${saved} fichaje(s) guardado(s)`);
+    } catch (err) {
+      toast.error((err as Error).message);
+      setEditDrafts((prev) => {
+        const next = { ...prev };
+        for (const draft of dirtyDrafts) {
+          if (next[draft.fichajeId]) next[draft.fichajeId] = { ...next[draft.fichajeId], saving: false };
+        }
+        return next;
+      });
+    } finally {
+      setReportFixSaving(false);
     }
   };
 
@@ -1395,6 +1456,16 @@ export function RrhhPage() {
     try {
       await asistenciaApi.deleteFichaje(fichajeId);
       toast.success('Fichaje eliminado');
+      if (activeView === 'reportes') {
+        setEditDrafts((prev) => {
+          const next = { ...prev };
+          delete next[fichajeId];
+          for (const [key, d] of Object.entries(next)) {
+            if (d.forOrphanId === fichajeId) delete next[key];
+          }
+          return next;
+        });
+      }
       await refreshAfterFichajeEdit();
     } catch (err) {
       toast.error((err as Error).message);
@@ -1423,9 +1494,10 @@ export function RrhhPage() {
     );
   };
 
-  const renderEditRow = (draft: EditRowDraft | undefined, label: string) => {
+  const renderEditRow = (draft: EditRowDraft | undefined, label: string, options?: { showSave?: boolean }) => {
     if (!draft) return null;
     const dirty = isEditRowDirty(draft);
+    const showSave = options?.showSave ?? true;
     const setDraft = (patch: Partial<EditRowDraft>) =>
       setEditDrafts((prev) => ({
         ...prev,
@@ -1455,18 +1527,20 @@ export function RrhhPage() {
           onChange={(e) => setDraft({ hora: e.target.value })}
           className="rounded border border-border bg-background px-2 py-1 text-xs tabular-nums"
         />
-        <button
-          type="button"
-          onClick={() => void saveEditRow(draft.fichajeId)}
-          disabled={draft.saving || !dirty}
-          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
-            dirty
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'invisible'
-          }`}
-        >
-          {draft.saving ? '…' : 'Guardar'}
-        </button>
+        {showSave && (
+          <button
+            type="button"
+            onClick={() => void saveEditRow(draft.fichajeId)}
+            disabled={draft.saving || !dirty}
+            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+              dirty
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'invisible'
+            }`}
+          >
+            {draft.saving ? '…' : 'Guardar'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void deleteEditRow(draft.fichajeId)}
@@ -1928,6 +2002,7 @@ export function RrhhPage() {
                         <th className="px-4 py-3 text-right">Aus.</th>
                         <th className="px-4 py-3 text-right">Inc.</th>
                         <th className="px-4 py-3 text-left">Estado</th>
+                        <th className="px-4 py-3 text-right">Reporte</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -1949,6 +2024,15 @@ export function RrhhPage() {
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
                               {statusLabel(row.status)}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openEmployeeMonthlyReport({ empleadoId: row.empleadoId, planta: row.planta })}
+                              className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                            >
+                              Ver mes
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -2138,10 +2222,10 @@ export function RrhhPage() {
             .sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`))
             .map((draft) => (
               <div key={draft.fichajeId} className="rounded-lg border border-border bg-muted/20 p-2">
-                {renderEditRow(draft, draft.estado === 0 ? 'Entrada' : 'Salida')}
+                {renderEditRow(draft, draft.estado === 0 ? 'Entrada' : 'Salida', { showSave: false })}
                 {Object.values(editDrafts)
                   .filter((d) => d.forOrphanId === draft.fichajeId)
-                  .map((d) => renderEditRow(d, d.estado === 0 ? 'Entrada nueva' : 'Salida nueva'))}
+                  .map((d) => renderEditRow(d, d.estado === 0 ? 'Entrada nueva' : 'Salida nueva', { showSave: false }))}
                 {!Object.values(editDrafts).some((d) => d.forOrphanId === draft.fichajeId) && (
                   <button
                     type="button"
@@ -2154,9 +2238,12 @@ export function RrhhPage() {
               </div>
             ))}
         </div>
-        <div className="flex justify-end mt-4 pt-3 border-t border-border">
-          <Button type="button" variant="outline" onClick={() => setReportFixOpen(false)}>
-            Cerrar
+        <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-border">
+          <Button type="button" variant="outline" onClick={() => setReportFixOpen(false)} disabled={reportFixSaving}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={() => void saveReportFixDrafts()} disabled={reportFixSaving}>
+            {reportFixSaving ? 'Guardando…' : 'Guardar cambios'}
           </Button>
         </div>
       </Dialog>
