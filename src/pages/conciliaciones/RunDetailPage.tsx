@@ -307,6 +307,7 @@ export function RunDetailPage() {
           {section === 'exclusiones' && (
             <ExclusionesPanel
               excludeConcepts={detail.excludeConcepts ?? []} extractLines={detail.extractLines}
+              excludedSummary={detail.excludedSummary ?? []}
               canEdit={canEdit} isClosed={!!isClosed} runId={id}
               onRemoveExcludedConcept={canEdit && !isClosed && id ? async (concept) => { const updated = await conciliacionesApi.removeExcludedConcept(id, concept); setDetail(updated); toast.success('Exclusión quitada'); } : undefined}
               onExcludeConcepts={canEdit && !isClosed && id ? async (concepts) => { await conciliacionesApi.excludeConcepts(id, concepts); await fetchDetail(); toast.success(concepts.length === 1 ? 'Concepto excluido' : `${concepts.length} conceptos excluidos`); } : undefined}

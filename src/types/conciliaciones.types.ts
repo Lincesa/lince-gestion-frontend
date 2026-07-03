@@ -130,6 +130,13 @@ export type IssueComment = {
   author: { email: string };
 };
 
+export type ExcludedSummaryRow = {
+  concept: string;
+  category: string;
+  count: number;
+  total: number;
+};
+
 export type Issue = {
   id: string;
   title: string;
@@ -150,6 +157,7 @@ export type RunDetail = {
   status?: RunStatus;
   createdById?: string;
   excludeConcepts?: string[];
+  excludedSummary?: ExcludedSummaryRow[];
   enabledCategoryIds?: string[];
   createdAt: string;
   extractLines: ExtractLine[];
