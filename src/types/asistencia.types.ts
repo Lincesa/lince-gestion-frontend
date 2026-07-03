@@ -64,6 +64,7 @@ export interface DiaReporteEmpleado {
   diaHabil: boolean;
   esperadoMs: number;
   trabajadoMs: number;
+  justificadoMs: number;
   saldoMs: number;
   fichajes: FichajeReporte[];
   tramos: TramoReporte[];
@@ -94,6 +95,7 @@ export interface AusenciaEmpleado {
   hasta: string;
   tipo: TipoAusencia;
   motivo: string | null;
+  horasJustificadas: number | null;
   empleado?: EmpleadoAsistencia | null;
   createdBy: string | null;
   createdAt: string;
@@ -128,6 +130,7 @@ export interface ReporteEmpleadoRango {
     diasAusencia?: number;
     esperadoMs: number;
     trabajadoMs: number;
+    justificadoMs: number;
     horasExtraMs?: number;
     saldoMs: number;
   };
@@ -140,6 +143,7 @@ export interface MonthlyAttendanceDay {
   fecha: string;
   expectedMs: number;
   workedMs: number;
+  justifiedMs: number;
   balanceMs: number;
   pairs: number;
   orphanEntradas: number;
@@ -167,6 +171,7 @@ export interface MonthlyAttendanceEmployeeRow {
   diasConFichajeIncompleto: number;
   expectedMs: number;
   workedMs: number;
+  justifiedMs: number;
   extraMs: number;
   balanceMs: number;
   cumplimientoPct: number;
@@ -189,6 +194,7 @@ export interface MonthlyAttendanceSummary {
     diasConFichajeIncompleto: number;
     expectedMs: number;
     workedMs: number;
+    justifiedMs: number;
     extraMs: number;
     balanceMs: number;
     cumplimientoPct: number;

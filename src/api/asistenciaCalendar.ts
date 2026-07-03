@@ -22,6 +22,7 @@ export interface CreateAusenciaPayload {
   hasta: string;
   tipo: TipoAusencia;
   motivo?: string | null;
+  horasJustificadas?: number | null;
 }
 
 export type UpdateAusenciaPayload = Partial<Omit<CreateAusenciaPayload, 'empleadoId'>>;

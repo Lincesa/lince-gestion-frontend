@@ -42,6 +42,7 @@ export function AusenciasTab() {
   } | null>(null);
   const [formTipo, setFormTipo] = useState<TipoAusencia>('vacaciones');
   const [formMotivo, setFormMotivo] = useState('');
+  const [formHorasJustificadas, setFormHorasJustificadas] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Cargar empleados al montar (ambas plantas)
@@ -107,18 +108,26 @@ export function AusenciasTab() {
     setEditor({ desde, hasta });
     setFormTipo('vacaciones');
     setFormMotivo('');
+    setFormHorasJustificadas('');
   };
 
   const openEditorForExisting = (a: AusenciaEmpleado) => {
     setEditor({ desde: a.desde, hasta: a.hasta, existing: a });
     setFormTipo(a.tipo);
     setFormMotivo(a.motivo ?? '');
+    setFormHorasJustificadas(a.horasJustificadas != null ? String(a.horasJustificadas) : '');
   };
 
   const closeEditor = () => setEditor(null);
 
   const save = async () => {
     if (!editor || !selectedEmpId) return;
+    const horasText = formHorasJustificadas.trim();
+    const horasJustificadas = horasText === '' ? null : Number(horasText);
+    if (horasJustificadas !== null && (!Number.isFinite(horasJustificadas) || horasJustificadas < 0 || horasJustificadas > 24)) {
+      toast.error('Las horas justificadas deben estar entre 0 y 24');
+      return;
+    }
     setSaving(true);
     try {
       if (editor.existing) {
@@ -127,6 +136,7 @@ export function AusenciasTab() {
           hasta: editor.hasta,
           tipo: formTipo,
           motivo: formMotivo.trim() || null,
+          horasJustificadas,
         });
         toast.success('Ausencia actualizada');
       } else {
@@ -136,6 +146,7 @@ export function AusenciasTab() {
           hasta: editor.hasta,
           tipo: formTipo,
           motivo: formMotivo.trim() || null,
+          horasJustificadas,
         });
         toast.success('Ausencia agregada');
       }
@@ -250,7 +261,7 @@ export function AusenciasTab() {
                         <span className="text-[10px] truncate">{TIPO_AUSENCIA_EMOJI[hit.tipo]}</span>
                       </div>
                     ),
-                    tooltip: `${TIPO_AUSENCIA_LABEL[hit.tipo]}${hit.motivo ? ` — ${hit.motivo}` : ''} (${hit.desde} → ${hit.hasta})`,
+                    tooltip: `${TIPO_AUSENCIA_LABEL[hit.tipo]}${hit.horasJustificadas != null ? ` · ${hit.horasJustificadas} h justificadas` : ''}${hit.motivo ? ` — ${hit.motivo}` : ''} (${hit.desde} → ${hit.hasta})`,
                   };
                 }}
               />
@@ -284,6 +295,11 @@ export function AusenciasTab() {
                         <span className="text-muted-foreground text-xs">
                           {a.desde === a.hasta ? a.desde : `${a.desde} → ${a.hasta}`}
                         </span>
+                        {a.horasJustificadas != null && (
+                          <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">
+                            {a.horasJustificadas} h justificadas
+                          </span>
+                        )}
                         {a.motivo && (
                           <span className="text-xs italic text-muted-foreground truncate ml-2">
                             "{a.motivo}"
@@ -377,6 +393,23 @@ export function AusenciasTab() {
                   placeholder="Detalle…"
                   className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium mb-1 block">Horas justificadas (opcional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="24"
+                  step="0.25"
+                  value={formHorasJustificadas}
+                  onChange={(e) => setFormHorasJustificadas(e.target.value)}
+                  placeholder="Vacío = día completo"
+                  className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Usalo para retiros parciales justificados. Vacío justifica el día completo.
+                </p>
               </div>
             </div>
 

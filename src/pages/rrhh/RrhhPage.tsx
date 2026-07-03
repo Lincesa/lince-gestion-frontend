@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
-import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango } from '@/types';
+import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
+import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -34,6 +35,13 @@ interface EditRowDraft {
   originalHora?: string;
 }
 
+interface DayExceptionForm {
+  fecha: string;
+  tipo: TipoAusencia;
+  horasJustificadas: string;
+  motivo: string;
+}
+
 const AR_TZ = 'America/Argentina/Buenos_Aires';
 const DEFAULT_PLANTA: Planta = 'villa_nueva';
 
@@ -55,6 +63,14 @@ function jornadaMsForAgg(agg: { fichajes: FichajeAsistencia[] }): number {
 const PLANTAS: { value: Planta; label: string }[] = [
   { value: 'villa_nueva', label: 'Villa María' },
   { value: 'tucuman', label: 'Tucumán' },
+];
+
+const TIPO_AUSENCIA_OPTIONS: { value: TipoAusencia; label: string }[] = [
+  { value: 'licencia_medica', label: 'Licencia médica' },
+  { value: 'permiso_direccion', label: 'Permiso dirección' },
+  { value: 'vacaciones', label: 'Vacaciones' },
+  { value: 'compensacion', label: 'Compensación' },
+  { value: 'otro', label: 'Otro' },
 ];
 
 function plantaDisplayName(planta: Planta | string): string {
@@ -521,6 +537,16 @@ export function RrhhPage() {
   const [reportFixOpen, setReportFixOpen] = useState(false);
   const [reportFixTitle, setReportFixTitle] = useState('');
   const [reportFixSaving, setReportFixSaving] = useState(false);
+  const [dayExceptionOpen, setDayExceptionOpen] = useState(false);
+  const [dayExceptionLoading, setDayExceptionLoading] = useState(false);
+  const [dayExceptionSaving, setDayExceptionSaving] = useState(false);
+  const [dayExceptionExistingId, setDayExceptionExistingId] = useState<string | null>(null);
+  const [dayExceptionForm, setDayExceptionForm] = useState<DayExceptionForm>({
+    fecha: '',
+    tipo: 'licencia_medica',
+    horasJustificadas: '',
+    motivo: '',
+  });
   const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
   // Cache de empleados (activos) y pines por planta. Se invalida en CRUD de empleados
@@ -947,6 +973,7 @@ export function RrhhPage() {
       ['Días con tramos', reportData.resumen.diasConTramos],
       ['Horas esperadas', reportData.resumen.esperadoMs / 3600000],
       ['Horas trabajadas', reportData.resumen.trabajadoMs / 3600000],
+      ['Horas justificadas', (reportData.resumen.justificadoMs ?? 0) / 3600000],
       ['Saldo', reportData.resumen.saldoMs / 3600000],
       ['Saldo legible', formatSaldoJornada(reportData.resumen.saldoMs)],
     ];
@@ -968,6 +995,7 @@ export function RrhhPage() {
         'Día hábil': day.diaHabil ? 'Sí' : 'No',
         'Horas debidas': day.esperadoMs / 3600000,
         'Horas trabajadas': day.trabajadoMs / 3600000,
+        'Horas justificadas': day.justificadoMs / 3600000,
         'Saldo horas': day.saldoMs / 3600000,
         'Saldo legible': formatSaldoJornada(day.saldoMs),
         Tramos: tramos || '-',
@@ -1229,6 +1257,90 @@ export function RrhhPage() {
     setEditDrafts(next);
     setReportFixTitle(formatDayHeading(day.fecha));
     setReportFixOpen(true);
+  };
+
+  const openDayExceptionModal = async (day: ReporteEmpleadoRango['dias'][number]) => {
+    if (!reportData) return;
+    setDayExceptionOpen(true);
+    setDayExceptionLoading(true);
+    setDayExceptionExistingId(null);
+    setDayExceptionForm({
+      fecha: day.fecha,
+      tipo: day.tipoAusencia ?? 'licencia_medica',
+      horasJustificadas: day.justificadoMs > 0 ? String(day.justificadoMs / 3600000) : '',
+      motivo: day.motivoNoLaborable ?? '',
+    });
+    try {
+      const ausencias = await asistenciaCalendarApi.listAusencias({
+        empleadoId: reportData.empleado.id,
+        desde: day.fecha,
+        hasta: day.fecha,
+      });
+      const exact = ausencias.find((a) => a.desde === day.fecha && a.hasta === day.fecha) ?? null;
+      if (exact) {
+        setDayExceptionExistingId(exact.id);
+        setDayExceptionForm({
+          fecha: day.fecha,
+          tipo: exact.tipo,
+          horasJustificadas: exact.horasJustificadas != null ? String(exact.horasJustificadas) : '',
+          motivo: exact.motivo ?? '',
+        });
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDayExceptionLoading(false);
+    }
+  };
+
+  const saveDayException = async () => {
+    if (!reportData || !dayExceptionForm.fecha) return;
+    const horasText = dayExceptionForm.horasJustificadas.trim();
+    const horasJustificadas = horasText === '' ? null : Number(horasText);
+    if (horasJustificadas !== null && (!Number.isFinite(horasJustificadas) || horasJustificadas < 0 || horasJustificadas > 24)) {
+      toast.error('Las horas justificadas deben estar entre 0 y 24');
+      return;
+    }
+    setDayExceptionSaving(true);
+    try {
+      const payload = {
+        desde: dayExceptionForm.fecha,
+        hasta: dayExceptionForm.fecha,
+        tipo: dayExceptionForm.tipo,
+        motivo: dayExceptionForm.motivo.trim() || null,
+        horasJustificadas,
+      };
+      if (dayExceptionExistingId) {
+        await asistenciaCalendarApi.updateAusencia(dayExceptionExistingId, payload);
+      } else {
+        await asistenciaCalendarApi.createAusencia({
+          empleadoId: reportData.empleado.id,
+          ...payload,
+        });
+      }
+      toast.success('Excepción guardada');
+      setDayExceptionOpen(false);
+      await loadEmployeeReport({ silent: true });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDayExceptionSaving(false);
+    }
+  };
+
+  const deleteDayException = async () => {
+    if (!dayExceptionExistingId) return;
+    setDayExceptionSaving(true);
+    try {
+      await asistenciaCalendarApi.deleteAusencia(dayExceptionExistingId);
+      toast.success('Excepción eliminada');
+      setDayExceptionOpen(false);
+      await loadEmployeeReport({ silent: true });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDayExceptionSaving(false);
+    }
   };
 
   const refreshAfterFichajeEdit = async () => {
@@ -2247,6 +2359,79 @@ export function RrhhPage() {
           </Button>
         </div>
       </Dialog>
+      <Dialog
+        open={dayExceptionOpen}
+        onClose={() => setDayExceptionOpen(false)}
+        title="Editar excepción del día"
+        description={`${dayExceptionForm.fecha ? formatDayHeading(dayExceptionForm.fecha) : ''} · ${reportData ? `${reportData.empleado.firstName} ${reportData.empleado.lastName}` : ''}`}
+        panelClassName="sm:max-w-lg"
+      >
+        <div className="space-y-4">
+          {dayExceptionLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando excepción…</p>
+          ) : (
+            <>
+              <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3 text-xs text-blue-900 dark:text-blue-100">
+                Dejá las horas vacías para justificar el día completo. Si cargás horas, se descuentan de las horas debidas del día sin contarlas como trabajadas.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-sm">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo</span>
+                  <select
+                    value={dayExceptionForm.tipo}
+                    onChange={(e) => setDayExceptionForm((prev) => ({ ...prev, tipo: e.target.value as TipoAusencia }))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    {TIPO_AUSENCIA_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Horas justificadas</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="0.25"
+                    value={dayExceptionForm.horasJustificadas}
+                    onChange={(e) => setDayExceptionForm((prev) => ({ ...prev, horasJustificadas: e.target.value }))}
+                    placeholder="Día completo"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+              <label className="space-y-1 text-sm block">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Motivo</span>
+                <textarea
+                  value={dayExceptionForm.motivo}
+                  onChange={(e) => setDayExceptionForm((prev) => ({ ...prev, motivo: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                  placeholder="Ej: se retiró por enfermedad"
+                />
+              </label>
+            </>
+          )}
+        </div>
+        <div className="mt-4 flex justify-between gap-2 border-t border-border pt-3">
+          <div>
+            {dayExceptionExistingId && (
+              <Button type="button" variant="outline" onClick={() => void deleteDayException()} disabled={dayExceptionSaving}>
+                Eliminar
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => setDayExceptionOpen(false)} disabled={dayExceptionSaving}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => void saveDayException()} disabled={dayExceptionSaving || dayExceptionLoading}>
+              {dayExceptionSaving ? 'Guardando…' : 'Guardar excepción'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
       <section className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="border-b border-border bg-muted/30 px-4 py-3">
           <h2 className="text-base font-semibold text-foreground">Reporte por empleado</h2>
@@ -2345,7 +2530,7 @@ export function RrhhPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Días hábiles
@@ -2375,6 +2560,14 @@ export function RrhhPage() {
               </p>
               <p className="mt-1 text-xl font-semibold tabular-nums">
                 {reportData ? formatDuracion(reportData.resumen.trabajadoMs) : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                Justificadas
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-blue-800 dark:text-blue-200">
+                {reportData ? formatDuracion(reportData.resumen.justificadoMs ?? 0) : '—'}
               </p>
             </div>
             <div className={`rounded-lg p-3 ${saldoJornadaClass(reportData?.resumen.saldoMs ?? 0, hasReport)}`}>
@@ -2424,7 +2617,7 @@ export function RrhhPage() {
                       ...day.salidasSinEntrada.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
                     ];
                     const noLaborableLabel = day.esAusencia
-                      ? `🏖 ${day.tipoAusencia ?? 'Ausencia'}${day.motivoNoLaborable ? ` — ${day.motivoNoLaborable}` : ''}`
+                      ? `🩺 ${day.tipoAusencia ?? 'Ausencia'}${day.justificadoMs > 0 ? ` · ${formatDuracion(day.justificadoMs)} justificadas` : ''}${day.motivoNoLaborable ? ` — ${day.motivoNoLaborable}` : ''}`
                       : day.esFeriado
                         ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
                         : null;
@@ -2449,6 +2642,11 @@ export function RrhhPage() {
                         </td>
                         <td className="px-3 py-3 font-mono tabular-nums">
                           {formatDuracion(day.esperadoMs)}
+                          {day.justificadoMs > 0 && (
+                            <p className="mt-0.5 text-[11px] font-sans text-blue-700 dark:text-blue-300">
+                              - {formatDuracion(day.justificadoMs)} justificadas
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-3 font-mono tabular-nums">
                           {day.tramos.length > 0 ? formatDuracion(day.trabajadoMs) : '—'}
@@ -2465,13 +2663,22 @@ export function RrhhPage() {
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          <button
-                            type="button"
-                            onClick={() => openReportFixModal(day)}
-                            className="mb-2 inline-flex rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
-                          >
-                            Corregir fichajes
-                          </button>
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openReportFixModal(day)}
+                              className="inline-flex rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                            >
+                              Corregir fichajes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void openDayExceptionModal(day)}
+                              className="inline-flex rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs text-blue-800 hover:bg-blue-500/15 dark:text-blue-200"
+                            >
+                              Excepción
+                            </button>
+                          </div>
                           <div className="space-y-1.5">
                             {day.tramos.map((p) => (
                               <div
