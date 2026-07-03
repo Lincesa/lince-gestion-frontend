@@ -272,11 +272,9 @@ export function RunDetailPage() {
               <Upload className="mr-2 h-4 w-4" />Actualizar Excel sistema
             </Button>
           )}
-          {canEdit && (
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />Descargar Excel
-            </Button>
-          )}
+          <Button onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />Descargar Excel
+          </Button>
         </div>
       </div>
 
