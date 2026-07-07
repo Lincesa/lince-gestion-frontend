@@ -139,6 +139,18 @@ export interface ReporteEmpleadoRango {
 
 export type MonthlyEmployeeStatus = 'ok' | 'review' | 'critical';
 
+export interface MonthlyAttendancePunchDetail {
+  id: string;
+  tiempo: string;
+  estado: 0 | 1;
+}
+
+export interface MonthlyAttendancePairDetail {
+  entrada: MonthlyAttendancePunchDetail;
+  salida: MonthlyAttendancePunchDetail;
+  ms: number;
+}
+
 export interface MonthlyAttendanceDay {
   fecha: string;
   expectedMs: number;
@@ -148,6 +160,9 @@ export interface MonthlyAttendanceDay {
   pairs: number;
   orphanEntradas: number;
   orphanSalidas: number;
+  pairDetails: MonthlyAttendancePairDetail[];
+  orphanEntradaDetails: MonthlyAttendancePunchDetail[];
+  orphanSalidaDetails: MonthlyAttendancePunchDetail[];
   isWorkday: boolean;
   isJustifiedAbsence: boolean;
   isNoLaborable: boolean;

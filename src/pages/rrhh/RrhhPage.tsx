@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
-import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
+import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -471,6 +471,89 @@ function plantasLabel(agg: EmployeeDayAgg): string {
   return [...set].join(', ');
 }
 
+function monthlyDayHeader(fecha: string): string {
+  return fecha.slice(-2);
+}
+
+function monthlyCellTone(day: MonthlyAttendanceDay): 'warning' | 'success' | 'danger' | 'info' | 'muted' | 'empty' {
+  if (day.hasIncompletePunches) return 'warning';
+  if (day.workedMs > 0 && day.balanceMs >= 0) return 'success';
+  if (day.workedMs > 0) return 'danger';
+  if (day.isJustifiedAbsence) return 'info';
+  if (day.isNoLaborable) return 'muted';
+  if (day.isUnjustifiedAbsence) return 'danger';
+  return 'empty';
+}
+
+function monthlyCellClass(day: MonthlyAttendanceDay): string {
+  switch (monthlyCellTone(day)) {
+    case 'warning':
+      return 'border border-amber-300 bg-amber-100 text-amber-950 ring-1 ring-amber-400/40 dark:border-amber-400/60 dark:bg-amber-400/20 dark:text-amber-50 dark:ring-amber-300/30';
+    case 'success':
+      return 'border border-emerald-200 bg-emerald-100 text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-400/20 dark:text-emerald-50';
+    case 'danger':
+      return 'border border-red-200 bg-red-100 text-red-950 dark:border-red-400/50 dark:bg-red-400/20 dark:text-red-50';
+    case 'info':
+      return 'border border-blue-200 bg-blue-100 text-blue-950 dark:border-blue-400/50 dark:bg-blue-400/20 dark:text-blue-50';
+    case 'muted':
+      return 'border border-border bg-muted/60 text-muted-foreground dark:bg-slate-800/70 dark:text-slate-300';
+    case 'empty':
+      return 'border border-border bg-background text-muted-foreground dark:bg-slate-950 dark:text-slate-400';
+  }
+}
+
+function monthlyCellTitle(day: MonthlyAttendanceDay): string {
+  const pairDetails = day.pairDetails ?? [];
+  const orphanEntradaDetails = day.orphanEntradaDetails ?? [];
+  const orphanSalidaDetails = day.orphanSalidaDetails ?? [];
+  const parts = [
+    day.fecha,
+    `Trabajado: ${formatDuracion(day.workedMs)}`,
+    `Esperado: ${formatDuracion(day.expectedMs)}`,
+  ];
+  if (pairDetails.length === 1) {
+    parts.push(`Entrada: ${formatSoloHora(pairDetails[0].entrada.tiempo)}`);
+    parts.push(`Salida: ${formatSoloHora(pairDetails[0].salida.tiempo)}`);
+  } else if (pairDetails.length > 1) {
+    parts.push(`Tramos: ${pairDetails.map((pair) => `${formatSoloHora(pair.entrada.tiempo)}-${formatSoloHora(pair.salida.tiempo)}`).join(', ')}`);
+  }
+  if (orphanEntradaDetails.length > 0) parts.push(`${orphanEntradaDetails.length} entrada(s) sin salida`);
+  if (orphanSalidaDetails.length > 0) parts.push(`${orphanSalidaDetails.length} salida(s) sin entrada`);
+  return parts.join(' · ');
+}
+
+function monthlyCellPunchSummary(day: MonthlyAttendanceDay): { label: string; detail: string } | null {
+  const pairDetails = day.pairDetails ?? [];
+  if (pairDetails.length === 0) return null;
+  if (pairDetails.length === 1) {
+    return {
+      label: `${formatSoloHora(pairDetails[0].entrada.tiempo)} / ${formatSoloHora(pairDetails[0].salida.tiempo)}`,
+      detail: '1 tramo',
+    };
+  }
+  const visiblePairs = pairDetails
+    .slice(0, 2)
+    .map((pair) => `${formatSoloHora(pair.entrada.tiempo)}-${formatSoloHora(pair.salida.tiempo)}`)
+    .join(' · ');
+  return {
+    label: visiblePairs,
+    detail: `${pairDetails.length} tramos${pairDetails.length > 2 ? ` (+${pairDetails.length - 2})` : ''}`,
+  };
+}
+
+function monthlyCellExportText(day: MonthlyAttendanceDay): string {
+  const punchSummary = monthlyCellPunchSummary(day);
+  const lines = [day.workedMs > 0 ? formatDuracion(day.workedMs) : '—'];
+  if (punchSummary) {
+    lines.push(punchSummary.label);
+    lines.push(punchSummary.detail);
+  }
+  if (day.hasIncompletePunches) {
+    lines.push(`Inc. ${day.orphanEntradas + day.orphanSalidas}`);
+  }
+  return lines.join('\n');
+}
+
 
 export function RrhhPage() {
   const location = useLocation();
@@ -530,8 +613,10 @@ export function RrhhPage() {
   const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string; horasEsperadasDia: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '', horasEsperadasDia: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
   const [monthlyMonth, setMonthlyMonth] = useState(currentMonthAr);
+  const [monthlyViewMode, setMonthlyViewMode] = useState<'resumen' | 'matriz'>('resumen');
   const [monthlyData, setMonthlyData] = useState<MonthlyAttendanceSummary | null>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyExportLoading, setMonthlyExportLoading] = useState(false);
   const [kpisData, setKpisData] = useState<AttendanceKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [reportFixOpen, setReportFixOpen] = useState(false);
@@ -1020,6 +1105,114 @@ export function RrhhPage() {
       workbook,
       `reporte-asistencia-${employeeName.replace(/\s+/g, '-')}-${reportData.desde}-${reportData.hasta}.xlsx`,
     );
+  };
+
+  const exportMonthlyMatrixExcel = async () => {
+    if (!monthlyData) {
+      toast.error('Cargá el acumulado mensual antes de exportar');
+      return;
+    }
+    if (monthlyData.employees.length === 0) {
+      toast.error('No hay empleados para exportar');
+      return;
+    }
+
+    setMonthlyExportLoading(true);
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Lince RRHH';
+      workbook.created = new Date();
+
+      const ws = workbook.addWorksheet('Matriz diaria');
+      ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];
+
+      const COLOR_HEADER_BG = 'FF1F2937';
+      const COLOR_HEADER_FG = 'FFFFFFFF';
+      const COLOR_BORDER = 'FFD1D5DB';
+      const toneColors: Record<ReturnType<typeof monthlyCellTone>, { bg: string; fg: string }> = {
+        success: { bg: 'FFD9EAD3', fg: 'FF14532D' },
+        warning: { bg: 'FFFFE599', fg: 'FF713F12' },
+        danger: { bg: 'FFF4CCCC', fg: 'FF7F1D1D' },
+        info: { bg: 'FFCFE2F3', fg: 'FF1E3A8A' },
+        muted: { bg: 'FFE5E7EB', fg: 'FF4B5563' },
+        empty: { bg: 'FFF9FAFB', fg: 'FF6B7280' },
+      };
+
+      const days = monthlyData.employees[0]?.days ?? [];
+      const headerRow = ws.addRow([
+        'Empleado',
+        'PIN',
+        ...days.map((day) => monthlyDayHeader(day.fecha)),
+        'Total',
+      ]);
+
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_HEADER_BG } };
+        cell.font = { bold: true, color: { argb: COLOR_HEADER_FG }, size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = { bottom: { style: 'thin', color: { argb: COLOR_BORDER } } };
+      });
+      headerRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+      for (const row of monthlyData.employees) {
+        const dataRow = ws.addRow([
+          row.nombre,
+          row.pin,
+          ...row.days.map(monthlyCellExportText),
+          formatDuracion(row.workedMs),
+        ]);
+        dataRow.height = 46;
+
+        dataRow.getCell(1).font = { bold: true, color: { argb: 'FF111827' }, size: 10 };
+        dataRow.getCell(2).font = { color: { argb: 'FF374151' }, size: 10 };
+
+        for (let index = 0; index < row.days.length; index += 1) {
+          const day = row.days[index];
+          const cell = dataRow.getCell(index + 3);
+          const colors = toneColors[monthlyCellTone(day)];
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colors.bg } };
+          cell.font = { color: { argb: colors.fg }, size: 9, bold: day.workedMs > 0 || day.hasIncompletePunches };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = { bottom: { style: 'hair', color: { argb: COLOR_BORDER } }, right: { style: 'hair', color: { argb: COLOR_BORDER } } };
+          cell.note = monthlyCellTitle(day);
+        }
+
+        const totalCell = dataRow.getCell(days.length + 3);
+        totalCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+        totalCell.font = { bold: true, color: { argb: 'FF0C4A6E' }, size: 10 };
+        totalCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
+        dataRow.eachCell((cell, colNumber) => {
+          if (colNumber <= 2) {
+            cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'left' : 'center', wrapText: true };
+            cell.border = { bottom: { style: 'hair', color: { argb: COLOR_BORDER } }, right: { style: 'hair', color: { argb: COLOR_BORDER } } };
+          }
+        });
+      }
+
+      ws.columns = [
+        { width: 30 },
+        { width: 10 },
+        ...days.map(() => ({ width: 13 })),
+        { width: 14 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `matriz-asistencia-${monthlyData.planta}-${monthlyData.month}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Matriz mensual exportada');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setMonthlyExportLoading(false);
+    }
   };
 
   const exportFichajesExcel = async () => {
@@ -2101,56 +2294,146 @@ export function RrhhPage() {
                     <h2 className="text-base font-semibold text-foreground">Acumulado del mes</h2>
                     <p className="text-xs text-muted-foreground">{monthlyData.desde} al {monthlyData.hasta} · {plantaDisplayName(monthlyData.planta)}</p>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void exportMonthlyMatrixExcel()}
+                      disabled={monthlyExportLoading || monthlyData.employees.length === 0}
+                      className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {monthlyExportLoading ? 'Exportando…' : 'Exportar matriz'}
+                    </button>
+                    <div className="inline-flex rounded-lg border border-border bg-background p-1">
+                      <button
+                        type="button"
+                        onClick={() => setMonthlyViewMode('resumen')}
+                        aria-pressed={monthlyViewMode === 'resumen'}
+                        className={[
+                          'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                          monthlyViewMode === 'resumen' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                        ].join(' ')}
+                      >
+                        Resumen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMonthlyViewMode('matriz')}
+                        aria-pressed={monthlyViewMode === 'matriz'}
+                        className={[
+                          'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                          monthlyViewMode === 'matriz' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                        ].join(' ')}
+                      >
+                        Matriz diaria
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                      <tr>
-                        <th className="px-4 py-3 text-left">Empleado</th>
-                        <th className="px-4 py-3 text-right">Trabajado</th>
-                        <th className="px-4 py-3 text-right">Esperado</th>
-                        <th className="px-4 py-3 text-right">Saldo</th>
-                        <th className="px-4 py-3 text-right">Cumpl.</th>
-                        <th className="px-4 py-3 text-right">Aus.</th>
-                        <th className="px-4 py-3 text-right">Inc.</th>
-                        <th className="px-4 py-3 text-left">Estado</th>
-                        <th className="px-4 py-3 text-right">Reporte</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {monthlyData.employees.map((row) => (
-                        <tr key={row.empleadoId} className="hover:bg-muted/20">
-                          <td className="px-4 py-3 min-w-[220px]">
-                            <p className="font-medium text-foreground">{row.nombre}</p>
-                            <p className="text-xs text-muted-foreground">PIN {row.pin} · {row.departamento || row.cargo || plantaDisplayName(row.planta)}</p>
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">{formatDuracion(row.workedMs)}</td>
-                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
-                          <td className={`px-4 py-3 text-right tabular-nums font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {formatSaldoJornada(row.balanceMs)}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">{formatPct(row.cumplimientoPct)}</td>
-                          <td className="px-4 py-3 text-right tabular-nums">{row.diasAusenteInjustificado}</td>
-                          <td className="px-4 py-3 text-right tabular-nums">{row.diasConFichajeIncompleto}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
-                              {statusLabel(row.status)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openEmployeeMonthlyReport({ empleadoId: row.empleadoId, planta: row.planta })}
-                              className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
-                            >
-                              Ver mes
-                            </button>
-                          </td>
+                {monthlyViewMode === 'resumen' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Empleado</th>
+                          <th className="px-4 py-3 text-right">Trabajado</th>
+                          <th className="px-4 py-3 text-right">Esperado</th>
+                          <th className="px-4 py-3 text-right">Saldo</th>
+                          <th className="px-4 py-3 text-right">Cumpl.</th>
+                          <th className="px-4 py-3 text-right">Aus.</th>
+                          <th className="px-4 py-3 text-right">Inc.</th>
+                          <th className="px-4 py-3 text-left">Estado</th>
+                          <th className="px-4 py-3 text-right">Reporte</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {monthlyData.employees.map((row) => (
+                          <tr key={row.empleadoId} className="hover:bg-muted/20">
+                            <td className="px-4 py-3 min-w-[220px]">
+                              <p className="font-medium text-foreground">{row.nombre}</p>
+                              <p className="text-xs text-muted-foreground">PIN {row.pin} · {row.departamento || row.cargo || plantaDisplayName(row.planta)}</p>
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums">{formatDuracion(row.workedMs)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
+                            <td className={`px-4 py-3 text-right tabular-nums font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {formatSaldoJornada(row.balanceMs)}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums">{formatPct(row.cumplimientoPct)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{row.diasAusenteInjustificado}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{row.diasConFichajeIncompleto}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
+                                {statusLabel(row.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => openEmployeeMonthlyReport({ empleadoId: row.empleadoId, planta: row.planta })}
+                                className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                              >
+                                Ver mes
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    {monthlyData.employees.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-muted-foreground">No hay empleados para mostrar en este período.</p>
+                    ) : (
+                    <table className="min-w-max border-separate border-spacing-1 bg-slate-100 p-1 text-xs dark:bg-slate-900/80">
+                      <thead className="text-muted-foreground">
+                        <tr>
+                          <th className="sticky left-0 z-20 rounded-md bg-slate-200 px-3 py-2 text-left min-w-[220px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Empleado</th>
+                          {monthlyData.employees[0]?.days.map((day) => (
+                            <th key={day.fecha} className="rounded-md bg-slate-200 px-1.5 py-2 text-center font-medium min-w-[76px] text-slate-700 dark:bg-slate-800 dark:text-slate-200" title={day.fecha}>
+                              {monthlyDayHeader(day.fecha)}
+                            </th>
+                          ))}
+                          <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyData.employees.map((row) => (
+                          <tr key={row.empleadoId}>
+                            <td className="sticky left-0 z-10 rounded-md border border-border bg-card px-3 py-2 min-w-[220px] shadow-sm dark:bg-slate-950">
+                              <p className="font-medium text-foreground">{row.nombre}</p>
+                              <p className="text-[11px] text-muted-foreground">PIN {row.pin}</p>
+                            </td>
+                            {row.days.map((day) => {
+                              const punchSummary = monthlyCellPunchSummary(day);
+                              return (
+                                <td key={day.fecha} className="p-1 align-top">
+                                  <div
+                                    title={monthlyCellTitle(day)}
+                                    aria-label={monthlyCellTitle(day)}
+                                    className={`min-h-[54px] rounded-md px-1.5 py-1 text-center tabular-nums ${monthlyCellClass(day)}`}
+                                  >
+                                    <p className="font-semibold leading-tight">{day.workedMs > 0 ? formatDuracion(day.workedMs) : '—'}</p>
+                                    {punchSummary ? (
+                                      <>
+                                        <p className="mt-0.5 text-[10px] leading-tight opacity-80">{punchSummary.label}</p>
+                                        <p className="mt-0.5 text-[10px] leading-tight opacity-70">{punchSummary.detail}</p>
+                                      </>
+                                    ) : null}
+                                    {day.hasIncompletePunches ? (
+                                      <p className="mt-0.5 text-[10px] font-medium leading-tight">Inc. {day.orphanEntradas + day.orphanSalidas}</p>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                            <td className="rounded-md border border-sky-200 bg-sky-100 px-3 py-2 text-right tabular-nums font-semibold text-sky-950 dark:border-sky-400/50 dark:bg-sky-400/20 dark:text-sky-50">{formatDuracion(row.workedMs)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
