@@ -35,6 +35,14 @@ interface EditRowDraft {
   originalHora?: string;
 }
 
+interface ManualFichajeRow {
+  id: string;
+  estado: 0 | 1;
+  fecha: string;
+  hora: string;
+  saving: boolean;
+}
+
 interface DayExceptionForm {
   fecha: string;
   tipo: TipoAusencia;
@@ -632,6 +640,11 @@ export function RrhhPage() {
     horasJustificadas: '',
     motivo: '',
   });
+  const [manualFichajeEmp, setManualFichajeEmp] = useState<{ id: string; pin: string; planta: Planta; firstName: string; lastName: string } | null>(null);
+  const [manualFichajeDate, setManualFichajeDate] = useState('');
+  const [manualFichajeRows, setManualFichajeRows] = useState<ManualFichajeRow[]>([]);
+  const [manualFichajeSaving, setManualFichajeSaving] = useState(false);
+
   const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
   // Cache de empleados (activos) y pines por planta. Se invalida en CRUD de empleados
@@ -1424,6 +1437,69 @@ export function RrhhPage() {
     }
     setEditDrafts(next);
     setEditHorariosOpen(true);
+  };
+
+  const newManualRow = (estado: 0 | 1, hora: string, fecha: string): ManualFichajeRow => ({
+    id: `mf-${Math.random().toString(36).slice(2)}`,
+    estado,
+    fecha,
+    hora,
+    saving: false,
+  });
+
+  const openManualFichajeModal = (
+    emp: { id: string; pin: string; planta: Planta; firstName: string; lastName: string },
+    fecha?: string,
+  ) => {
+    const date = fecha ?? diaFecha;
+    setManualFichajeEmp(emp);
+    setManualFichajeDate(date);
+    setManualFichajeRows([newManualRow(0, '08:00:00', date)]);
+  };
+
+  const addManualRow = () => {
+    setManualFichajeRows((prev) => {
+      const lastEstado = prev[prev.length - 1]?.estado ?? 0;
+      return [...prev, newManualRow(lastEstado === 0 ? 1 : 0, lastEstado === 0 ? '17:00:00' : '08:00:00', manualFichajeDate)];
+    });
+  };
+
+  const updateManualRow = (id: string, patch: Partial<ManualFichajeRow>) => {
+    setManualFichajeRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  };
+
+  const removeManualRow = (id: string) => {
+    setManualFichajeRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const saveManualFichajes = async () => {
+    if (!manualFichajeEmp || manualFichajeRows.length === 0) return;
+    setManualFichajeSaving(true);
+    let saved = 0;
+    let failed = 0;
+    for (const row of manualFichajeRows) {
+      try {
+        const tiempo = arFechaYHoraToIso(row.fecha, row.hora);
+        await asistenciaApi.createFichaje({
+          pin: manualFichajeEmp.pin,
+          planta: manualFichajeEmp.planta,
+          estado: row.estado,
+          tiempo,
+          empleadoId: manualFichajeEmp.id,
+        });
+        saved++;
+      } catch {
+        failed++;
+      }
+    }
+    setManualFichajeSaving(false);
+    if (saved > 0) {
+      toast.success(`${saved} fichaje${saved > 1 ? 's' : ''} guardado${saved > 1 ? 's' : ''}`);
+      setManualFichajeEmp(null);
+      setManualFichajeRows([]);
+      await refreshAfterFichajeEdit();
+    }
+    if (failed > 0) toast.error(`${failed} fichaje${failed > 1 ? 's' : ''} no se pudo guardar`);
   };
 
   const openReportFixModal = (day: ReporteEmpleadoRango['dias'][number]) => {
@@ -2599,6 +2675,75 @@ export function RrhhPage() {
         </section>
       )}
 
+      <Dialog
+        open={manualFichajeEmp !== null}
+        onClose={() => { if (!manualFichajeSaving) { setManualFichajeEmp(null); setManualFichajeRows([]); } }}
+        title={`Agregar fichajes — ${manualFichajeEmp ? `${manualFichajeEmp.firstName} ${manualFichajeEmp.lastName}` : ''}`}
+        description={`${formatDayHeading(manualFichajeDate || diaFecha)} · hora Argentina (−03:00)`}
+        panelClassName="sm:max-w-lg"
+      >
+        <div className="space-y-2">
+          {manualFichajeRows.map((row) => (
+            <div key={row.id} className="flex items-center gap-2 flex-wrap">
+              <select
+                value={String(row.estado)}
+                onChange={(e) => updateManualRow(row.id, { estado: Number(e.target.value) as 0 | 1 })}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              >
+                <option value="0">Entrada</option>
+                <option value="1">Salida</option>
+              </select>
+              <input
+                type="date"
+                value={row.fecha}
+                onChange={(e) => updateManualRow(row.id, { fecha: e.target.value })}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+              <input
+                type="time"
+                step={1}
+                value={row.hora}
+                onChange={(e) => updateManualRow(row.id, { hora: e.target.value })}
+                className="rounded border border-border bg-background px-2 py-1 text-xs tabular-nums"
+              />
+              <button
+                type="button"
+                onClick={() => removeManualRow(row.id)}
+                disabled={manualFichajeRows.length === 1}
+                title="Quitar fila"
+                className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addManualRow}
+            className="mt-1 text-xs border border-dashed border-border rounded px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+          >
+            + Agregar otro fichaje
+          </button>
+        </div>
+        <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-border">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => { setManualFichajeEmp(null); setManualFichajeRows([]); }}
+            disabled={manualFichajeSaving}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void saveManualFichajes()}
+            disabled={manualFichajeSaving || manualFichajeRows.length === 0}
+          >
+            {manualFichajeSaving ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </div>
+      </Dialog>
+
       {activeView === 'reportes' && (
       <>
       <Dialog
@@ -2947,13 +3092,25 @@ export function RrhhPage() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="mb-2 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openReportFixModal(day)}
-                              className="inline-flex rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
-                            >
-                              Corregir fichajes
-                            </button>
+                            {day.fichajes.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => openReportFixModal(day)}
+                                className="inline-flex rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+                              >
+                                Corregir fichajes
+                              </button>
+                            ) : (
+                              reportData && (
+                                <button
+                                  type="button"
+                                  onClick={() => openManualFichajeModal(reportData.empleado, day.fecha)}
+                                  className="inline-flex rounded-md border border-dashed border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs text-amber-800 hover:bg-amber-500/15 dark:text-amber-200"
+                                >
+                                  + Agregar fichaje
+                                </button>
+                              )
+                            )}
                             <button
                               type="button"
                               onClick={() => void openDayExceptionModal(day)}
@@ -3234,7 +3391,15 @@ export function RrhhPage() {
                       <span className="text-base tabular-nums leading-tight mt-0.5">—</span>
                     </div>
                   </td>
-                  <td className="px-5 py-5 text-right align-middle" />
+                  <td className="px-5 py-5 text-right align-middle">
+                    <button
+                      type="button"
+                      onClick={() => openManualFichajeModal(emp)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-red-400/50 bg-red-500/8 px-3 py-1.5 text-xs text-red-700 dark:text-red-300 hover:bg-red-500/15 hover:border-red-400 transition-colors"
+                    >
+                      + Agregar fichaje
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             ))}

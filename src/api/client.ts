@@ -24,7 +24,7 @@ export function configureApiClient(getAuth: AuthGetter, actions: AuthActions) {
 }
 
 function apiBaseUrl(): string {
-  const raw = (import.meta.env['VITE_API_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
+  const raw = (import.meta.env['VITE_API_URL'] ?? 'http://localhost:3001').replace(/\/$/, '');
   if (raw.endsWith('/api')) return raw;
   return `${raw}/api`;
 }
