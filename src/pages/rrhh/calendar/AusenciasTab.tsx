@@ -329,11 +329,11 @@ export function AusenciasTab() {
 
       {editor && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40"
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain p-4 bg-black/40"
           onClick={closeEditor}
         >
           <div
-            className="bg-card rounded-lg border shadow-xl w-full max-w-md p-5"
+            className="bg-card rounded-lg border shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, CalendarDays, UsersRound } from 'lucide-react';
 import { FeriadosTab } from './calendar/FeriadosTab';
 import { AusenciasTab } from './calendar/AusenciasTab';
@@ -13,13 +13,25 @@ interface Props {
 export function CalendarioLaboralModal({ open, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('feriados');
 
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative z-50 w-full max-w-4xl bg-card rounded-lg border shadow-xl my-4">
-        <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <div
+        className="relative z-10 flex w-full max-w-4xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-lg border bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b p-4">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-primary" />
@@ -39,7 +51,7 @@ export function CalendarioLaboralModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="px-4 pt-4">
+        <div className="shrink-0 px-4 pt-4">
           <div className="inline-flex rounded-md border border-border p-0.5 bg-muted/40">
             <button
               type="button"
@@ -68,7 +80,7 @@ export function CalendarioLaboralModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {tab === 'feriados' ? <FeriadosTab /> : <AusenciasTab />}
         </div>
       </div>
