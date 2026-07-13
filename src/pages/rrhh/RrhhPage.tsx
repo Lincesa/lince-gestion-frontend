@@ -2411,44 +2411,52 @@ export function RrhhPage() {
                 {monthlyViewMode === 'resumen' ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                      <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
-                          <th className="px-4 py-3 text-left">Empleado</th>
-                          <th className="px-4 py-3 text-right">Trabajado</th>
-                          <th className="px-4 py-3 text-right">Esperado</th>
-                          <th className="px-4 py-3 text-right">Hs 50%</th>
-                          <th className="px-4 py-3 text-right">Hs 100%</th>
-                          <th className="px-4 py-3 text-right">Saldo</th>
-                          <th className="px-4 py-3 text-right">Cumpl.</th>
-                          <th className="px-4 py-3 text-right">Aus.</th>
-                          <th className="px-4 py-3 text-right">Inc.</th>
-                          <th className="px-4 py-3 text-left">Estado</th>
-                          <th className="px-4 py-3 text-right">Reporte</th>
+                          <th className="px-3 py-2.5 text-left">Empleado</th>
+                          <th className="px-3 py-2.5 text-right">Trabajado</th>
+                          <th className="px-3 py-2.5 text-right">Esperado</th>
+                          {monthlyData.planta === 'tucuman' && (
+                            <>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">Hs 50%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">Hs 100%</th>
+                            </>
+                          )}
+                          <th className="px-3 py-2.5 text-right">Saldo</th>
+                          <th className="px-3 py-2.5 text-right">Cumpl.</th>
+                          <th className="px-3 py-2.5 text-right">Aus.</th>
+                          <th className="px-3 py-2.5 text-right">Inc.</th>
+                          <th className="px-3 py-2.5 text-left">Estado</th>
+                          <th className="px-3 py-2.5 text-right">Reporte</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                         {monthlyData.employees.map((row) => (
                           <tr key={row.empleadoId} className="hover:bg-muted/20">
-                            <td className="px-4 py-3 min-w-[220px]">
+                            <td className="px-3 py-2.5 min-w-[200px]">
                               <p className="font-medium text-foreground">{row.nombre}</p>
                               <p className="text-xs text-muted-foreground">PIN {row.pin} · {row.departamento || row.cargo || plantaDisplayName(row.planta)}</p>
                             </td>
-                            <td className="px-4 py-3 text-right tabular-nums">{formatDuracion(row.workedMs)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.hs50Ms > 0 ? formatDuracion(row.hs50Ms) : '—'}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{row.hs100Ms > 0 ? formatDuracion(row.hs100Ms) : '—'}</td>
-                            <td className={`px-4 py-3 text-right tabular-nums font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">{formatDuracion(row.workedMs)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
+                            {monthlyData.planta === 'tucuman' && (
+                              <>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.hs50Ms > 0 ? formatDuracion(row.hs50Ms) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.hs100Ms > 0 ? formatDuracion(row.hs100Ms) : '—'}</td>
+                              </>
+                            )}
+                            <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                               {formatSaldoJornada(row.balanceMs)}
                             </td>
-                            <td className="px-4 py-3 text-right tabular-nums">{formatPct(row.cumplimientoPct)}</td>
-                            <td className="px-4 py-3 text-right tabular-nums">{row.diasAusenteInjustificado}</td>
-                            <td className="px-4 py-3 text-right tabular-nums">{row.diasConFichajeIncompleto}</td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2.5 text-right tabular-nums">{formatPct(row.cumplimientoPct)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{row.diasAusenteInjustificado}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">{row.diasConFichajeIncompleto}</td>
+                            <td className="px-3 py-2.5">
                               <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row.status)}`}>
                                 {statusLabel(row.status)}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-3 py-2.5 text-right">
                               <button
                                 type="button"
                                 onClick={() => openEmployeeMonthlyReport({ empleadoId: row.empleadoId, planta: row.planta })}
