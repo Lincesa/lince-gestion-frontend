@@ -55,6 +55,9 @@ export type TipoAusencia =
   | 'compensacion'
   | 'licencia_medica'
   | 'permiso_direccion'
+  | 'falta_justificada'
+  | 'falta_injustificada'
+  | 'suspension'
   | 'otro';
 
 export type TipoExcepcionDia = 'no_laborable' | 'laborable';
@@ -157,6 +160,8 @@ export interface MonthlyAttendanceDay {
   workedMs: number;
   justifiedMs: number;
   balanceMs: number;
+  hs50Ms: number;
+  hs100Ms: number;
   pairs: number;
   orphanEntradas: number;
   orphanSalidas: number;
@@ -188,6 +193,8 @@ export interface MonthlyAttendanceEmployeeRow {
   workedMs: number;
   justifiedMs: number;
   extraMs: number;
+  hs50Ms: number;
+  hs100Ms: number;
   balanceMs: number;
   cumplimientoPct: number;
   ausentismoPct: number;
@@ -211,6 +218,8 @@ export interface MonthlyAttendanceSummary {
     workedMs: number;
     justifiedMs: number;
     extraMs: number;
+    hs50Ms: number;
+    hs100Ms: number;
     balanceMs: number;
     cumplimientoPct: number;
     ausentismoPct: number;

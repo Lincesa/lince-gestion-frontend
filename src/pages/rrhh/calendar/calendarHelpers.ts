@@ -12,6 +12,9 @@ export const TIPO_AUSENCIA_LABEL: Record<TipoAusencia, string> = {
   compensacion: 'Compensación',
   licencia_medica: 'Licencia médica',
   permiso_direccion: 'Permiso de dirección',
+  falta_justificada: 'Falta justificada',
+  falta_injustificada: 'Falta injustificada',
+  suspension: 'Suspensión',
   otro: 'Otro',
 };
 
@@ -20,6 +23,9 @@ export const TIPO_AUSENCIA_EMOJI: Record<TipoAusencia, string> = {
   compensacion: '⚖️',
   licencia_medica: '🏥',
   permiso_direccion: '📝',
+  falta_justificada: '📄',
+  falta_injustificada: '🚫',
+  suspension: '⛔',
   otro: '•',
 };
 
@@ -28,6 +34,9 @@ export const TIPO_AUSENCIA_COLOR: Record<TipoAusencia, string> = {
   compensacion: 'bg-emerald-500',
   licencia_medica: 'bg-rose-500',
   permiso_direccion: 'bg-violet-500',
+  falta_justificada: 'bg-amber-500',
+  falta_injustificada: 'bg-red-600',
+  suspension: 'bg-orange-600',
   otro: 'bg-slate-500',
 };
 
