@@ -522,6 +522,7 @@ function monthlyCellTitle(day: MonthlyAttendanceDay): string {
     `Trabajado: ${formatDuracion(day.workedMs)}`,
     `Esperado: ${formatDuracion(day.expectedMs)}`,
   ];
+  if (day.horasExtraMs > 0) parts.push(`Horas extra: ${formatDuracion(day.horasExtraMs)}`);
   if (pairDetails.length === 1) {
     parts.push(`Entrada: ${formatSoloHora(pairDetails[0].entrada.tiempo)}`);
     parts.push(`Salida: ${formatSoloHora(pairDetails[0].salida.tiempo)}`);
@@ -561,6 +562,9 @@ function monthlyCellExportText(day: MonthlyAttendanceDay): string {
   }
   if (day.hasIncompletePunches) {
     lines.push(`Inc. ${day.orphanEntradas + day.orphanSalidas}`);
+  }
+  if (day.horasExtraMs > 0) {
+    lines.push(`+${formatDuracion(day.horasExtraMs)} ext.`);
   }
   return lines.join('\n');
 }
@@ -2513,6 +2517,11 @@ export function RrhhPage() {
                                     {day.hasIncompletePunches ? (
                                       <p className="mt-0.5 text-[10px] font-medium leading-tight">Inc. {day.orphanEntradas + day.orphanSalidas}</p>
                                     ) : null}
+                                    {day.horasExtraMs > 0 ? (
+                                      <p className="mt-0.5 text-[10px] font-semibold leading-tight text-violet-700 dark:text-violet-300">
+                                        +{formatDuracion(day.horasExtraMs)} ext.
+                                      </p>
+                                    ) : null}
                                   </div>
                                 </td>
                               );
@@ -3021,7 +3030,10 @@ export function RrhhPage() {
                 {reportData ? formatSaldoJornada(reportData.resumen.saldoMs) : '—'}
               </p>
             </div>
-            <div className="rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-800 p-3">
+            <div
+              className="rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-800 p-3"
+              title="Solo Tucumán: excedente diario lunes a viernes (≥1h) + Ext. 50% (sábado) + Ext. 100% (domingo/feriado)"
+            >
               <p className="text-[11px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
                 Horas extra
               </p>
@@ -3064,7 +3076,8 @@ export function RrhhPage() {
                       : day.esFeriado
                         ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
                         : null;
-                    const rowClass = day.isHoraExtra
+                    const diaHorasExtraMs = day.excedenteDiarioMs + day.hs50Ms + day.hs100Ms;
+                    const rowClass = day.isHoraExtra || diaHorasExtraMs > 0
                       ? 'border-b border-border/80 last:border-0 align-top bg-violet-50/60 dark:bg-violet-950/30'
                       : 'border-b border-border/80 last:border-0 align-top';
                     return (
@@ -3080,6 +3093,14 @@ export function RrhhPage() {
                           {day.isHoraExtra && (
                             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
                               ★ Horas extra
+                            </span>
+                          )}
+                          {!day.isHoraExtra && diaHorasExtraMs > 0 && (
+                            <span
+                              className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+                              title="Excedente diario sobre lo Esperado (≥1h) y/o Ext. 50%/100%"
+                            >
+                              ★ + {formatDuracion(diaHorasExtraMs)} extra
                             </span>
                           )}
                         </td>

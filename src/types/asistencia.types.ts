@@ -78,6 +78,9 @@ export interface DiaReporteEmpleado {
   motivoNoLaborable?: string;
   tipoAusencia?: TipoAusencia;
   isHoraExtra: boolean;
+  hs50Ms: number;
+  hs100Ms: number;
+  excedenteDiarioMs: number;
 }
 
 export interface DiaNoLaborable {
@@ -174,6 +177,8 @@ export interface MonthlyAttendanceDay {
   hasIncompletePunches: boolean;
   isUnjustifiedAbsence: boolean;
   isExtraDay: boolean;
+  excedenteDiarioMs: number;
+  horasExtraMs: number;
 }
 
 export interface MonthlyAttendanceEmployeeRow {
@@ -195,6 +200,7 @@ export interface MonthlyAttendanceEmployeeRow {
   extraMs: number;
   hs50Ms: number;
   hs100Ms: number;
+  horasExtraMs: number;
   balanceMs: number;
   cumplimientoPct: number;
   ausentismoPct: number;
@@ -220,6 +226,7 @@ export interface MonthlyAttendanceSummary {
     extraMs: number;
     hs50Ms: number;
     hs100Ms: number;
+    horasExtraMs: number;
     balanceMs: number;
     cumplimientoPct: number;
     ausentismoPct: number;
