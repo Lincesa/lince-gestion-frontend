@@ -2418,8 +2418,8 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap">Hs 50%</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap">Hs 100%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Mitad de las horas trabajadas de lunes a sábado antes de las 13h">Ext. 50%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas sábado desde las 13h, domingo o feriado">Ext. 100%</th>
                             </>
                           )}
                           <th className="px-3 py-2.5 text-right">Saldo</th>
