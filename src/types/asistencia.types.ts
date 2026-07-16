@@ -78,8 +78,10 @@ export interface DiaReporteEmpleado {
   motivoNoLaborable?: string;
   tipoAusencia?: TipoAusencia;
   isHoraExtra: boolean;
-  hs50Ms: number;
-  hs100Ms: number;
+  lunesAViernesMs: number;
+  sabadoMs: number;
+  domingoMs: number;
+  feriadoMs: number;
   excedenteDiarioMs: number;
 }
 
@@ -163,8 +165,10 @@ export interface MonthlyAttendanceDay {
   workedMs: number;
   justifiedMs: number;
   balanceMs: number;
-  hs50Ms: number;
-  hs100Ms: number;
+  lunesAViernesMs: number;
+  sabadoMs: number;
+  domingoMs: number;
+  feriadoMs: number;
   pairs: number;
   orphanEntradas: number;
   orphanSalidas: number;
@@ -198,8 +202,10 @@ export interface MonthlyAttendanceEmployeeRow {
   workedMs: number;
   justifiedMs: number;
   extraMs: number;
-  hs50Ms: number;
-  hs100Ms: number;
+  lunesAViernesMs: number;
+  sabadoMs: number;
+  domingoMs: number;
+  feriadoMs: number;
   horasExtraMs: number;
   balanceMs: number;
   cumplimientoPct: number;
@@ -224,8 +230,10 @@ export interface MonthlyAttendanceSummary {
     workedMs: number;
     justifiedMs: number;
     extraMs: number;
-    hs50Ms: number;
-    hs100Ms: number;
+    lunesAViernesMs: number;
+    sabadoMs: number;
+    domingoMs: number;
+    feriadoMs: number;
     horasExtraMs: number;
     balanceMs: number;
     cumplimientoPct: number;

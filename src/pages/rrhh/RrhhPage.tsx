@@ -2422,8 +2422,10 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Mitad de las horas trabajadas de lunes a sábado antes de las 13h">Ext. 50%</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas sábado desde las 13h, domingo o feriado">Ext. 100%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas de lunes a viernes (no feriado)">Lun-Vie</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas el sábado (no feriado)">Sábado</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas el domingo">Domingo</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas en un feriado entre semana (lunes a sábado)">Feriado</th>
                             </>
                           )}
                           <th className="px-3 py-2.5 text-right">Saldo</th>
@@ -2445,8 +2447,10 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.hs50Ms > 0 ? formatDuracion(row.hs50Ms) : '—'}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.hs100Ms > 0 ? formatDuracion(row.hs100Ms) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.lunesAViernesMs > 0 ? formatDuracion(row.lunesAViernesMs) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.sabadoMs > 0 ? formatDuracion(row.sabadoMs) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.domingoMs > 0 ? formatDuracion(row.domingoMs) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.feriadoMs > 0 ? formatDuracion(row.feriadoMs) : '—'}</td>
                               </>
                             )}
                             <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -3032,7 +3036,7 @@ export function RrhhPage() {
             </div>
             <div
               className="rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-800 p-3"
-              title="Solo Tucumán: excedente diario lunes a viernes (≥1h) + Ext. 50% (sábado) + Ext. 100% (domingo/feriado)"
+              title="Solo Tucumán: excedente diario lunes a viernes (≥1h) + horas sábado + horas domingo/feriado"
             >
               <p className="text-[11px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
                 Horas extra
@@ -3076,7 +3080,7 @@ export function RrhhPage() {
                       : day.esFeriado
                         ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
                         : null;
-                    const diaHorasExtraMs = day.excedenteDiarioMs + day.hs50Ms + day.hs100Ms;
+                    const diaHorasExtraMs = day.excedenteDiarioMs + day.sabadoMs + day.domingoMs + day.feriadoMs;
                     const rowClass = day.isHoraExtra || diaHorasExtraMs > 0
                       ? 'border-b border-border/80 last:border-0 align-top bg-violet-50/60 dark:bg-violet-950/30'
                       : 'border-b border-border/80 last:border-0 align-top';
@@ -3098,7 +3102,7 @@ export function RrhhPage() {
                           {!day.isHoraExtra && diaHorasExtraMs > 0 && (
                             <span
                               className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
-                              title="Excedente diario sobre lo Esperado (≥1h) y/o Ext. 50%/100%"
+                              title="Excedente diario sobre lo Esperado (≥1h) y/o horas de sábado/domingo/feriado"
                             >
                               ★ + {formatDuracion(diaHorasExtraMs)} extra
                             </span>
