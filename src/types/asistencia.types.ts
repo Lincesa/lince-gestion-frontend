@@ -82,6 +82,10 @@ export interface DiaReporteEmpleado {
   sabadoMs: number;
   domingoMs: number;
   feriadoMs: number;
+  saldoLunesAViernesMs?: number;
+  saldoSabadoMs?: number;
+  saldoDomingoMs?: number;
+  saldoFeriadoMs?: number;
   excedenteDiarioMs: number;
 }
 
@@ -169,6 +173,10 @@ export interface MonthlyAttendanceDay {
   sabadoMs: number;
   domingoMs: number;
   feriadoMs: number;
+  saldoLunesAViernesMs?: number;
+  saldoSabadoMs?: number;
+  saldoDomingoMs?: number;
+  saldoFeriadoMs?: number;
   pairs: number;
   orphanEntradas: number;
   orphanSalidas: number;
@@ -178,6 +186,7 @@ export interface MonthlyAttendanceDay {
   isWorkday: boolean;
   isJustifiedAbsence: boolean;
   isNoLaborable: boolean;
+  esFeriado?: boolean;
   hasIncompletePunches: boolean;
   isUnjustifiedAbsence: boolean;
   isExtraDay: boolean;
@@ -206,6 +215,10 @@ export interface MonthlyAttendanceEmployeeRow {
   sabadoMs: number;
   domingoMs: number;
   feriadoMs: number;
+  saldoLunesAViernesMs?: number;
+  saldoSabadoMs?: number;
+  saldoDomingoMs?: number;
+  saldoFeriadoMs?: number;
   horasExtraMs: number;
   balanceMs: number;
   cumplimientoPct: number;
@@ -234,6 +247,10 @@ export interface MonthlyAttendanceSummary {
     sabadoMs: number;
     domingoMs: number;
     feriadoMs: number;
+    saldoLunesAViernesMs?: number;
+    saldoSabadoMs?: number;
+    saldoDomingoMs?: number;
+    saldoFeriadoMs?: number;
     horasExtraMs: number;
     balanceMs: number;
     cumplimientoPct: number;
