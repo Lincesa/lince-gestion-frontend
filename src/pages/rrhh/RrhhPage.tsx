@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
-import type { AttendanceKpis, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
+import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -181,6 +181,134 @@ function formatSaldoJornada(ms: number): string {
   const abs = Math.abs(ms);
   if (abs < 60000) return '0 min';
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
+}
+
+function formatSaldoCell(ms: number): string {
+  return ms === 0 ? '—' : formatSaldoJornada(ms);
+}
+
+interface DayTypeBreakdown {
+  lunesAViernesMs: number;
+  sabadoMs: number;
+  domingoMs: number;
+  feriadoMs: number;
+}
+
+function finiteMs(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function emptyDayTypeBreakdown(): DayTypeBreakdown {
+  return { lunesAViernesMs: 0, sabadoMs: 0, domingoMs: 0, feriadoMs: 0 };
+}
+
+function dayOfWeekAr(fecha: string): number {
+  const [year, month, day] = fecha.split('-').map((part) => Number(part));
+  const refUtc = Date.UTC(year, month - 1, day, 12, 0, 0);
+  return Number.isFinite(refUtc) ? new Date(refUtc).getUTCDay() : 1;
+}
+
+function saldoBreakdownFromBalance(fecha: string, balanceMs: number, esFeriado = false): DayTypeBreakdown {
+  const empty = emptyDayTypeBreakdown();
+  if (balanceMs === 0) return empty;
+
+  const dowAr = dayOfWeekAr(fecha);
+  if (esFeriado) return { ...empty, feriadoMs: balanceMs };
+  if (dowAr === 0) return { ...empty, domingoMs: balanceMs };
+  if (dowAr === 6) return { ...empty, sabadoMs: balanceMs };
+  return { ...empty, lunesAViernesMs: balanceMs };
+}
+
+function saldoBreakdownFromFiniteFields(values: {
+  saldoLunesAViernesMs?: number;
+  saldoSabadoMs?: number;
+  saldoDomingoMs?: number;
+  saldoFeriadoMs?: number;
+}): DayTypeBreakdown | null {
+  const lunesAViernesMs = finiteMs(values.saldoLunesAViernesMs);
+  const sabadoMs = finiteMs(values.saldoSabadoMs);
+  const domingoMs = finiteMs(values.saldoDomingoMs);
+  const feriadoMs = finiteMs(values.saldoFeriadoMs);
+  if (lunesAViernesMs === null || sabadoMs === null || domingoMs === null || feriadoMs === null) return null;
+
+  return { lunesAViernesMs, sabadoMs, domingoMs, feriadoMs };
+}
+
+function addDayTypeBreakdown(acc: DayTypeBreakdown, next: DayTypeBreakdown): DayTypeBreakdown {
+  return {
+    lunesAViernesMs: acc.lunesAViernesMs + next.lunesAViernesMs,
+    sabadoMs: acc.sabadoMs + next.sabadoMs,
+    domingoMs: acc.domingoMs + next.domingoMs,
+    feriadoMs: acc.feriadoMs + next.feriadoMs,
+  };
+}
+
+function sumDayTypeBreakdown(values: DayTypeBreakdown): number {
+  return values.lunesAViernesMs + values.sabadoMs + values.domingoMs + values.feriadoMs;
+}
+
+function saldoBreakdownFromMonthlyDay(day: MonthlyAttendanceDay): DayTypeBreakdown {
+  const fromFields = saldoBreakdownFromFiniteFields(day);
+  if (fromFields) return fromFields;
+
+  return saldoBreakdownFromBalance(day.fecha, finiteMs(day.balanceMs) ?? 0, Boolean(day.esFeriado));
+}
+
+function saldoBreakdownFromReportDay(day: DiaReporteEmpleado): DayTypeBreakdown {
+  const fromFields = saldoBreakdownFromFiniteFields(day);
+  if (fromFields) return fromFields;
+
+  return saldoBreakdownFromBalance(day.fecha, finiteMs(day.saldoMs) ?? 0, day.esFeriado);
+}
+
+function saldoBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): DayTypeBreakdown {
+  const fromFields = saldoBreakdownFromFiniteFields(row);
+  if (fromFields) return fromFields;
+
+  return row.days.reduce<DayTypeBreakdown>(
+    (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromMonthlyDay(day)),
+    emptyDayTypeBreakdown(),
+  );
+}
+
+function dayTypeBreakdownParts(values: DayTypeBreakdown) {
+  return [
+    { key: 'lv', shortLabel: 'L-V', label: 'Lun-Vie', title: 'Saldo de lunes a viernes', ms: values.lunesAViernesMs },
+    { key: 'sab', shortLabel: 'Sáb', label: 'Sábado', title: 'Saldo de sábado', ms: values.sabadoMs },
+    { key: 'dom', shortLabel: 'Dom', label: 'Domingo', title: 'Saldo de domingo', ms: values.domingoMs },
+    { key: 'fer', shortLabel: 'Fer', label: 'Feriado', title: 'Saldo de feriado', ms: values.feriadoMs },
+  ].filter((part) => part.ms !== 0);
+}
+
+function allDayTypeBreakdownParts(values: DayTypeBreakdown) {
+  return [
+    { key: 'lv', shortLabel: 'L-V', label: 'Lun-Vie', title: 'Saldo de lunes a viernes', ms: values.lunesAViernesMs },
+    { key: 'sab', shortLabel: 'Sáb', label: 'Sábado', title: 'Saldo de sábado', ms: values.sabadoMs },
+    { key: 'dom', shortLabel: 'Dom', label: 'Domingo', title: 'Saldo de domingo', ms: values.domingoMs },
+    { key: 'fer', shortLabel: 'Fer', label: 'Feriado', title: 'Saldo de feriado', ms: values.feriadoMs },
+  ];
+}
+
+function hasDayTypeBreakdown(values: DayTypeBreakdown): boolean {
+  return dayTypeBreakdownParts(values).length > 0;
+}
+
+function formatDayTypeBreakdownText(values: DayTypeBreakdown, compact = false): string {
+  const parts = dayTypeBreakdownParts(values);
+  if (parts.length === 0) return '—';
+  return parts
+    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatSaldoJornada(part.ms)}`)
+    .join(compact ? ' · ' : ' | ');
+}
+
+function saldoBreakdownPillClass(ms: number): string {
+  if (ms > 0) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-100';
+  }
+  if (ms < 0) {
+    return 'border-red-200 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/50 dark:text-red-100';
+  }
+  return 'border-border bg-background text-muted-foreground';
 }
 
 function unmatchedFichajeText(
@@ -522,7 +650,8 @@ function monthlyCellTitle(day: MonthlyAttendanceDay): string {
     `Trabajado: ${formatDuracion(day.workedMs)}`,
     `Esperado: ${formatDuracion(day.expectedMs)}`,
   ];
-  if (day.horasExtraMs > 0) parts.push(`Horas extra: ${formatDuracion(day.horasExtraMs)}`);
+  const saldoBreakdown = saldoBreakdownFromMonthlyDay(day);
+  if (hasDayTypeBreakdown(saldoBreakdown)) parts.push(`Saldo por tipo de día: ${formatDayTypeBreakdownText(saldoBreakdown)}`);
   if (pairDetails.length === 1) {
     parts.push(`Entrada: ${formatSoloHora(pairDetails[0].entrada.tiempo)}`);
     parts.push(`Salida: ${formatSoloHora(pairDetails[0].salida.tiempo)}`);
@@ -563,8 +692,9 @@ function monthlyCellExportText(day: MonthlyAttendanceDay): string {
   if (day.hasIncompletePunches) {
     lines.push(`Inc. ${day.orphanEntradas + day.orphanSalidas}`);
   }
-  if (day.horasExtraMs > 0) {
-    lines.push(`+${formatDuracion(day.horasExtraMs)} ext.`);
+  const saldoBreakdown = saldoBreakdownFromMonthlyDay(day);
+  if (hasDayTypeBreakdown(saldoBreakdown)) {
+    lines.push(formatDayTypeBreakdownText(saldoBreakdown, true));
   }
   return lines.join('\n');
 }
@@ -878,6 +1008,14 @@ export function RrhhPage() {
   const reportExpectedHoursNum = Math.max(0, Number(reportHorasEsperadas) || 0);
 
   const hasReport = reportData !== null;
+  const reportDayTypeBreakdown = useMemo<DayTypeBreakdown>(
+    () =>
+      reportData?.dias.reduce<DayTypeBreakdown>(
+        (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromReportDay(day)),
+        emptyDayTypeBreakdown(),
+      ) ?? emptyDayTypeBreakdown(),
+    [reportData],
+  );
 
   const draftFor = (row: FichajeAsistencia): RowDraft => {
     const existing = drafts[row.id];
@@ -1064,6 +1202,10 @@ export function RrhhPage() {
 
     const employeeName = `${reportData.empleado.firstName} ${reportData.empleado.lastName}`;
     const workbook = XLSX.utils.book_new();
+    const reportBreakdown = reportData.dias.reduce<DayTypeBreakdown>(
+      (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromReportDay(day)),
+      emptyDayTypeBreakdown(),
+    );
 
     const summaryRows = [
       ['Reporte de asistencia'],
@@ -1078,12 +1220,17 @@ export function RrhhPage() {
       ['Días con tramos', reportData.resumen.diasConTramos],
       ['Horas esperadas', reportData.resumen.esperadoMs / 3600000],
       ['Horas trabajadas', reportData.resumen.trabajadoMs / 3600000],
+      ['Saldo Lun-Vie', formatSaldoJornada(reportBreakdown.lunesAViernesMs)],
+      ['Saldo Sábado', formatSaldoJornada(reportBreakdown.sabadoMs)],
+      ['Saldo Domingo', formatSaldoJornada(reportBreakdown.domingoMs)],
+      ['Saldo Feriado', formatSaldoJornada(reportBreakdown.feriadoMs)],
+      ['Saldo discriminado legible', formatDayTypeBreakdownText(reportBreakdown)],
       ['Horas justificadas', (reportData.resumen.justificadoMs ?? 0) / 3600000],
       ['Saldo', reportData.resumen.saldoMs / 3600000],
       ['Saldo legible', formatSaldoJornada(reportData.resumen.saldoMs)],
     ];
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-    summarySheet['!cols'] = [{ wch: 30 }, { wch: 24 }];
+    summarySheet['!cols'] = [{ wch: 30 }, { wch: 34 }];
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen');
 
     const detailRows = reportData.dias.map((day) => {
@@ -1094,12 +1241,18 @@ export function RrhhPage() {
         ...day.entradasSinSalida.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
         ...day.salidasSinEntrada.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
       ].join(' | ');
+      const saldoBreakdown = saldoBreakdownFromReportDay(day);
       return {
         Fecha: day.fecha,
         Día: formatDayHeading(day.fecha),
         'Día hábil': day.diaHabil ? 'Sí' : 'No',
         'Horas debidas': day.esperadoMs / 3600000,
         'Horas trabajadas': day.trabajadoMs / 3600000,
+        'Saldo Lun-Vie': formatSaldoCell(saldoBreakdown.lunesAViernesMs),
+        'Saldo Sábado': formatSaldoCell(saldoBreakdown.sabadoMs),
+        'Saldo Domingo': formatSaldoCell(saldoBreakdown.domingoMs),
+        'Saldo Feriado': formatSaldoCell(saldoBreakdown.feriadoMs),
+        'Saldo discriminado legible': formatDayTypeBreakdownText(saldoBreakdown),
         'Horas justificadas': day.justificadoMs / 3600000,
         'Saldo horas': day.saldoMs / 3600000,
         'Saldo legible': formatSaldoJornada(day.saldoMs),
@@ -1115,6 +1268,12 @@ export function RrhhPage() {
       { wch: 14 },
       { wch: 16 },
       { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 34 },
+      { wch: 12 },
+      { wch: 16 },
       { wch: 16 },
       { wch: 42 },
       { wch: 42 },
@@ -1159,11 +1318,13 @@ export function RrhhPage() {
       };
 
       const days = monthlyData.employees[0]?.days ?? [];
+      const showMonthlyBreakdown = monthlyData.planta === 'tucuman';
       const headerRow = ws.addRow([
         'Empleado',
         'PIN',
         ...days.map((day) => monthlyDayHeader(day.fecha)),
-        'Total',
+        'Total trabajado',
+        ...(showMonthlyBreakdown ? ['Saldo', 'Lun-Vie', 'Sábado', 'Domingo', 'Feriado'] : []),
       ]);
 
       headerRow.eachCell((cell) => {
@@ -1180,8 +1341,20 @@ export function RrhhPage() {
           row.pin,
           ...row.days.map(monthlyCellExportText),
           formatDuracion(row.workedMs),
+          ...(showMonthlyBreakdown
+            ? (() => {
+                const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                return [
+                  formatSaldoJornada(row.balanceMs),
+                  formatSaldoCell(saldoBreakdown.lunesAViernesMs),
+                  formatSaldoCell(saldoBreakdown.sabadoMs),
+                  formatSaldoCell(saldoBreakdown.domingoMs),
+                  formatSaldoCell(saldoBreakdown.feriadoMs),
+                ];
+              })()
+            : []),
         ]);
-        dataRow.height = 46;
+        dataRow.height = showMonthlyBreakdown ? 58 : 46;
 
         dataRow.getCell(1).font = { bold: true, color: { argb: 'FF111827' }, size: 10 };
         dataRow.getCell(2).font = { color: { argb: 'FF374151' }, size: 10 };
@@ -1202,6 +1375,35 @@ export function RrhhPage() {
         totalCell.font = { bold: true, color: { argb: 'FF0C4A6E' }, size: 10 };
         totalCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
+        if (showMonthlyBreakdown) {
+          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+          const saldoCell = dataRow.getCell(days.length + 4);
+          saldoCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: row.balanceMs < 0 ? 'FFF4CCCC' : 'FFD9EAD3' },
+          };
+          saldoCell.font = { bold: true, color: { argb: row.balanceMs < 0 ? 'FF7F1D1D' : 'FF14532D' }, size: 10 };
+          saldoCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
+          for (let colNumber = days.length + 5; colNumber <= days.length + 8; colNumber += 1) {
+            const cell = dataRow.getCell(colNumber);
+            const numericValue = [
+              saldoBreakdown.lunesAViernesMs,
+              saldoBreakdown.sabadoMs,
+              saldoBreakdown.domingoMs,
+              saldoBreakdown.feriadoMs,
+            ][colNumber - (days.length + 5)];
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: numericValue < 0 ? 'FFF4CCCC' : numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB' },
+            };
+            cell.font = { color: { argb: numericValue < 0 ? 'FF7F1D1D' : numericValue > 0 ? 'FF14532D' : 'FF6B7280' }, size: 10 };
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          }
+        }
+
         dataRow.eachCell((cell, colNumber) => {
           if (colNumber <= 2) {
             cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'left' : 'center', wrapText: true };
@@ -1214,7 +1416,8 @@ export function RrhhPage() {
         { width: 30 },
         { width: 10 },
         ...days.map(() => ({ width: 13 })),
-        { width: 14 },
+        { width: 16 },
+        ...(showMonthlyBreakdown ? [{ width: 14 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 }] : []),
       ];
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -2422,10 +2625,10 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas de lunes a viernes (no feriado)">Lun-Vie</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas el sábado (no feriado)">Sábado</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas el domingo">Domingo</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas trabajadas en un feriado entre semana (lunes a sábado)">Feriado</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en lunes a viernes">Lun-Vie</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en sábado">Sábado</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en domingo">Domingo</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en feriado">Feriado</th>
                             </>
                           )}
                           <th className="px-3 py-2.5 text-right">Saldo</th>
@@ -2437,7 +2640,9 @@ export function RrhhPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {monthlyData.employees.map((row) => (
+                        {monthlyData.employees.map((row) => {
+                          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                          return (
                           <tr key={row.empleadoId} className="hover:bg-muted/20">
                             <td className="px-3 py-2.5 min-w-[200px]">
                               <p className="font-medium text-foreground">{row.nombre}</p>
@@ -2447,10 +2652,10 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.lunesAViernesMs > 0 ? formatDuracion(row.lunesAViernesMs) : '—'}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.sabadoMs > 0 ? formatDuracion(row.sabadoMs) : '—'}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.domingoMs > 0 ? formatDuracion(row.domingoMs) : '—'}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{row.feriadoMs > 0 ? formatDuracion(row.feriadoMs) : '—'}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.lunesAViernesMs)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.sabadoMs)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.domingoMs)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.feriadoMs)}</td>
                               </>
                             )}
                             <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -2474,7 +2679,8 @@ export function RrhhPage() {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2492,47 +2698,72 @@ export function RrhhPage() {
                               {monthlyDayHeader(day.fecha)}
                             </th>
                           ))}
-                          <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Total</th>
+                          <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[112px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Total trabajado</th>
+                          {monthlyData.planta === 'tucuman' && (
+                            <>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Saldo</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en lunes a viernes">Lun-Vie</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en sábado">Sábado</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en domingo">Domingo</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en feriado">Feriado</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyData.employees.map((row) => (
-                          <tr key={row.empleadoId}>
-                            <td className="sticky left-0 z-10 rounded-md border border-border bg-card px-3 py-2 min-w-[220px] shadow-sm dark:bg-slate-950">
-                              <p className="font-medium text-foreground">{row.nombre}</p>
-                              <p className="text-[11px] text-muted-foreground">PIN {row.pin}</p>
-                            </td>
-                            {row.days.map((day) => {
-                              const punchSummary = monthlyCellPunchSummary(day);
-                              return (
-                                <td key={day.fecha} className="p-1 align-top">
-                                  <div
-                                    title={monthlyCellTitle(day)}
-                                    aria-label={monthlyCellTitle(day)}
-                                    className={`min-h-[54px] rounded-md px-1.5 py-1 text-center tabular-nums ${monthlyCellClass(day)}`}
-                                  >
-                                    <p className="font-semibold leading-tight">{day.workedMs > 0 ? formatDuracion(day.workedMs) : '—'}</p>
-                                    {punchSummary ? (
-                                      <>
-                                        <p className="mt-0.5 text-[10px] leading-tight opacity-80">{punchSummary.label}</p>
-                                        <p className="mt-0.5 text-[10px] leading-tight opacity-70">{punchSummary.detail}</p>
-                                      </>
-                                    ) : null}
-                                    {day.hasIncompletePunches ? (
-                                      <p className="mt-0.5 text-[10px] font-medium leading-tight">Inc. {day.orphanEntradas + day.orphanSalidas}</p>
-                                    ) : null}
-                                    {day.horasExtraMs > 0 ? (
-                                      <p className="mt-0.5 text-[10px] font-semibold leading-tight text-violet-700 dark:text-violet-300">
-                                        +{formatDuracion(day.horasExtraMs)} ext.
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                            <td className="rounded-md border border-sky-200 bg-sky-100 px-3 py-2 text-right tabular-nums font-semibold text-sky-950 dark:border-sky-400/50 dark:bg-sky-400/20 dark:text-sky-50">{formatDuracion(row.workedMs)}</td>
-                          </tr>
-                        ))}
+                        {monthlyData.employees.map((row) => {
+                          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                          return (
+                            <tr key={row.empleadoId}>
+                              <td className="sticky left-0 z-10 rounded-md border border-border bg-card px-3 py-2 min-w-[220px] shadow-sm dark:bg-slate-950">
+                                <p className="font-medium text-foreground">{row.nombre}</p>
+                                <p className="text-[11px] text-muted-foreground">PIN {row.pin}</p>
+                              </td>
+                              {row.days.map((day) => {
+                                const punchSummary = monthlyCellPunchSummary(day);
+                                const daySaldoBreakdown = saldoBreakdownFromMonthlyDay(day);
+                                return (
+                                  <td key={day.fecha} className="p-1 align-top">
+                                    <div
+                                      title={monthlyCellTitle(day)}
+                                      aria-label={monthlyCellTitle(day)}
+                                      className={`min-h-[54px] rounded-md px-1.5 py-1 text-center tabular-nums ${monthlyCellClass(day)}`}
+                                    >
+                                      <p className="font-semibold leading-tight">{day.workedMs > 0 ? formatDuracion(day.workedMs) : '—'}</p>
+                                      {punchSummary ? (
+                                        <>
+                                          <p className="mt-0.5 text-[10px] leading-tight opacity-80">{punchSummary.label}</p>
+                                          <p className="mt-0.5 text-[10px] leading-tight opacity-70">{punchSummary.detail}</p>
+                                        </>
+                                      ) : null}
+                                      {day.hasIncompletePunches ? (
+                                        <p className="mt-0.5 text-[10px] font-medium leading-tight">Inc. {day.orphanEntradas + day.orphanSalidas}</p>
+                                      ) : null}
+                                      {monthlyData.planta === 'tucuman' && hasDayTypeBreakdown(daySaldoBreakdown) ? (
+                                        <p className="mt-0.5 text-[10px] font-medium leading-tight opacity-80">
+                                          {formatDayTypeBreakdownText(daySaldoBreakdown, true)}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                              <td className="rounded-md border border-sky-200 bg-sky-100 px-3 py-2 text-right tabular-nums font-semibold text-sky-950 dark:border-sky-400/50 dark:bg-sky-400/20 dark:text-sky-50">{formatDuracion(row.workedMs)}</td>
+                              {monthlyData.planta === 'tucuman' && (
+                                <>
+                                  <td className={`rounded-md border px-3 py-2 text-right tabular-nums font-semibold ${saldoBreakdownPillClass(row.balanceMs)}`}>
+                                    {formatSaldoJornada(row.balanceMs)}
+                                  </td>
+                                  {allDayTypeBreakdownParts(saldoBreakdown).map((part) => (
+                                    <td key={part.key} className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${saldoBreakdownPillClass(part.ms)}`} title={part.title}>
+                                      {formatSaldoCell(part.ms)}
+                                    </td>
+                                  ))}
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                     )}
@@ -2986,7 +3217,7 @@ export function RrhhPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Días hábiles
@@ -3034,22 +3265,48 @@ export function RrhhPage() {
                 {reportData ? formatSaldoJornada(reportData.resumen.saldoMs) : '—'}
               </p>
             </div>
-            <div
-              className="rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-800 p-3"
-              title="Solo Tucumán: excedente diario lunes a viernes (≥1h) + horas sábado + horas domingo/feriado"
-            >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                Horas extra
-              </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-violet-800 dark:text-violet-200">
-                {reportData ? formatDuracion(reportData.resumen.horasExtraMs ?? 0) : '—'}
-              </p>
-            </div>
           </div>
+
+          {hasReport && reportData.empleado.planta === 'tucuman' && (
+            <div
+              className="rounded-lg border border-border bg-card p-3 shadow-sm"
+              title={`La suma discriminada es ${formatSaldoJornada(sumDayTypeBreakdown(reportDayTypeBreakdown))}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Distribución del saldo
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    La suma por tipo tiene que coincidir con el saldo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {dayTypeBreakdownParts(reportDayTypeBreakdown).map((part) => (
+                    <span
+                      key={part.key}
+                      title={part.title}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${saldoBreakdownPillClass(part.ms)}`}
+                    >
+                      <span>{part.label}</span>
+                      <span className="font-mono tabular-nums">{formatSaldoJornada(part.ms)}</span>
+                    </span>
+                  ))}
+                  {!hasDayTypeBreakdown(reportDayTypeBreakdown) && (
+                    <span className="text-xs text-muted-foreground">Sin saldo para discriminar.</span>
+                  )}
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${saldoBreakdownPillClass(sumDayTypeBreakdown(reportDayTypeBreakdown))}`}>
+                    <span>Total</span>
+                    <span className="font-mono tabular-nums">{formatSaldoJornada(sumDayTypeBreakdown(reportDayTypeBreakdown))}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {hasReport && (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[980px] text-sm">
+              <table className="w-full min-w-[1160px] text-sm">
                 <thead className="bg-muted/50">
                   <tr className="border-b border-border">
                     <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground w-[13rem]">
@@ -3063,6 +3320,9 @@ export function RrhhPage() {
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground w-[8rem]">
                       Saldo
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground w-[15rem]">
+                      Saldo por tipo
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Detalle
@@ -3080,12 +3340,9 @@ export function RrhhPage() {
                       : day.esFeriado
                         ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
                         : null;
-                    const diaHorasExtraMs = day.excedenteDiarioMs + day.sabadoMs + day.domingoMs + day.feriadoMs;
-                    const rowClass = day.isHoraExtra || diaHorasExtraMs > 0
-                      ? 'border-b border-border/80 last:border-0 align-top bg-violet-50/60 dark:bg-violet-950/30'
-                      : 'border-b border-border/80 last:border-0 align-top';
+                    const saldoBreakdown = saldoBreakdownFromReportDay(day);
                     return (
-                      <tr key={day.fecha} className={rowClass}>
+                      <tr key={day.fecha} className="border-b border-border/80 last:border-0 align-top">
                         <td className="px-3 py-3">
                           <p className="font-medium capitalize text-foreground">{formatDayHeading(day.fecha)}</p>
                           {noLaborableLabel && (
@@ -3093,19 +3350,6 @@ export function RrhhPage() {
                           )}
                           {!noLaborableLabel && !day.diaHabil && (
                             <p className="mt-0.5 text-[11px] text-muted-foreground">No hábil</p>
-                          )}
-                          {day.isHoraExtra && (
-                            <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                              ★ Horas extra
-                            </span>
-                          )}
-                          {!day.isHoraExtra && diaHorasExtraMs > 0 && (
-                            <span
-                              className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
-                              title="Excedente diario sobre lo Esperado (≥1h) y/o horas de sábado/domingo/feriado"
-                            >
-                              ★ + {formatDuracion(diaHorasExtraMs)} extra
-                            </span>
                           )}
                         </td>
                         <td className="px-3 py-3 font-mono tabular-nums">
@@ -3120,14 +3364,25 @@ export function RrhhPage() {
                           {day.tramos.length > 0 ? formatDuracion(day.trabajadoMs) : '—'}
                         </td>
                         <td className="px-3 py-3">
-                          {day.isHoraExtra ? (
-                            <span className="inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums bg-violet-200 text-violet-900 dark:bg-violet-900/60 dark:text-violet-100">
-                              + {formatDuracion(day.trabajadoMs)} (extra)
-                            </span>
+                          <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums ${saldoJornadaClass(day.saldoMs, day.diaHabil || day.tramos.length > 0)}`}>
+                            {day.diaHabil || day.tramos.length > 0 ? formatSaldoJornada(day.saldoMs) : '—'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          {hasDayTypeBreakdown(saldoBreakdown) ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {dayTypeBreakdownParts(saldoBreakdown).map((part) => (
+                                <span
+                                  key={part.key}
+                                  title={part.title}
+                                  className={`inline-flex rounded-md border px-2 py-1 text-[11px] font-medium tabular-nums ${saldoBreakdownPillClass(part.ms)}`}
+                                >
+                                  {part.shortLabel} · {formatSaldoJornada(part.ms)}
+                                </span>
+                              ))}
+                            </div>
                           ) : (
-                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold tabular-nums ${saldoJornadaClass(day.saldoMs, day.diaHabil || day.tramos.length > 0)}`}>
-                              {day.diaHabil || day.tramos.length > 0 ? formatSaldoJornada(day.saldoMs) : '—'}
-                            </span>
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
                         <td className="px-3 py-3">
