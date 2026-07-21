@@ -170,16 +170,19 @@ function formatSoloHora(iso: string): string {
 function formatDuracion(ms: number): string {
   if (ms < 0) return '—';
   if (ms === 0) return '0 min';
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  if (h > 0) return `${h} h ${m} min`;
-  if (m > 0) return `${m} min`;
-  return '< 1 min';
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds === 0) return '< 1 s';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h} h ${m} min${s > 0 ? ` ${s} s` : ''}`;
+  if (m > 0) return `${m} min${s > 0 ? ` ${s} s` : ''}`;
+  return `${s} s`;
 }
 
 function formatSaldoJornada(ms: number): string {
   const abs = Math.abs(ms);
-  if (abs < 60000) return '0 min';
+  if (abs === 0) return '0 min';
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
