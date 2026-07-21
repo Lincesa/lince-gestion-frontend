@@ -758,6 +758,7 @@ export function RrhhPage() {
   const [nuevoEmpForm, setNuevoEmpForm] = useState<{ firstName: string; lastName: string; pin: string; planta: Planta; dni: string; horasEsperadasDia: string }>({ firstName: '', lastName: '', pin: '', planta: DEFAULT_PLANTA, dni: '', horasEsperadasDia: '' });
   const [savingNuevo, setSavingNuevo] = useState(false);
   const [monthlyMonth, setMonthlyMonth] = useState(currentMonthAr);
+  const [monthlyHasta, setMonthlyHasta] = useState('');
   const [monthlyViewMode, setMonthlyViewMode] = useState<'resumen' | 'matriz'>('resumen');
   const [monthlyData, setMonthlyData] = useState<MonthlyAttendanceSummary | null>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
@@ -838,7 +839,11 @@ export function RrhhPage() {
   const loadMonthlySummary = async () => {
     setMonthlyLoading(true);
     try {
-      setMonthlyData(await asistenciaApi.getMonthlySummary({ month: monthlyMonth, planta: selectedPlanta }));
+      setMonthlyData(await asistenciaApi.getMonthlySummary({
+        month: monthlyMonth,
+        planta: selectedPlanta,
+        hasta: monthlyHasta || undefined,
+      }));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -871,7 +876,7 @@ export function RrhhPage() {
     } else {
       void loadReportEmployees();
     }
-  }, [activeView, diaFecha, estado, selectedPlanta, monthlyMonth]);
+  }, [activeView, diaFecha, estado, selectedPlanta, monthlyMonth, monthlyHasta]);
 
   useEffect(() => {
     if (!reportEmpleadoId) return;
@@ -2529,7 +2534,25 @@ export function RrhhPage() {
                 type="month"
                 value={monthlyMonth}
                 max={currentMonthAr()}
-                onChange={(e) => setMonthlyMonth(e.target.value)}
+                onChange={(e) => {
+                  const nextMonth = e.target.value;
+                  const nextRange = monthRangeFromMonth(nextMonth);
+                  setMonthlyMonth(nextMonth);
+                  setMonthlyHasta((current) =>
+                    current && (current < nextRange.desde || current > nextRange.hasta) ? '' : current,
+                  );
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Hasta
+              <input
+                type="date"
+                value={monthlyHasta}
+                min={`${monthlyMonth}-01`}
+                max={monthRangeFromMonth(monthlyMonth).hasta}
+                onChange={(e) => setMonthlyHasta(e.target.value)}
                 className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
               />
             </label>

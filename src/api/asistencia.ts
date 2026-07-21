@@ -118,10 +118,11 @@ export const asistenciaApi = {
   sendDailyReport: (ymd: string) =>
     api.post<{ sent: boolean; ymd: string }>(`/asistencia/reports/send-daily?ymd=${ymd}`, {}),
 
-  getMonthlySummary: (query: { month: string; planta?: Planta }) => {
+  getMonthlySummary: (query: { month: string; planta?: Planta; hasta?: string }) => {
     const qs = new URLSearchParams();
     qs.set('month', query.month);
     if (query.planta) qs.set('planta', query.planta);
+    if (query.hasta?.trim()) qs.set('hasta', query.hasta.trim());
     return api.get<MonthlyAttendanceSummary>(`/asistencia/reports/monthly-summary?${qs.toString()}`);
   },
 
