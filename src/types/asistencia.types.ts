@@ -78,15 +78,8 @@ export interface DiaReporteEmpleado {
   motivoNoLaborable?: string;
   tipoAusencia?: TipoAusencia;
   isHoraExtra: boolean;
-  lunesAViernesMs: number;
-  sabadoMs: number;
-  domingoMs: number;
-  feriadoMs: number;
-  saldoLunesAViernesMs?: number;
-  saldoSabadoMs?: number;
-  saldoDomingoMs?: number;
-  saldoFeriadoMs?: number;
-  excedenteDiarioMs: number;
+  extra50Ms: number;
+  extra100Ms: number;
 }
 
 export interface DiaNoLaborable {
@@ -144,6 +137,8 @@ export interface ReporteEmpleadoRango {
     trabajadoMs: number;
     justificadoMs: number;
     horasExtraMs?: number;
+    extra50Ms?: number;
+    extra100Ms?: number;
     saldoMs: number;
   };
   dias: DiaReporteEmpleado[];
@@ -169,14 +164,8 @@ export interface MonthlyAttendanceDay {
   workedMs: number;
   justifiedMs: number;
   balanceMs: number;
-  lunesAViernesMs: number;
-  sabadoMs: number;
-  domingoMs: number;
-  feriadoMs: number;
-  saldoLunesAViernesMs?: number;
-  saldoSabadoMs?: number;
-  saldoDomingoMs?: number;
-  saldoFeriadoMs?: number;
+  extra50Ms: number;
+  extra100Ms: number;
   pairs: number;
   orphanEntradas: number;
   orphanSalidas: number;
@@ -190,7 +179,6 @@ export interface MonthlyAttendanceDay {
   hasIncompletePunches: boolean;
   isUnjustifiedAbsence: boolean;
   isExtraDay: boolean;
-  excedenteDiarioMs: number;
   horasExtraMs: number;
 }
 
@@ -211,14 +199,8 @@ export interface MonthlyAttendanceEmployeeRow {
   workedMs: number;
   justifiedMs: number;
   extraMs: number;
-  lunesAViernesMs: number;
-  sabadoMs: number;
-  domingoMs: number;
-  feriadoMs: number;
-  saldoLunesAViernesMs?: number;
-  saldoSabadoMs?: number;
-  saldoDomingoMs?: number;
-  saldoFeriadoMs?: number;
+  extra50Ms: number;
+  extra100Ms: number;
   horasExtraMs: number;
   balanceMs: number;
   cumplimientoPct: number;
@@ -243,14 +225,8 @@ export interface MonthlyAttendanceSummary {
     workedMs: number;
     justifiedMs: number;
     extraMs: number;
-    lunesAViernesMs: number;
-    sabadoMs: number;
-    domingoMs: number;
-    feriadoMs: number;
-    saldoLunesAViernesMs?: number;
-    saldoSabadoMs?: number;
-    saldoDomingoMs?: number;
-    saldoFeriadoMs?: number;
+    extra50Ms: number;
+    extra100Ms: number;
     horasExtraMs: number;
     balanceMs: number;
     cumplimientoPct: number;

@@ -183,121 +183,76 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
-function formatSaldoCell(ms: number): string {
-  return ms === 0 ? '—' : formatSaldoJornada(ms);
-}
-
-interface DayTypeBreakdown {
-  lunesAViernesMs: number;
-  sabadoMs: number;
-  domingoMs: number;
-  feriadoMs: number;
+// Horas extra en 2 baldes (SOLO Tucumán): 50% (sábado hasta las 13, sobre lo esperado) y
+// 100% (sábado desde 13, domingo y feriados). El backend ya envía extra50Ms/extra100Ms; el
+// front solo los lee y agrega, sin re-derivar nada por día calendario.
+interface ExtraBreakdown {
+  extra50Ms: number;
+  extra100Ms: number;
 }
 
 function finiteMs(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function emptyDayTypeBreakdown(): DayTypeBreakdown {
-  return { lunesAViernesMs: 0, sabadoMs: 0, domingoMs: 0, feriadoMs: 0 };
+function emptyExtraBreakdown(): ExtraBreakdown {
+  return { extra50Ms: 0, extra100Ms: 0 };
 }
 
-function dayOfWeekAr(fecha: string): number {
-  const [year, month, day] = fecha.split('-').map((part) => Number(part));
-  const refUtc = Date.UTC(year, month - 1, day, 12, 0, 0);
-  return Number.isFinite(refUtc) ? new Date(refUtc).getUTCDay() : 1;
-}
-
-function saldoBreakdownFromBalance(fecha: string, balanceMs: number, esFeriado = false): DayTypeBreakdown {
-  const empty = emptyDayTypeBreakdown();
-  if (balanceMs === 0) return empty;
-
-  const dowAr = dayOfWeekAr(fecha);
-  if (esFeriado) return { ...empty, feriadoMs: balanceMs };
-  if (dowAr === 0) return { ...empty, domingoMs: balanceMs };
-  if (dowAr === 6) return { ...empty, sabadoMs: balanceMs };
-  return { ...empty, lunesAViernesMs: balanceMs };
-}
-
-function saldoBreakdownFromFiniteFields(values: {
-  saldoLunesAViernesMs?: number;
-  saldoSabadoMs?: number;
-  saldoDomingoMs?: number;
-  saldoFeriadoMs?: number;
-}): DayTypeBreakdown | null {
-  const lunesAViernesMs = finiteMs(values.saldoLunesAViernesMs);
-  const sabadoMs = finiteMs(values.saldoSabadoMs);
-  const domingoMs = finiteMs(values.saldoDomingoMs);
-  const feriadoMs = finiteMs(values.saldoFeriadoMs);
-  if (lunesAViernesMs === null || sabadoMs === null || domingoMs === null || feriadoMs === null) return null;
-
-  return { lunesAViernesMs, sabadoMs, domingoMs, feriadoMs };
-}
-
-function addDayTypeBreakdown(acc: DayTypeBreakdown, next: DayTypeBreakdown): DayTypeBreakdown {
+function extraBreakdownFromFields(values: { extra50Ms?: number; extra100Ms?: number }): ExtraBreakdown {
   return {
-    lunesAViernesMs: acc.lunesAViernesMs + next.lunesAViernesMs,
-    sabadoMs: acc.sabadoMs + next.sabadoMs,
-    domingoMs: acc.domingoMs + next.domingoMs,
-    feriadoMs: acc.feriadoMs + next.feriadoMs,
+    extra50Ms: finiteMs(values.extra50Ms) ?? 0,
+    extra100Ms: finiteMs(values.extra100Ms) ?? 0,
   };
 }
 
-function sumDayTypeBreakdown(values: DayTypeBreakdown): number {
-  return values.lunesAViernesMs + values.sabadoMs + values.domingoMs + values.feriadoMs;
+function addExtraBreakdown(acc: ExtraBreakdown, next: ExtraBreakdown): ExtraBreakdown {
+  return {
+    extra50Ms: acc.extra50Ms + next.extra50Ms,
+    extra100Ms: acc.extra100Ms + next.extra100Ms,
+  };
 }
 
-function saldoBreakdownFromMonthlyDay(day: MonthlyAttendanceDay): DayTypeBreakdown {
-  const fromFields = saldoBreakdownFromFiniteFields(day);
-  if (fromFields) return fromFields;
-
-  return saldoBreakdownFromBalance(day.fecha, finiteMs(day.balanceMs) ?? 0, Boolean(day.esFeriado));
+function sumExtraBreakdown(values: ExtraBreakdown): number {
+  return values.extra50Ms + values.extra100Ms;
 }
 
-function saldoBreakdownFromReportDay(day: DiaReporteEmpleado): DayTypeBreakdown {
-  const fromFields = saldoBreakdownFromFiniteFields(day);
-  if (fromFields) return fromFields;
-
-  return saldoBreakdownFromBalance(day.fecha, finiteMs(day.saldoMs) ?? 0, day.esFeriado);
+function extraBreakdownFromMonthlyDay(day: MonthlyAttendanceDay): ExtraBreakdown {
+  return extraBreakdownFromFields(day);
 }
 
-function saldoBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): DayTypeBreakdown {
-  const fromFields = saldoBreakdownFromFiniteFields(row);
-  if (fromFields) return fromFields;
-
-  return row.days.reduce<DayTypeBreakdown>(
-    (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromMonthlyDay(day)),
-    emptyDayTypeBreakdown(),
-  );
+function extraBreakdownFromReportDay(day: DiaReporteEmpleado): ExtraBreakdown {
+  return extraBreakdownFromFields(day);
 }
 
-function dayTypeBreakdownParts(values: DayTypeBreakdown) {
+function extraBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): ExtraBreakdown {
+  return extraBreakdownFromFields(row);
+}
+
+function allExtraBreakdownParts(values: ExtraBreakdown) {
   return [
-    { key: 'lv', shortLabel: 'L-V', label: 'Lun-Vie', title: 'Saldo de lunes a viernes', ms: values.lunesAViernesMs },
-    { key: 'sab', shortLabel: 'Sáb', label: 'Sábado', title: 'Saldo de sábado', ms: values.sabadoMs },
-    { key: 'dom', shortLabel: 'Dom', label: 'Domingo', title: 'Saldo de domingo', ms: values.domingoMs },
-    { key: 'fer', shortLabel: 'Fer', label: 'Feriado', title: 'Saldo de feriado', ms: values.feriadoMs },
-  ].filter((part) => part.ms !== 0);
-}
-
-function allDayTypeBreakdownParts(values: DayTypeBreakdown) {
-  return [
-    { key: 'lv', shortLabel: 'L-V', label: 'Lun-Vie', title: 'Saldo de lunes a viernes', ms: values.lunesAViernesMs },
-    { key: 'sab', shortLabel: 'Sáb', label: 'Sábado', title: 'Saldo de sábado', ms: values.sabadoMs },
-    { key: 'dom', shortLabel: 'Dom', label: 'Domingo', title: 'Saldo de domingo', ms: values.domingoMs },
-    { key: 'fer', shortLabel: 'Fer', label: 'Feriado', title: 'Saldo de feriado', ms: values.feriadoMs },
+    { key: 'e50', shortLabel: '50%', label: 'Extra 50%', title: 'Horas extra al 50% (sábado hasta las 13)', ms: values.extra50Ms },
+    { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas extra al 100% (sábado desde 13, domingo y feriados)', ms: values.extra100Ms },
   ];
 }
 
-function hasDayTypeBreakdown(values: DayTypeBreakdown): boolean {
-  return dayTypeBreakdownParts(values).length > 0;
+function extraBreakdownParts(values: ExtraBreakdown) {
+  return allExtraBreakdownParts(values).filter((part) => part.ms !== 0);
 }
 
-function formatDayTypeBreakdownText(values: DayTypeBreakdown, compact = false): string {
-  const parts = dayTypeBreakdownParts(values);
+function hasExtraBreakdown(values: ExtraBreakdown): boolean {
+  return extraBreakdownParts(values).length > 0;
+}
+
+function formatExtraCell(ms: number): string {
+  return ms === 0 ? '—' : formatDuracion(ms);
+}
+
+function formatExtraBreakdownText(values: ExtraBreakdown, compact = false): string {
+  const parts = extraBreakdownParts(values);
   if (parts.length === 0) return '—';
   return parts
-    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatSaldoJornada(part.ms)}`)
+    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatDuracion(part.ms)}`)
     .join(compact ? ' · ' : ' | ');
 }
 
@@ -650,8 +605,8 @@ function monthlyCellTitle(day: MonthlyAttendanceDay): string {
     `Trabajado: ${formatDuracion(day.workedMs)}`,
     `Esperado: ${formatDuracion(day.expectedMs)}`,
   ];
-  const saldoBreakdown = saldoBreakdownFromMonthlyDay(day);
-  if (hasDayTypeBreakdown(saldoBreakdown)) parts.push(`Saldo por tipo de día: ${formatDayTypeBreakdownText(saldoBreakdown)}`);
+  const extraBreakdown = extraBreakdownFromMonthlyDay(day);
+  if (hasExtraBreakdown(extraBreakdown)) parts.push(`Horas extra: ${formatExtraBreakdownText(extraBreakdown)}`);
   if (pairDetails.length === 1) {
     parts.push(`Entrada: ${formatSoloHora(pairDetails[0].entrada.tiempo)}`);
     parts.push(`Salida: ${formatSoloHora(pairDetails[0].salida.tiempo)}`);
@@ -692,9 +647,9 @@ function monthlyCellExportText(day: MonthlyAttendanceDay): string {
   if (day.hasIncompletePunches) {
     lines.push(`Inc. ${day.orphanEntradas + day.orphanSalidas}`);
   }
-  const saldoBreakdown = saldoBreakdownFromMonthlyDay(day);
-  if (hasDayTypeBreakdown(saldoBreakdown)) {
-    lines.push(formatDayTypeBreakdownText(saldoBreakdown, true));
+  const saldoBreakdown = extraBreakdownFromMonthlyDay(day);
+  if (hasExtraBreakdown(saldoBreakdown)) {
+    lines.push(formatExtraBreakdownText(saldoBreakdown, true));
   }
   return lines.join('\n');
 }
@@ -1013,12 +968,12 @@ export function RrhhPage() {
   const reportExpectedHoursNum = Math.max(0, Number(reportHorasEsperadas) || 0);
 
   const hasReport = reportData !== null;
-  const reportDayTypeBreakdown = useMemo<DayTypeBreakdown>(
+  const reportExtraBreakdown = useMemo<ExtraBreakdown>(
     () =>
-      reportData?.dias.reduce<DayTypeBreakdown>(
-        (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromReportDay(day)),
-        emptyDayTypeBreakdown(),
-      ) ?? emptyDayTypeBreakdown(),
+      reportData?.dias.reduce<ExtraBreakdown>(
+        (acc, day) => addExtraBreakdown(acc, extraBreakdownFromReportDay(day)),
+        emptyExtraBreakdown(),
+      ) ?? emptyExtraBreakdown(),
     [reportData],
   );
 
@@ -1207,9 +1162,9 @@ export function RrhhPage() {
 
     const employeeName = `${reportData.empleado.firstName} ${reportData.empleado.lastName}`;
     const workbook = XLSX.utils.book_new();
-    const reportBreakdown = reportData.dias.reduce<DayTypeBreakdown>(
-      (acc, day) => addDayTypeBreakdown(acc, saldoBreakdownFromReportDay(day)),
-      emptyDayTypeBreakdown(),
+    const reportBreakdown = reportData.dias.reduce<ExtraBreakdown>(
+      (acc, day) => addExtraBreakdown(acc, extraBreakdownFromReportDay(day)),
+      emptyExtraBreakdown(),
     );
 
     const summaryRows = [
@@ -1225,11 +1180,9 @@ export function RrhhPage() {
       ['Días con tramos', reportData.resumen.diasConTramos],
       ['Horas esperadas', reportData.resumen.esperadoMs / 3600000],
       ['Horas trabajadas', reportData.resumen.trabajadoMs / 3600000],
-      ['Saldo Lun-Vie', formatSaldoJornada(reportBreakdown.lunesAViernesMs)],
-      ['Saldo Sábado', formatSaldoJornada(reportBreakdown.sabadoMs)],
-      ['Saldo Domingo', formatSaldoJornada(reportBreakdown.domingoMs)],
-      ['Saldo Feriado', formatSaldoJornada(reportBreakdown.feriadoMs)],
-      ['Saldo discriminado legible', formatDayTypeBreakdownText(reportBreakdown)],
+      ['Extra 50%', formatExtraCell(reportBreakdown.extra50Ms)],
+      ['Extra 100%', formatExtraCell(reportBreakdown.extra100Ms)],
+      ['Horas extra legible', formatExtraBreakdownText(reportBreakdown)],
       ['Horas justificadas', (reportData.resumen.justificadoMs ?? 0) / 3600000],
       ['Saldo', reportData.resumen.saldoMs / 3600000],
       ['Saldo legible', formatSaldoJornada(reportData.resumen.saldoMs)],
@@ -1246,18 +1199,16 @@ export function RrhhPage() {
         ...day.entradasSinSalida.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
         ...day.salidasSinEntrada.map((f) => unmatchedFichajeText(f, reportData.empleado.planta)),
       ].join(' | ');
-      const saldoBreakdown = saldoBreakdownFromReportDay(day);
+      const extraBreakdown = extraBreakdownFromReportDay(day);
       return {
         Fecha: day.fecha,
         Día: formatDayHeading(day.fecha),
         'Día hábil': day.diaHabil ? 'Sí' : 'No',
         'Horas debidas': day.esperadoMs / 3600000,
         'Horas trabajadas': day.trabajadoMs / 3600000,
-        'Saldo Lun-Vie': formatSaldoCell(saldoBreakdown.lunesAViernesMs),
-        'Saldo Sábado': formatSaldoCell(saldoBreakdown.sabadoMs),
-        'Saldo Domingo': formatSaldoCell(saldoBreakdown.domingoMs),
-        'Saldo Feriado': formatSaldoCell(saldoBreakdown.feriadoMs),
-        'Saldo discriminado legible': formatDayTypeBreakdownText(saldoBreakdown),
+        'Extra 50%': formatExtraCell(extraBreakdown.extra50Ms),
+        'Extra 100%': formatExtraCell(extraBreakdown.extra100Ms),
+        'Horas extra legible': formatExtraBreakdownText(extraBreakdown),
         'Horas justificadas': day.justificadoMs / 3600000,
         'Saldo horas': day.saldoMs / 3600000,
         'Saldo legible': formatSaldoJornada(day.saldoMs),
@@ -1329,7 +1280,7 @@ export function RrhhPage() {
         'PIN',
         ...days.map((day) => monthlyDayHeader(day.fecha)),
         'Total trabajado',
-        ...(showMonthlyBreakdown ? ['Saldo', 'Lun-Vie', 'Sábado', 'Domingo', 'Feriado'] : []),
+        ...(showMonthlyBreakdown ? ['Saldo', 'Extra 50%', 'Extra 100%'] : []),
       ]);
 
       headerRow.eachCell((cell) => {
@@ -1348,13 +1299,11 @@ export function RrhhPage() {
           formatDuracion(row.workedMs),
           ...(showMonthlyBreakdown
             ? (() => {
-                const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                const extraBreakdown = extraBreakdownFromEmployeeRow(row);
                 return [
                   formatSaldoJornada(row.balanceMs),
-                  formatSaldoCell(saldoBreakdown.lunesAViernesMs),
-                  formatSaldoCell(saldoBreakdown.sabadoMs),
-                  formatSaldoCell(saldoBreakdown.domingoMs),
-                  formatSaldoCell(saldoBreakdown.feriadoMs),
+                  formatExtraCell(extraBreakdown.extra50Ms),
+                  formatExtraCell(extraBreakdown.extra100Ms),
                 ];
               })()
             : []),
@@ -1381,7 +1330,7 @@ export function RrhhPage() {
         totalCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
         if (showMonthlyBreakdown) {
-          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+          const extraBreakdown = extraBreakdownFromEmployeeRow(row);
           const saldoCell = dataRow.getCell(days.length + 4);
           saldoCell.fill = {
             type: 'pattern',
@@ -1391,20 +1340,16 @@ export function RrhhPage() {
           saldoCell.font = { bold: true, color: { argb: row.balanceMs < 0 ? 'FF7F1D1D' : 'FF14532D' }, size: 10 };
           saldoCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-          for (let colNumber = days.length + 5; colNumber <= days.length + 8; colNumber += 1) {
+          // Extra 50% y 100% son horas extra (siempre >= 0): verde si hay horas, neutro si es 0.
+          for (let colNumber = days.length + 5; colNumber <= days.length + 6; colNumber += 1) {
             const cell = dataRow.getCell(colNumber);
-            const numericValue = [
-              saldoBreakdown.lunesAViernesMs,
-              saldoBreakdown.sabadoMs,
-              saldoBreakdown.domingoMs,
-              saldoBreakdown.feriadoMs,
-            ][colNumber - (days.length + 5)];
+            const numericValue = [extraBreakdown.extra50Ms, extraBreakdown.extra100Ms][colNumber - (days.length + 5)];
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: numericValue < 0 ? 'FFF4CCCC' : numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB' },
+              fgColor: { argb: numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB' },
             };
-            cell.font = { color: { argb: numericValue < 0 ? 'FF7F1D1D' : numericValue > 0 ? 'FF14532D' : 'FF6B7280' }, size: 10 };
+            cell.font = { color: { argb: numericValue > 0 ? 'FF14532D' : 'FF6B7280' }, size: 10 };
             cell.alignment = { vertical: 'middle', horizontal: 'right' };
           }
         }
@@ -1422,7 +1367,7 @@ export function RrhhPage() {
         { width: 10 },
         ...days.map(() => ({ width: 13 })),
         { width: 16 },
-        ...(showMonthlyBreakdown ? [{ width: 14 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 }] : []),
+        ...(showMonthlyBreakdown ? [{ width: 14 }, { width: 12 }, { width: 12 }] : []),
       ];
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -2648,10 +2593,8 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en lunes a viernes">Lun-Vie</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en sábado">Sábado</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en domingo">Domingo</th>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo del período en feriado">Feriado</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
                           <th className="px-3 py-2.5 text-right">Saldo</th>
@@ -2664,7 +2607,7 @@ export function RrhhPage() {
                       </thead>
                       <tbody className="divide-y divide-border">
                         {monthlyData.employees.map((row) => {
-                          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                          const saldoBreakdown = extraBreakdownFromEmployeeRow(row);
                           return (
                           <tr key={row.empleadoId} className="hover:bg-muted/20">
                             <td className="px-3 py-2.5 min-w-[200px]">
@@ -2675,10 +2618,8 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.lunesAViernesMs)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.sabadoMs)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.domingoMs)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatSaldoCell(saldoBreakdown.feriadoMs)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra50Ms)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra100Ms)}</td>
                               </>
                             )}
                             <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -2725,17 +2666,15 @@ export function RrhhPage() {
                           {monthlyData.planta === 'tucuman' && (
                             <>
                               <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Saldo</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en lunes a viernes">Lun-Vie</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en sábado">Sábado</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en domingo">Domingo</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo acumulado en feriado">Feriado</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
                         </tr>
                       </thead>
                       <tbody>
                         {monthlyData.employees.map((row) => {
-                          const saldoBreakdown = saldoBreakdownFromEmployeeRow(row);
+                          const saldoBreakdown = extraBreakdownFromEmployeeRow(row);
                           return (
                             <tr key={row.empleadoId}>
                               <td className="sticky left-0 z-10 rounded-md border border-border bg-card px-3 py-2 min-w-[220px] shadow-sm dark:bg-slate-950">
@@ -2744,7 +2683,7 @@ export function RrhhPage() {
                               </td>
                               {row.days.map((day) => {
                                 const punchSummary = monthlyCellPunchSummary(day);
-                                const daySaldoBreakdown = saldoBreakdownFromMonthlyDay(day);
+                                const daySaldoBreakdown = extraBreakdownFromMonthlyDay(day);
                                 return (
                                   <td key={day.fecha} className="p-1 align-top">
                                     <div
@@ -2762,9 +2701,9 @@ export function RrhhPage() {
                                       {day.hasIncompletePunches ? (
                                         <p className="mt-0.5 text-[10px] font-medium leading-tight">Inc. {day.orphanEntradas + day.orphanSalidas}</p>
                                       ) : null}
-                                      {monthlyData.planta === 'tucuman' && hasDayTypeBreakdown(daySaldoBreakdown) ? (
+                                      {monthlyData.planta === 'tucuman' && hasExtraBreakdown(daySaldoBreakdown) ? (
                                         <p className="mt-0.5 text-[10px] font-medium leading-tight opacity-80">
-                                          {formatDayTypeBreakdownText(daySaldoBreakdown, true)}
+                                          {formatExtraBreakdownText(daySaldoBreakdown, true)}
                                         </p>
                                       ) : null}
                                     </div>
@@ -2777,9 +2716,9 @@ export function RrhhPage() {
                                   <td className={`rounded-md border px-3 py-2 text-right tabular-nums font-semibold ${saldoBreakdownPillClass(row.balanceMs)}`}>
                                     {formatSaldoJornada(row.balanceMs)}
                                   </td>
-                                  {allDayTypeBreakdownParts(saldoBreakdown).map((part) => (
+                                  {allExtraBreakdownParts(saldoBreakdown).map((part) => (
                                     <td key={part.key} className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${saldoBreakdownPillClass(part.ms)}`} title={part.title}>
-                                      {formatSaldoCell(part.ms)}
+                                      {formatExtraCell(part.ms)}
                                     </td>
                                   ))}
                                 </>
@@ -3293,34 +3232,34 @@ export function RrhhPage() {
           {hasReport && reportData.empleado.planta === 'tucuman' && (
             <div
               className="rounded-lg border border-border bg-card p-3 shadow-sm"
-              title={`La suma discriminada es ${formatSaldoJornada(sumDayTypeBreakdown(reportDayTypeBreakdown))}`}
+              title={`El total de horas extra es ${formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Distribución del saldo
+                    Horas extra
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    La suma por tipo tiene que coincidir con el saldo.
+                    Al 50% (sábado hasta las 13) y al 100% (sábado desde 13, domingo y feriados).
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {dayTypeBreakdownParts(reportDayTypeBreakdown).map((part) => (
+                  {extraBreakdownParts(reportExtraBreakdown).map((part) => (
                     <span
                       key={part.key}
                       title={part.title}
                       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${saldoBreakdownPillClass(part.ms)}`}
                     >
                       <span>{part.label}</span>
-                      <span className="font-mono tabular-nums">{formatSaldoJornada(part.ms)}</span>
+                      <span className="font-mono tabular-nums">{formatDuracion(part.ms)}</span>
                     </span>
                   ))}
-                  {!hasDayTypeBreakdown(reportDayTypeBreakdown) && (
-                    <span className="text-xs text-muted-foreground">Sin saldo para discriminar.</span>
+                  {!hasExtraBreakdown(reportExtraBreakdown) && (
+                    <span className="text-xs text-muted-foreground">Sin horas extra en el período.</span>
                   )}
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${saldoBreakdownPillClass(sumDayTypeBreakdown(reportDayTypeBreakdown))}`}>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${saldoBreakdownPillClass(sumExtraBreakdown(reportExtraBreakdown))}`}>
                     <span>Total</span>
-                    <span className="font-mono tabular-nums">{formatSaldoJornada(sumDayTypeBreakdown(reportDayTypeBreakdown))}</span>
+                    <span className="font-mono tabular-nums">{formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}</span>
                   </span>
                 </div>
               </div>
@@ -3345,7 +3284,7 @@ export function RrhhPage() {
                       Saldo
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground w-[15rem]">
-                      Saldo por tipo
+                      Horas extra
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Detalle
@@ -3363,7 +3302,7 @@ export function RrhhPage() {
                       : day.esFeriado
                         ? `📅 ${day.motivoNoLaborable ?? 'Feriado'}`
                         : null;
-                    const saldoBreakdown = saldoBreakdownFromReportDay(day);
+                    const extraBreakdown = extraBreakdownFromReportDay(day);
                     return (
                       <tr key={day.fecha} className="border-b border-border/80 last:border-0 align-top">
                         <td className="px-3 py-3">
@@ -3392,15 +3331,15 @@ export function RrhhPage() {
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          {hasDayTypeBreakdown(saldoBreakdown) ? (
+                          {hasExtraBreakdown(extraBreakdown) ? (
                             <div className="flex flex-wrap gap-1.5">
-                              {dayTypeBreakdownParts(saldoBreakdown).map((part) => (
+                              {extraBreakdownParts(extraBreakdown).map((part) => (
                                 <span
                                   key={part.key}
                                   title={part.title}
                                   className={`inline-flex rounded-md border px-2 py-1 text-[11px] font-medium tabular-nums ${saldoBreakdownPillClass(part.ms)}`}
                                 >
-                                  {part.shortLabel} · {formatSaldoJornada(part.ms)}
+                                  {part.shortLabel} · {formatDuracion(part.ms)}
                                 </span>
                               ))}
                             </div>
