@@ -443,6 +443,7 @@ export function OcrDashboardPage() {
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha subida</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha remito</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Número de remito</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Chofer</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Firma</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Aclaración</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">DNI</th>
@@ -453,7 +454,7 @@ export function OcrDashboardPage() {
             <tbody className="divide-y divide-border">
               {loading && docs.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 9 : 8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={isSuperAdmin ? 10 : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="h-4 w-4 animate-spin" />
                       Cargando...
@@ -462,7 +463,7 @@ export function OcrDashboardPage() {
                 </tr>
               ) : docs.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 9 : 8} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={isSuperAdmin ? 10 : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     No hay remitos con los filtros seleccionados
                   </td>
                 </tr>
@@ -487,6 +488,7 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{doc.driverName || '—'}</td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'firma')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'dni')} /></td>

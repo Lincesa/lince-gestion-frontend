@@ -30,6 +30,8 @@ export interface OcrDocument {
   status:           DocumentStatus;
   uploadedBy:       string;
   uploadedByRole:   OcrRole;
+  /** Nombre auto-declarado del chofer que subió el remito desde la app mobile. NULL si no se informó. */
+  driverName:       string | null;
   s3Key:            string;
   s3ThumbnailKey:   string | null;
   extractedData:    Record<string, string> | null;

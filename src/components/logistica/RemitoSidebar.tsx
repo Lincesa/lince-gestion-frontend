@@ -115,6 +115,9 @@ export function RemitoSidebar() {
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Subido por</dt>
+                {selected.driverName && (
+                  <dd className="text-sm font-medium mt-0.5">{selected.driverName}</dd>
+                )}
                 <dd className="text-sm font-medium mt-0.5">{selected.uploadedByName}</dd>
                 <dd className="text-xs text-muted-foreground">{selected.uploadedByEmail}</dd>
               </div>

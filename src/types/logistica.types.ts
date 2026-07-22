@@ -3,6 +3,8 @@ export interface RemitoLogistica {
   status: string;
   uploadedByName: string;
   uploadedByEmail: string;
+  /** Nombre auto-declarado del chofer que subió el remito desde la app mobile. */
+  driverName: string | null;
   createdAt: string;
   latitude: number | null;
   longitude: number | null;

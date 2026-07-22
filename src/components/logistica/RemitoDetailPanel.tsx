@@ -205,6 +205,9 @@ export function RemitoDetailPanel({
             {/* Subido por */}
             <div className="border-t border-border pt-3">
               <span className="text-xs font-medium text-muted-foreground">Subido por</span>
+              {remito.driverName && (
+                <p className="text-sm font-medium text-foreground">{remito.driverName}</p>
+              )}
               <p className="text-sm text-foreground">{remito.uploadedByName}</p>
               <p className="text-xs text-muted-foreground">{remito.uploadedByEmail}</p>
             </div>
