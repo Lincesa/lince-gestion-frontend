@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { logisticaApi } from '@/api/logistica';
 import type { RemitoDetalle } from '@/types/logistica.types';
 import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 
 interface Props {
   remitoId: string;
@@ -40,6 +42,7 @@ export function RemitoDetailPanel({
   hasPrev,
   hasNext,
 }: Props) {
+  const { canAdmin } = useCanPerform(ModuleKey.LOGISTICA);
   const [remito, setRemito]             = useState<RemitoDetalle | null>(null);
   const [loading, setLoading]           = useState(true);
   const [previewOpen, setPreviewOpen]   = useState(false);
@@ -216,7 +219,9 @@ export function RemitoDetailPanel({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-border px-5 py-3 shrink-0">
-          {confirmDelete ? (
+          {!canAdmin ? (
+            <div />
+          ) : confirmDelete ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">¿Eliminar remito y su imagen?</span>
               <button

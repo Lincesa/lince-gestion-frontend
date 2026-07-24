@@ -8,9 +8,12 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import type { ExpenseCategory } from '@/types/conciliaciones.types';
 
 export function CategoriesPage() {
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.CONCILIACIONES);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newCategory, setNewCategory] = useState('');
@@ -102,7 +105,7 @@ export function CategoriesPage() {
               <Label>Nombre de la categoría</Label>
               <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Ej: Comisiones bancarias" onKeyDown={(e) => { if (e.key === 'Enter') void handleAddCategory(); }} />
             </div>
-            <Button onClick={handleAddCategory} disabled={!newCategory.trim()}>
+            <Button onClick={handleAddCategory} disabled={!newCategory.trim() || !canEdit}>
               <Plus className="mr-2 h-4 w-4" />Agregar Categoría
             </Button>
           </CardContent>
@@ -129,7 +132,7 @@ export function CategoriesPage() {
               <label className="flex items-center gap-2"><input type="checkbox" checked={ruleRegex} onChange={(e) => setRuleRegex(e.target.checked)} className="h-4 w-4 rounded border-input" /><span className="text-sm">Regex</span></label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={ruleCase} onChange={(e) => setRuleCase(e.target.checked)} className="h-4 w-4 rounded border-input" /><span className="text-sm">Case sensitive</span></label>
             </div>
-            <Button onClick={handleAddRule} disabled={!ruleCategoryId || !rulePattern.trim()}>
+            <Button onClick={handleAddRule} disabled={!ruleCategoryId || !rulePattern.trim() || !canEdit}>
               <Plus className="mr-2 h-4 w-4" />Agregar Regla
             </Button>
           </CardContent>
@@ -142,9 +145,11 @@ export function CategoriesPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{category.name}</CardTitle>
-                <Button variant="ghost" size="icon" onClick={() => void handleDeleteCategory(category.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                {canAdmin && (
+                  <Button variant="ghost" size="icon" onClick={() => void handleDeleteCategory(category.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
               </div>
               <CardDescription>{(category.rules ?? []).length} {(category.rules ?? []).length === 1 ? 'regla' : 'reglas'}</CardDescription>
             </CardHeader>
@@ -162,9 +167,11 @@ export function CategoriesPage() {
                           {rule.caseSensitive && <Badge variant="secondary">case</Badge>}
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => void handleDeleteRule(rule.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {canAdmin && (
+                        <Button variant="ghost" size="icon" onClick={() => void handleDeleteRule(rule.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

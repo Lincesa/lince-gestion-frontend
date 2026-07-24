@@ -10,6 +10,8 @@ import {
   updateGeoPoint,
 } from '@/store/logistica/geoLayersSlice';
 import type { GeoPoint } from '@/types/logistica.types';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 
 const ICON_FILES = Array.from({ length: 27 }, (_, i) => `icon-${i + 1}.png`);
 
@@ -39,6 +41,7 @@ function pointToForm(p: GeoPoint): FormState {
 
 export function GeoPointModal() {
   const dispatch = useAppDispatch();
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.LOGISTICA);
   const { editingPoint, isCreating, submitting, layers } = useAppSelector((s) => s.geoLayers);
   const isOpen = !!editingPoint || isCreating;
 
@@ -233,7 +236,7 @@ export function GeoPointModal() {
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-1">
-            {editingPoint ? (
+            {editingPoint && canAdmin ? (
               <button
                 type="button"
                 className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
@@ -263,7 +266,7 @@ export function GeoPointModal() {
               <button
                 type="submit"
                 className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                disabled={submitting}
+                disabled={submitting || !canEdit}
               >
                 {submitting && <Loader2 size={12} className="animate-spin" />}
                 {editingPoint ? 'Guardar' : 'Crear'}
