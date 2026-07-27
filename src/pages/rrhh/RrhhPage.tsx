@@ -188,9 +188,9 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
-// Horas extra en 2 baldes (SOLO Tucumán): 50% (sábado hasta las 13, sobre lo esperado) y
-// 100% (sábado desde 13, domingo y feriados). El backend ya envía extra50Ms/extra100Ms; el
-// front solo los lee y agrega, sin re-derivar nada por día calendario.
+// Horas extra en 2 baldes (SOLO Tucumán): 50% (excedente L-V sobre lo esperado, y sábado hasta
+// las 13 sobre lo esperado) y 100% (sábado desde 13, domingo y feriados). El backend ya envía
+// extra50Ms/extra100Ms; el front solo los lee y agrega, sin re-derivar nada por día calendario.
 interface ExtraBreakdown {
   extra50Ms: number;
   extra100Ms: number;
@@ -236,7 +236,7 @@ function extraBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): Extra
 
 function allExtraBreakdownParts(values: ExtraBreakdown) {
   return [
-    { key: 'e50', shortLabel: '50%', label: 'Extra 50%', title: 'Horas extra al 50% (sábado hasta las 13)', ms: values.extra50Ms },
+    { key: 'e50', shortLabel: '50%', label: 'Extra 50%', title: 'Horas extra al 50% (excedente lunes a viernes y sábado hasta las 13)', ms: values.extra50Ms },
     { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas extra al 100% (sábado desde 13, domingo y feriados)', ms: values.extra100Ms },
   ];
 }
