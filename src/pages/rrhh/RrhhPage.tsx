@@ -188,9 +188,10 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
-// Horas extra en 2 baldes (SOLO Tucumán): 50% (excedente L-V sobre lo esperado, y sábado hasta
-// las 13 sobre lo esperado) y 100% (sábado desde 13, domingo y feriados). El backend ya envía
-// extra50Ms/extra100Ms; el front solo los lee y agrega, sin re-derivar nada por día calendario.
+// Partición del SALDO en 2 franjas (SOLO Tucumán): 50% = saldo NETO de la jornada normal
+// (lunes a sábado hasta las 13), puede ser a favor (+) o en contra (−); 100% = horas donde no se
+// espera jornada (sábado desde 13, domingos y feriados/no laborables), siempre >= 0.
+// Invariante: extra50Ms + extra100Ms === saldo. El backend ya los envía; el front solo lee y agrega.
 interface ExtraBreakdown {
   extra50Ms: number;
   extra100Ms: number;
@@ -236,8 +237,8 @@ function extraBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): Extra
 
 function allExtraBreakdownParts(values: ExtraBreakdown) {
   return [
-    { key: 'e50', shortLabel: '50%', label: 'Extra 50%', title: 'Horas extra al 50% (excedente lunes a viernes y sábado hasta las 13)', ms: values.extra50Ms },
-    { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas extra al 100% (sábado desde 13, domingo y feriados)', ms: values.extra100Ms },
+    { key: 'e50', shortLabel: '50%', label: 'Saldo 50%', title: 'Saldo de la jornada normal (lunes a sábado hasta las 13): a favor (+) u horas que debe (−)', ms: values.extra50Ms },
+    { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas al 100% (sábado desde 13, domingos y feriados)', ms: values.extra100Ms },
   ];
 }
 
@@ -253,11 +254,27 @@ function formatExtraCell(ms: number): string {
   return ms === 0 ? '—' : formatDuracion(ms);
 }
 
+// La franja 50% es el saldo NETO de la jornada normal: puede ser a favor (+) o en contra (−),
+// así que se muestra con signo (como el saldo). El 100% siempre es >= 0.
+function formatExtra50Cell(ms: number): string {
+  return ms === 0 ? '—' : formatSaldoJornada(ms);
+}
+
+function extraSignColorClass(ms: number): string {
+  if (ms > 0) return 'text-emerald-600';
+  if (ms < 0) return 'text-red-600';
+  return 'text-muted-foreground';
+}
+
+function formatExtraPartValue(part: { key: string; ms: number }): string {
+  return part.key === 'e50' ? formatExtra50Cell(part.ms) : formatExtraCell(part.ms);
+}
+
 function formatExtraBreakdownText(values: ExtraBreakdown, compact = false): string {
   const parts = extraBreakdownParts(values);
   if (parts.length === 0) return '—';
   return parts
-    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatDuracion(part.ms)}`)
+    .map((part) => `${compact ? part.shortLabel : part.label}: ${part.key === 'e50' ? formatSaldoJornada(part.ms) : formatDuracion(part.ms)}`)
     .join(compact ? ' · ' : ' | ');
 }
 
@@ -1186,7 +1203,7 @@ export function RrhhPage() {
       ['Días con tramos', reportData.resumen.diasConTramos],
       ['Horas esperadas', reportData.resumen.esperadoMs / 3600000],
       ['Horas trabajadas', reportData.resumen.trabajadoMs / 3600000],
-      ['Extra 50%', formatExtraCell(reportBreakdown.extra50Ms)],
+      ['Saldo 50%', formatExtra50Cell(reportBreakdown.extra50Ms)],
       ['Extra 100%', formatExtraCell(reportBreakdown.extra100Ms)],
       ['Horas extra legible', formatExtraBreakdownText(reportBreakdown)],
       ['Horas justificadas', (reportData.resumen.justificadoMs ?? 0) / 3600000],
@@ -1212,7 +1229,7 @@ export function RrhhPage() {
         'Día hábil': day.diaHabil ? 'Sí' : 'No',
         'Horas debidas': day.esperadoMs / 3600000,
         'Horas trabajadas': day.trabajadoMs / 3600000,
-        'Extra 50%': formatExtraCell(extraBreakdown.extra50Ms),
+        'Saldo 50%': formatExtra50Cell(extraBreakdown.extra50Ms),
         'Extra 100%': formatExtraCell(extraBreakdown.extra100Ms),
         'Horas extra legible': formatExtraBreakdownText(extraBreakdown),
         'Horas justificadas': day.justificadoMs / 3600000,
@@ -1286,7 +1303,7 @@ export function RrhhPage() {
         'PIN',
         ...days.map((day) => monthlyDayHeader(day.fecha)),
         'Total trabajado',
-        ...(showMonthlyBreakdown ? ['Saldo', 'Extra 50%', 'Extra 100%'] : []),
+        ...(showMonthlyBreakdown ? ['Saldo', 'Saldo 50%', 'Extra 100%'] : []),
       ]);
 
       headerRow.eachCell((cell) => {
@@ -1308,7 +1325,7 @@ export function RrhhPage() {
                 const extraBreakdown = extraBreakdownFromEmployeeRow(row);
                 return [
                   formatSaldoJornada(row.balanceMs),
-                  formatExtraCell(extraBreakdown.extra50Ms),
+                  formatExtra50Cell(extraBreakdown.extra50Ms),
                   formatExtraCell(extraBreakdown.extra100Ms),
                 ];
               })()
@@ -1346,16 +1363,14 @@ export function RrhhPage() {
           saldoCell.font = { bold: true, color: { argb: row.balanceMs < 0 ? 'FF7F1D1D' : 'FF14532D' }, size: 10 };
           saldoCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-          // Extra 50% y 100% son horas extra (siempre >= 0): verde si hay horas, neutro si es 0.
+          // 50% es saldo neto (puede ser negativo → rojo); 100% es extra puro (>= 0 → verde/neutro).
           for (let colNumber = days.length + 5; colNumber <= days.length + 6; colNumber += 1) {
             const cell = dataRow.getCell(colNumber);
             const numericValue = [extraBreakdown.extra50Ms, extraBreakdown.extra100Ms][colNumber - (days.length + 5)];
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB' },
-            };
-            cell.font = { color: { argb: numericValue > 0 ? 'FF14532D' : 'FF6B7280' }, size: 10 };
+            const bg = numericValue > 0 ? 'FFD9EAD3' : numericValue < 0 ? 'FFF4CCCC' : 'FFF9FAFB';
+            const fg = numericValue > 0 ? 'FF14532D' : numericValue < 0 ? 'FF7F1D1D' : 'FF6B7280';
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.font = { color: { argb: fg }, size: 10 };
             cell.alignment = { vertical: 'middle', horizontal: 'right' };
           }
         }
@@ -2603,7 +2618,7 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo de la jornada normal — lunes a sábado hasta las 13 (a favor + / en contra −)">50%</th>
                               <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
@@ -2628,7 +2643,7 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra50Ms)}</td>
+                                <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${extraSignColorClass(saldoBreakdown.extra50Ms)}`}>{formatExtra50Cell(saldoBreakdown.extra50Ms)}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra100Ms)}</td>
                               </>
                             )}
@@ -2676,7 +2691,7 @@ export function RrhhPage() {
                           {monthlyData.planta === 'tucuman' && (
                             <>
                               <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Saldo</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo de la jornada normal — lunes a sábado hasta las 13 (a favor + / en contra −)">50%</th>
                               <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
@@ -2728,7 +2743,7 @@ export function RrhhPage() {
                                   </td>
                                   {allExtraBreakdownParts(saldoBreakdown).map((part) => (
                                     <td key={part.key} className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${saldoBreakdownPillClass(part.ms)}`} title={part.title}>
-                                      {formatExtraCell(part.ms)}
+                                      {formatExtraPartValue(part)}
                                     </td>
                                   ))}
                                 </>
@@ -3244,7 +3259,7 @@ export function RrhhPage() {
           {hasReport && reportData.empleado.planta === 'tucuman' && (
             <div
               className="rounded-lg border border-border bg-card p-3 shadow-sm"
-              title={`El total de horas extra es ${formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}`}
+              title={`El saldo total (50% + 100%) es ${formatSaldoJornada(sumExtraBreakdown(reportExtraBreakdown))}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -3252,7 +3267,7 @@ export function RrhhPage() {
                     Horas extra
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Al 50% (sábado hasta las 13) y al 100% (sábado desde 13, domingo y feriados).
+                    50% = saldo de la jornada normal (lun a sáb hasta 13, +/−); 100% = sábado desde 13, domingos y feriados.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -3263,15 +3278,15 @@ export function RrhhPage() {
                       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${saldoBreakdownPillClass(part.ms)}`}
                     >
                       <span>{part.label}</span>
-                      <span className="font-mono tabular-nums">{formatDuracion(part.ms)}</span>
+                      <span className="font-mono tabular-nums">{formatExtraPartValue(part)}</span>
                     </span>
                   ))}
                   {!hasExtraBreakdown(reportExtraBreakdown) && (
-                    <span className="text-xs text-muted-foreground">Sin horas extra en el período.</span>
+                    <span className="text-xs text-muted-foreground">Sin saldo de horas en el período.</span>
                   )}
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${saldoBreakdownPillClass(sumExtraBreakdown(reportExtraBreakdown))}`}>
                     <span>Total</span>
-                    <span className="font-mono tabular-nums">{formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}</span>
+                    <span className="font-mono tabular-nums">{formatSaldoJornada(sumExtraBreakdown(reportExtraBreakdown))}</span>
                   </span>
                 </div>
               </div>
