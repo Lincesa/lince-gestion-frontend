@@ -57,6 +57,17 @@ export function ConciliacionesDashboardPage() {
 
   const totalIssues = qualityDiagnostics?.summary.totalIssues ?? 0;
   const summary = dashboard?.summary;
+  const excludedConceptRows = dashboard?.rows.flatMap((row) =>
+    row.excludedConcepts.map((concept) => ({
+      key: [row.month, row.fortnight, row.company, row.bankName, row.accountRef, concept.concept].join('|'),
+      month: row.month,
+      fortnight: row.fortnight,
+      company: row.company,
+      bankName: row.bankName,
+      accountRef: row.accountRef,
+      ...concept,
+    })),
+  ) ?? [];
 
   return (
     <div className="space-y-6">
@@ -111,12 +122,19 @@ export function ConciliacionesDashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Gastos</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Gastos incluidos</CardTitle></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{loading || !summary ? '...' : formatMoney(summary.expensesAmount)}</div>
-            <p className="text-xs text-muted-foreground">{summary?.expensesCount ?? 0} movimientos</p>
+            <p className="text-xs text-muted-foreground">{summary?.expensesCount ?? 0} mov. · no incluye dejados fuera</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Dejados fuera</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading || !summary ? '...' : formatMoney(summary.excludedAmount)}</div>
+            <p className="text-xs text-muted-foreground">{summary?.excludedCount ?? 0} movimientos excluidos</p>
           </CardContent>
         </Card>
         <Card>
@@ -157,6 +175,7 @@ export function ConciliacionesDashboardPage() {
                   <TableHead>Período</TableHead>
                   <TableHead>Banco / cuenta</TableHead>
                   <TableHead>Gastos</TableHead>
+                  <TableHead>Dejados fuera</TableHead>
                   <TableHead>Matcheado</TableHead>
                   <TableHead>Sin match</TableHead>
                   <TableHead>Pendientes</TableHead>
@@ -172,6 +191,7 @@ export function ConciliacionesDashboardPage() {
                       <div className="text-xs text-muted-foreground">{row.company || '-'} · {row.accountRef || 'sin cuenta'} · {row.runCount} conciliación{row.runCount !== 1 ? 'es' : ''}</div>
                     </TableCell>
                     <TableCell>{formatMoney(row.expensesAmount)}<br /><span className="text-xs text-muted-foreground">{row.expensesCount} mov.</span></TableCell>
+                    <TableCell>{formatMoney(row.excludedAmount)}<br /><span className="text-xs text-muted-foreground">{row.excludedCount} excl.</span></TableCell>
                     <TableCell>{formatMoney(row.matchedAmount)}<br /><span className="text-xs text-muted-foreground">{row.matchedCount} match</span></TableCell>
                     <TableCell>{formatMoney(row.unmatchedExtractAmount + row.unmatchedSystemAmount)}<br /><span className="text-xs text-muted-foreground">Bco {row.unmatchedExtractCount} · Sist {row.unmatchedSystemCount}</span></TableCell>
                     <TableCell>{row.pendingOpenCount} abiertos<br /><span className="text-xs text-muted-foreground">{row.pendingCarriedCount} arrastrados · {row.pendingResolvedCount} resueltos</span></TableCell>
@@ -196,6 +216,44 @@ export function ConciliacionesDashboardPage() {
             <CardTitle>Sin datos para el filtro</CardTitle>
             <CardDescription>No hay conciliaciones con identidad bancaria para el rango seleccionado.</CardDescription>
           </CardHeader>
+        </Card>
+      )}
+
+      {!loading && excludedConceptRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Conceptos dejados fuera</CardTitle>
+            <CardDescription>Movimientos excluidos agrupados por concepto, como en la hoja de exportación.</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Banco / cuenta</TableHead>
+                  <TableHead>Concepto</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead>Cantidad</TableHead>
+                  <TableHead>Importe</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {excludedConceptRows.map((row) => (
+                  <TableRow key={row.key}>
+                    <TableCell className="font-medium">{row.month}<br /><span className="text-xs text-muted-foreground">{fortnightLabel(row.fortnight)}</span></TableCell>
+                    <TableCell>
+                      <div className="font-medium">{row.bankName || '-'}</div>
+                      <div className="text-xs text-muted-foreground">{row.company || '-'} · {row.accountRef || 'sin cuenta'}</div>
+                    </TableCell>
+                    <TableCell>{row.concept}</TableCell>
+                    <TableCell>{row.category || '-'}</TableCell>
+                    <TableCell>{row.count}</TableCell>
+                    <TableCell>{formatMoney(row.amount)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
       )}
 
