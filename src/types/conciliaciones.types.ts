@@ -20,7 +20,7 @@ export type SystemMapping = {
 };
 
 export type RunPayload = {
-  title?: string;
+  title?: string | null;
   bankName?: string;
   accountRef?: string;
   company?: string;
@@ -152,7 +152,7 @@ export type Issue = {
 
 export type RunDetail = {
   id: string;
-  title?: string;
+  title?: string | null;
   bankName?: string | null;
   company?: string | null;
   windowDays?: number;
