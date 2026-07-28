@@ -4,6 +4,7 @@ import type {
   ReconciliationRun,
   RunPayload,
   RunDetail,
+  ReconciliationQualityDiagnostics,
   ExpenseCategory,
   Message,
   Issue,
@@ -15,6 +16,9 @@ const BASE = `${API_BASE_URL}/conciliaciones`;
 export const conciliacionesApi = {
   listRuns: (company?: string) =>
     apiFetch<ReconciliationRun[]>(`/conciliaciones/reconciliations${company ? `?company=${encodeURIComponent(company)}` : ''}`),
+
+  getQualityDiagnostics: (company?: string) =>
+    apiFetch<ReconciliationQualityDiagnostics>(`/conciliaciones/reconciliations/quality${company ? `?company=${encodeURIComponent(company)}` : ''}`),
 
   getRun: (id: string) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`),
