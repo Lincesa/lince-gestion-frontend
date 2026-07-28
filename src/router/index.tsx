@@ -61,6 +61,9 @@ const CrmSatisfactionPage = lazy(() =>
 const ConciliacionesLayout = lazy(() =>
   import('@/pages/conciliaciones/ConciliacionesLayout').then((m) => ({ default: m.ConciliacionesLayout })),
 );
+const ConciliacionesListPage = lazy(() =>
+  import('@/pages/conciliaciones/RunsListPage').then((m) => ({ default: m.ConciliacionesListPage })),
+);
 const ConciliacionesDashboardPage = lazy(() =>
   import('@/pages/conciliaciones/DashboardPage').then((m) => ({ default: m.ConciliacionesDashboardPage })),
 );
@@ -220,6 +223,14 @@ const router = createBrowserRouter([
                 children: [
                   {
                     index: true,
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <ConciliacionesListPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'dashboard',
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <ConciliacionesDashboardPage />

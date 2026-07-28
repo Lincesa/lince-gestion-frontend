@@ -1,8 +1,9 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Plus, Tag } from 'lucide-react';
+import { Outlet, NavLink } from 'react-router-dom';
+import { BarChart3, LayoutDashboard, Plus, Tag } from 'lucide-react';
 
 const navItems = [
   { to: '/conciliaciones', end: true, icon: LayoutDashboard, label: 'Conciliaciones' },
+  { to: '/conciliaciones/dashboard', end: true, icon: BarChart3, label: 'Dashboard' },
   { to: '/conciliaciones/nueva', end: true, icon: Plus, label: 'Nueva' },
   { to: '/conciliaciones/categorias', end: false, icon: Tag, label: 'Categorías' },
 ];
