@@ -103,25 +103,25 @@ export function ChangeMatchDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title="Cambiar match">
-      <div className="space-y-4">
+    <Dialog open={open} onClose={onClose} title="Cambiar match" panelClassName="!max-w-7xl max-h-[90vh] overflow-hidden">
+      <div className="flex max-h-[calc(90vh-7rem)] flex-col gap-4">
         <p className="text-xs text-muted-foreground">
           Seleccioná una o más filas de sistema y una o más filas de extracto. Ambas sumas deben coincidir.
         </p>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
+        <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium">Sistema</h4>
               <span className="text-xs text-muted-foreground">${systemSum.toFixed(2)}</span>
             </div>
-            <div className="max-h-72 overflow-y-auto rounded-md border">
-              <table className="w-full text-sm">
+            <div className="max-h-[58vh] overflow-auto rounded-md border">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="w-10 p-2"></th>
                     <th className="p-2 text-left">Descripción</th>
-                    <th className="p-2 text-right">Importe</th>
+                    <th className="w-36 p-2 text-right">Importe</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -136,8 +136,8 @@ export function ChangeMatchDialog({
                           className="h-4 w-4 rounded border-input"
                         />
                       </td>
-                      <td className="max-w-[220px] truncate p-2">{system.description || '-'}</td>
-                      <td className="p-2 text-right">${system.amount.toFixed(2)}</td>
+                      <td className="p-2">{system.description || '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right">${system.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -145,19 +145,19 @@ export function ChangeMatchDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-medium">Extracto</h4>
               <span className="text-xs text-muted-foreground">${extractSum.toFixed(2)}</span>
             </div>
-            <div className="max-h-72 overflow-y-auto rounded-md border">
-              <table className="w-full text-sm">
+            <div className="max-h-[58vh] overflow-auto rounded-md border">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="w-10 p-2"></th>
-                    <th className="p-2 text-left">Fecha</th>
+                    <th className="w-28 p-2 text-left">Fecha</th>
                     <th className="p-2 text-left">Concepto</th>
-                    <th className="p-2 text-right">Importe</th>
+                    <th className="w-36 p-2 text-right">Importe</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,9 +172,9 @@ export function ChangeMatchDialog({
                           className="h-4 w-4 rounded border-input"
                         />
                       </td>
-                      <td className="p-2">{extract.date ? new Date(extract.date).toLocaleDateString() : '-'}</td>
-                      <td className="max-w-[180px] truncate p-2">{extract.concept || '-'}</td>
-                      <td className="p-2 text-right">${extract.amount.toFixed(2)}</td>
+                      <td className="whitespace-nowrap p-2">{extract.date ? new Date(extract.date).toLocaleDateString() : '-'}</td>
+                      <td className="p-2">{extract.concept || '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right">${extract.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -183,7 +183,7 @@ export function ChangeMatchDialog({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
           <span className="text-sm">
             Diferencia: <strong className={isValid ? 'text-green-600 dark:text-green-400' : 'text-destructive'}>${difference.toFixed(2)}</strong>
             {isValid && <span className="ml-2 text-green-600 dark:text-green-400">✓ Coincide</span>}
