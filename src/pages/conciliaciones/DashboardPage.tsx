@@ -1,22 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { CalendarDays, CheckCircle2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
-import type { ReconciliationQualityDiagnostics, ReconciliationQualityIssue, ReconciliationRun } from '@/types/conciliaciones.types';
+import type { ReconciliationQualityDiagnostics, ReconciliationQualityIssue } from '@/types/conciliaciones.types';
 
 const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
-
-const COMPANY_COLORS: Record<string, string> = {
-  Lince: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  Lercara: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-  Zumbi: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-};
 
 const qualityContext = (issue: ReconciliationQualityIssue) => {
   const date = issue.cutDate ? new Date(issue.cutDate).toLocaleDateString() : null;
@@ -25,98 +17,79 @@ const qualityContext = (issue: ReconciliationQualityIssue) => {
 
 export function ConciliacionesDashboardPage() {
   const navigate = useNavigate();
-  const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [qualityDiagnostics, setQualityDiagnostics] = useState<ReconciliationQualityDiagnostics | null>(null);
-  const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    setQualityDiagnostics(null);
-    const company = companyFilter || undefined;
-    Promise.allSettled([
-      conciliacionesApi.listRuns(company),
-      conciliacionesApi.getQualityDiagnostics(company),
-    ])
-      .then(([runsResult, qualityResult]) => {
-        if (runsResult.status === 'fulfilled') {
-          setRuns(runsResult.value);
-        } else {
-          toast.error('No se pudieron cargar las conciliaciones');
-        }
-
-        if (qualityResult.status === 'fulfilled') {
-          setQualityDiagnostics(qualityResult.value);
-        } else {
-          toast.error('No se pudieron cargar los diagnósticos de calidad');
-        }
-      })
+    conciliacionesApi.getQualityDiagnostics(companyFilter || undefined)
+      .then(setQualityDiagnostics)
+      .catch(() => toast.error('No se pudieron cargar los diagnósticos de calidad'))
       .finally(() => setLoading(false));
   }, [companyFilter]);
 
-  const handleDelete = async (e: React.MouseEvent, runId: string) => {
-    e.stopPropagation();
-    if (!confirm('¿Borrar esta conciliación? No se puede deshacer.')) return;
-    try {
-      await conciliacionesApi.deleteRun(runId);
-      setRuns((prev) => prev.filter((r) => r.id !== runId));
-      toast.success('Conciliación borrada');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al borrar');
-    }
-  };
-
-  const thisMonth = runs.filter((r) => {
-    const date = new Date(r.createdAt);
-    const now = new Date();
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  }).length;
-
-  // Agrupar runs por empresa para mostrar secciones separadas
-  const grouped = (() => {
-    if (companyFilter) return [{ company: companyFilter, items: runs }];
-    const map = new Map<string, ReconciliationRun[]>();
-    for (const run of runs) {
-      const key = run.company || '(Sin empresa)';
-      const list = map.get(key) ?? [];
-      list.push(run);
-      map.set(key, list);
-    }
-    // Orden: empresas conocidas primero, luego sin empresa
-    const order = [...COMPANY_OPTIONS, '(Sin empresa)'];
-    return order.filter((k) => map.has(k)).map((k) => ({ company: k, items: map.get(k)! }));
-  })();
+  const totalIssues = qualityDiagnostics?.summary.totalIssues ?? 0;
+  const totalRuns = qualityDiagnostics?.summary.totalRuns ?? 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Conciliaciones Bancarias</h1>
-          <p className="text-muted-foreground">Gestiona tus conciliaciones bancarias</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard de Conciliaciones</h1>
+          <p className="text-muted-foreground">Datos pendientes hoy y base para el tablero operativo mensual.</p>
         </div>
-        <Button onClick={() => navigate('/conciliaciones/nueva')}>
-          <Plus className="mr-2 h-4 w-4" />Nueva Conciliación
-        </Button>
+        <Badge variant="outline" className="text-sm">En construcción</Badge>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="grid gap-4 md:grid-cols-3 flex-1">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Total Conciliaciones</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{runs.length}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Este Mes</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{thisMonth}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Última Actualización</CardTitle></CardHeader>
-            <CardContent><div className="text-sm font-medium">{runs[0] ? new Date(runs[0].createdAt).toLocaleDateString() : '-'}</div></CardContent>
-          </Card>
-        </div>
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-muted-foreground">Empresa:</span>
+        <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-44">
+          <option value="">Todas las empresas</option>
+          {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </Select>
+        {companyFilter && (
+          <button type="button" className="text-xs text-primary underline hover:no-underline" onClick={() => setCompanyFilter('')}>
+            Limpiar filtro
+          </button>
+        )}
       </div>
 
-      {qualityDiagnostics && qualityDiagnostics.summary.totalIssues > 0 && (
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Datos a corregir</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? '...' : totalIssues}</div>
+            <p className="text-xs text-muted-foreground">Bloquean o ensucian métricas futuras.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Conciliaciones revisadas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? '...' : totalRuns}</div>
+            <p className="text-xs text-muted-foreground">Según el filtro de empresa.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Próximo tablero</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CalendarDays className="h-4 w-4 text-primary" /> Mes / quincena
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Gastos, pendientes y evolución por banco.</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {loading ? (
+        <div className="py-8 text-center text-muted-foreground">Cargando diagnóstico...</div>
+      ) : totalIssues > 0 && qualityDiagnostics ? (
         <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
           <CardHeader className="pb-3">
             <div className="flex items-start gap-3">
@@ -124,7 +97,7 @@ export function ConciliacionesDashboardPage() {
               <div>
                 <CardTitle className="text-base">Datos a corregir antes del dashboard</CardTitle>
                 <CardDescription>
-                  {qualityDiagnostics.summary.totalIssues} dato{qualityDiagnostics.summary.totalIssues !== 1 ? 's' : ''} pendiente{qualityDiagnostics.summary.totalIssues !== 1 ? 's' : ''} en {qualityDiagnostics.summary.totalRuns} conciliación{qualityDiagnostics.summary.totalRuns !== 1 ? 'es' : ''}.
+                  {totalIssues} dato{totalIssues !== 1 ? 's' : ''} pendiente{totalIssues !== 1 ? 's' : ''} en {totalRuns} conciliación{totalRuns !== 1 ? 'es' : ''}.
                 </CardDescription>
               </div>
             </div>
@@ -145,76 +118,18 @@ export function ConciliacionesDashboardPage() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Filtro por empresa */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">Filtrar por empresa:</span>
-        <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-44">
-          <option value="">Todas las empresas</option>
-          {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-        </Select>
-        {companyFilter && (
-          <button type="button" className="text-xs text-primary underline hover:no-underline" onClick={() => setCompanyFilter('')}>
-            Limpiar filtro
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="py-8 text-center text-muted-foreground">Cargando...</div>
-      ) : runs.length === 0 ? (
-        <div className="py-8 text-center text-muted-foreground">
-          No hay conciliaciones{companyFilter ? ` para ${companyFilter}` : ''}. Creá una nueva para comenzar.
-        </div>
       ) : (
-        grouped.map(({ company, items }) => (
-          <Card key={company}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base">{company}</CardTitle>
-                <Badge className={COMPANY_COLORS[company] ?? 'bg-muted text-muted-foreground'}>
-                  {items.length} conciliación{items.length !== 1 ? 'es' : ''}
-                </Badge>
+        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div>
+                <CardTitle className="text-base">Sin errores de datos detectados</CardTitle>
+                <CardDescription>La base está lista para avanzar con métricas agrupadas por mes y quincena.</CardDescription>
               </div>
-              <CardDescription>
-                {items.filter((r) => r.status !== 'CLOSED').length} abierta{items.filter((r) => r.status !== 'CLOSED').length !== 1 ? 's' : ''} · {items.filter((r) => r.status === 'CLOSED').length} cerrada{items.filter((r) => r.status === 'CLOSED').length !== 1 ? 's' : ''}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Título</TableHead><TableHead>Fecha</TableHead><TableHead>Banco</TableHead>
-                    <TableHead>Estado</TableHead><TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((run) => (
-                    <TableRow key={run.id} className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/20" onClick={() => navigate(`/conciliaciones/run/${run.id}`)}>
-                      <TableCell className="font-medium">{run.title || 'Sin título'}</TableCell>
-                      <TableCell>{new Date(run.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{run.bankName || '-'}</TableCell>
-                      <TableCell>
-                        <Badge className={run.status === 'CLOSED' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'}>
-                          {run.status === 'CLOSED' ? 'Cerrada' : 'Abierta'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/conciliaciones/run/${run.id}`); }}>Ver Detalle</Button>
-                        {run.status === 'OPEN' && (
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={(e) => void handleDelete(e, run.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        ))
+            </div>
+          </CardHeader>
+        </Card>
       )}
     </div>
   );
