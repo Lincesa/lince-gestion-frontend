@@ -102,6 +102,8 @@ export type Match = {
   extractLineId: string;
   systemLineId: string;
   deltaDays: number;
+  manual?: boolean;
+  matchGroupId?: string | null;
 };
 
 export type UnmatchedExtract = {

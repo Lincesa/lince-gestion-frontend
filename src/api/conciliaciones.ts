@@ -64,10 +64,10 @@ export const conciliacionesApi = {
       body: JSON.stringify({ concept }),
     }),
 
-  setMatch: (runId: string, systemLineId: string, extractLineIds: string[]) =>
+  setMatch: (runId: string, systemLineIds: string[], extractLineIds: string[]) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${runId}/match`, {
       method: 'POST',
-      body: JSON.stringify({ systemLineId, extractLineIds }),
+      body: JSON.stringify({ systemLineIds, extractLineIds }),
     }),
 
   exportRun: async (id: string): Promise<Blob> => {

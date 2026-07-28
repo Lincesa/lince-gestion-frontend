@@ -35,7 +35,11 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
   const [bulkArea, setBulkArea] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(TAB_SISTEMA);
-  const [changeMatchSystem, setChangeMatchSystem] = useState<SystemLine | null>(null);
+  const [changeMatchSelection, setChangeMatchSelection] = useState<{
+    systemIds: string[];
+    extractIds: string[];
+    groupKey: string | null;
+  } | null>(null);
   const [expandedSystemId, setExpandedSystemId] = useState<string | null>(null);
   const [expandedExtractId, setExpandedExtractId] = useState<string | null>(null);
 
@@ -60,26 +64,61 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
 
   const systemToExtracts = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const match of matches) { const list = m.get(match.systemLineId) || []; list.push(match.extractLineId); m.set(match.systemLineId, list); }
+    for (const match of matches) { const list = m.get(match.systemLineId) || []; if (!list.includes(match.extractLineId)) list.push(match.extractLineId); m.set(match.systemLineId, list); }
     return m;
   }, [matches]);
 
   const extractToSystems = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const match of matches) { const list = m.get(match.extractLineId) || []; list.push(match.systemLineId); m.set(match.extractLineId, list); }
+    for (const match of matches) { const list = m.get(match.extractLineId) || []; if (!list.includes(match.systemLineId)) list.push(match.systemLineId); m.set(match.extractLineId, list); }
     return m;
   }, [matches]);
 
-  const blockedExtractIdsForDialog = useMemo(() => {
-    if (!changeMatchSystem) return new Set<string>();
+  const matchGroupKey = (match: Match) => match.matchGroupId ? `group:${match.matchGroupId}` : `system:${match.systemLineId}`;
+
+  const openChangeMatchFromSystem = (systemId: string) => {
+    const directMatches = matches.filter((match) => match.systemLineId === systemId);
+    const groupKey = directMatches[0] ? matchGroupKey(directMatches[0]) : null;
+    const groupMatches = groupKey ? matches.filter((match) => matchGroupKey(match) === groupKey) : [];
+    setChangeMatchSelection({
+      systemIds: groupMatches.length > 0 ? [...new Set(groupMatches.map((match) => match.systemLineId))] : [systemId],
+      extractIds: groupMatches.length > 0 ? [...new Set(groupMatches.map((match) => match.extractLineId))] : [],
+      groupKey,
+    });
+  };
+
+  const openChangeMatchFromExtract = (extractId: string) => {
+    const directMatches = matches.filter((match) => match.extractLineId === extractId);
+    const groupKey = directMatches[0] ? matchGroupKey(directMatches[0]) : null;
+    const groupMatches = groupKey ? matches.filter((match) => matchGroupKey(match) === groupKey) : [];
+    setChangeMatchSelection({
+      systemIds: groupMatches.length > 0 ? [...new Set(groupMatches.map((match) => match.systemLineId))] : [],
+      extractIds: groupMatches.length > 0 ? [...new Set(groupMatches.map((match) => match.extractLineId))] : [extractId],
+      groupKey,
+    });
+  };
+
+  const blockedSystemIdsForDialog = useMemo(() => {
+    if (!changeMatchSelection) return new Set<string>();
     const blocked = new Set<string>();
     for (const match of matches) {
-      if (match.systemLineId !== changeMatchSystem.id) {
+      if (matchGroupKey(match) !== changeMatchSelection.groupKey) {
+        blocked.add(match.systemLineId);
+      }
+    }
+    return blocked;
+  }, [matches, changeMatchSelection]);
+
+  const blockedExtractIdsForDialog = useMemo(() => {
+    if (!changeMatchSelection) return new Set<string>();
+    const blocked = new Set<string>();
+    for (const match of matches) {
+      if (matchGroupKey(match) !== changeMatchSelection.groupKey) {
         blocked.add(match.extractLineId);
       }
     }
     return blocked;
-  }, [matches, changeMatchSystem]);
+  }, [matches, changeMatchSelection]);
 
   const allIncorrect = [
     ...unmatchedSystem.map((u) => ({ id: u.systemLineId, type: u.status as 'OVERDUE' | 'DEFERRED', systemLine: systemById.get(u.systemLineId), status: u.status as 'OVERDUE' | 'DEFERRED' })),
@@ -191,7 +230,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                               <TableCell>{isMatched ? 'Correcto' : un?.status === 'OVERDUE' ? 'Vencido' : 'Diferido'}</TableCell>
                               {runId && (
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="outline" size="sm" onClick={() => setChangeMatchSystem(sys)}>Cambiar match</Button>
+                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromSystem(sys.id)}>Cambiar match</Button>
                                 </TableCell>
                               )}
                             </TableRow>
@@ -215,7 +254,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
               {activeTab === TAB_EXTRACTO && (
                 <div className="overflow-auto">
                   <Table>
-                    <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Concepto</TableHead><TableHead>Importe</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Concepto</TableHead><TableHead>Importe</TableHead><TableHead>Estado</TableHead>{runId && <TableHead></TableHead>}</TableRow></TableHeader>
                     <TableBody>
                       {extractLines.map((ext) => {
                         const isMatched = extractToSystems.has(ext.id);
@@ -229,10 +268,15 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                               <TableCell className="max-w-[200px] truncate">{ext.concept || '-'}</TableCell>
                               <TableCell>${ext.amount.toFixed(2)}</TableCell>
                               <TableCell>{isMatched ? 'Correcto' : 'Solo extracto'}</TableCell>
+                              {runId && (
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromExtract(ext.id)}>Cambiar match</Button>
+                                </TableCell>
+                              )}
                             </TableRow>
                             {isExpanded && systemIds.length > 0 && (
                               <TableRow className="bg-muted/50">
-                                <TableCell colSpan={4} className="py-2">
+                                <TableCell colSpan={runId ? 5 : 4} className="py-2">
                                   <p className="text-xs font-medium text-muted-foreground mb-1">Match con sistema:</p>
                                   <ul className="space-y-1 text-sm">
                                     {systemIds.map((sid) => { const s = systemById.get(sid); return s ? <li key={sid}>{s.description || '-'} — ${s.amount.toFixed(2)}</li> : null; })}
@@ -333,16 +377,18 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
         </CardContent>
       </Card>
 
-      {runId && changeMatchSystem && (
+      {runId && changeMatchSelection && (
         <ChangeMatchDialog
-          open={!!changeMatchSystem}
-          onClose={() => setChangeMatchSystem(null)}
+          open={!!changeMatchSelection}
+          onClose={() => setChangeMatchSelection(null)}
           runId={runId}
-          systemLine={changeMatchSystem}
+          systemLines={systemLines}
           extractLines={extractLines}
-          currentExtractIds={systemToExtracts.get(changeMatchSystem.id) || []}
+          currentSystemIds={changeMatchSelection.systemIds}
+          currentExtractIds={changeMatchSelection.extractIds}
+          blockedSystemIds={blockedSystemIdsForDialog}
           blockedExtractIds={blockedExtractIdsForDialog}
-          onSuccess={() => { onChangeMatchSuccess?.(); setChangeMatchSystem(null); }}
+          onSuccess={() => { onChangeMatchSuccess?.(); setChangeMatchSelection(null); }}
         />
       )}
     </>
