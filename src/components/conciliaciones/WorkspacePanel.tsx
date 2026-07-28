@@ -190,10 +190,10 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
         <CardContent className="space-y-4">
           <div className="flex gap-4 p-4 bg-muted/50 dark:bg-muted/30 rounded-lg">
             <div className="flex-1"><p className="text-sm text-muted-foreground">Total sin match</p><p className="text-2xl font-bold">{allIncorrect.length + unmatchedExtract.length}</p></div>
-            <div className="flex-1"><p className="text-sm text-muted-foreground">Vencidos</p><p className="text-2xl font-bold text-red-600 dark:text-red-400">{overdueCount}</p></div>
-            <div className="flex-1"><p className="text-sm text-muted-foreground">Diferidos</p><p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{deferredCount}</p></div>
-            <div className="flex-1"><p className="text-sm text-muted-foreground">Solo extracto</p><p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{unmatchedExtract.length}</p></div>
-            <div className="flex-1"><p className="text-sm text-muted-foreground">Con área</p><p className="text-2xl font-bold text-green-600 dark:text-green-400">{pendingCount}</p></div>
+            <div className="flex-1"><p className="text-sm text-muted-foreground">Vencidos</p><p className="text-2xl font-bold text-red-600 dark:text-red-200">{overdueCount}</p></div>
+            <div className="flex-1"><p className="text-sm text-muted-foreground">Diferidos</p><p className="text-2xl font-bold text-yellow-600 dark:text-yellow-200">{deferredCount}</p></div>
+            <div className="flex-1"><p className="text-sm text-muted-foreground">Solo extracto</p><p className="text-2xl font-bold text-blue-600 dark:text-blue-200">{unmatchedExtract.length}</p></div>
+            <div className="flex-1"><p className="text-sm text-muted-foreground">Con área</p><p className="text-2xl font-bold text-green-600 dark:text-green-200">{pendingCount}</p></div>
           </div>
 
           <CollapsibleSection title="Vista por archivo (Sistema / Extracto)" defaultOpen={true} maxHeight="50vh">
@@ -230,7 +230,9 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                               <TableCell>{isMatched ? 'Correcto' : un?.status === 'OVERDUE' ? 'Vencido' : 'Diferido'}</TableCell>
                               {runId && (
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromSystem(sys.id)}>Cambiar match</Button>
+                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromSystem(sys.id)}>
+                                    {isMatched ? 'Cambiar match' : 'Matchear'}
+                                  </Button>
                                 </TableCell>
                               )}
                             </TableRow>
@@ -270,7 +272,9 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                               <TableCell>{isMatched ? 'Correcto' : 'Solo extracto'}</TableCell>
                               {runId && (
                                 <TableCell onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromExtract(ext.id)}>Cambiar match</Button>
+                                  <Button variant="outline" size="sm" onClick={() => openChangeMatchFromExtract(ext.id)}>
+                                    {isMatched ? 'Cambiar match' : 'Matchear'}
+                                  </Button>
                                 </TableCell>
                               )}
                             </TableRow>
@@ -314,6 +318,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                   </TableHead>
                   <TableHead>Descripción</TableHead><TableHead>Fecha Emisión</TableHead><TableHead>Fecha Venc.</TableHead>
                   <TableHead>Importe</TableHead><TableHead>Estado</TableHead><TableHead>Área Asignada</TableHead>
+                  {runId && <TableHead></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -343,6 +348,11 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                           {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
                         </Select>
                       </TableCell>
+                      {runId && (
+                        <TableCell>
+                          <Button variant="outline" size="sm" onClick={() => openChangeMatchFromSystem(item.id)}>Matchear</Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -357,7 +367,12 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
           {unmatchedExtract.length > 0 && (
             <CollapsibleSection title={`Solo en extracto (${unmatchedExtract.length})`} defaultOpen={true} maxHeight="50vh">
               <Table>
-                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Concepto</TableHead><TableHead>Importe</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead><TableHead>Concepto</TableHead><TableHead>Importe</TableHead>
+                    {runId && <TableHead></TableHead>}
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {unmatchedExtract.map((row) => {
                     const ext = extractById.get(row.extractLineId);
@@ -367,6 +382,11 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                         <TableCell>{ext.date ? new Date(ext.date).toLocaleDateString() : '-'}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{ext.concept || '-'}</TableCell>
                         <TableCell>${ext.amount.toFixed(2)}</TableCell>
+                        {runId && (
+                          <TableCell>
+                            <Button variant="outline" size="sm" onClick={() => openChangeMatchFromExtract(row.extractLineId)}>Matchear</Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
