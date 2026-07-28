@@ -10,10 +10,11 @@ interface IssuesPanelProps {
   runId: string;
   issues: Issue[];
   isOwner: boolean;
+  isClosed: boolean;
   onRefresh: () => void | Promise<unknown>;
 }
 
-export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelProps) {
+export function IssuesPanel({ runId, issues, isOwner, isClosed, onRefresh }: IssuesPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -32,6 +33,7 @@ export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelPr
     const base = issues.map((i) => pendingUpdatedIssues[i.id] ?? i);
     return [...base, ...pendingNewIssues];
   })();
+  const canMutate = !isClosed;
 
   const getDisplayIssue = (issue: Issue) => pendingUpdatedIssues[issue.id] ?? issue;
   const getDisplayComments = (issue: Issue): IssueComment[] => {
@@ -83,10 +85,12 @@ export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelPr
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2"><MessageSquare className="h-5 w-5" />Issues ({displayIssues.length})</h3>
-        <Button variant="outline" size="sm" onClick={() => setCreating(true)} disabled={loading}><Plus className="mr-1 h-4 w-4" />Nuevo issue</Button>
+        {canMutate && (
+          <Button variant="outline" size="sm" onClick={() => setCreating(true)} disabled={loading}><Plus className="mr-1 h-4 w-4" />Nuevo issue</Button>
+        )}
       </div>
 
-      {creating && (
+      {creating && canMutate && (
         <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
           <Input placeholder="Título" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} disabled={loading} />
           <textarea className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-70" placeholder="Descripción (opcional)" value={newBody} onChange={(e) => setNewBody(e.target.value)} disabled={loading} />
@@ -125,7 +129,7 @@ export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelPr
                     </div>
                   ) : (
                     <>
-                      {isOwner && (
+                      {canMutate && isOwner && (
                         <Button variant="outline" size="sm" onClick={() => { setEditingId(issue.id); setEditTitle(displayIssue.title); setEditBody(displayIssue.body ?? ''); }} disabled={loading}>
                           <Pencil className="mr-1 h-3 w-3" />Editar
                         </Button>
@@ -148,12 +152,14 @@ export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelPr
                             ))}
                           </ul>
                         )}
-                        <div className="flex gap-2 pt-2 items-start">
-                          <textarea className="flex min-h-[60px] flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-70" placeholder="Escribir comentario..." value={commentBody} onChange={(e) => setCommentBody(e.target.value)} disabled={loadingCommentForId === issue.id} />
-                          <Button size="sm" onClick={() => void handleAddComment(issue.id)} disabled={!commentBody.trim() || loadingCommentForId === issue.id}>
-                            {loadingCommentForId === issue.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          </Button>
-                        </div>
+                        {canMutate && (
+                          <div className="flex gap-2 pt-2 items-start">
+                            <textarea className="flex min-h-[60px] flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-70" placeholder="Escribir comentario..." value={commentBody} onChange={(e) => setCommentBody(e.target.value)} disabled={loadingCommentForId === issue.id} />
+                            <Button size="sm" onClick={() => void handleAddComment(issue.id)} disabled={!commentBody.trim() || loadingCommentForId === issue.id}>
+                              {loadingCommentForId === issue.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -165,7 +171,9 @@ export function IssuesPanel({ runId, issues, isOwner, onRefresh }: IssuesPanelPr
       </ul>
 
       {displayIssues.length === 0 && !creating && (
-        <p className="text-muted-foreground text-center py-8">No hay issues. Creá uno para abrir un caso.</p>
+        <p className="text-muted-foreground text-center py-8">
+          {canMutate ? 'No hay issues. Creá uno para abrir un caso.' : 'No hay issues.'}
+        </p>
       )}
     </div>
   );

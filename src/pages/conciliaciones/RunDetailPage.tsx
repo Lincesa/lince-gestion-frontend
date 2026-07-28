@@ -42,9 +42,10 @@ export function RunDetailPage() {
   const isClosed = detail?.status === 'CLOSED';
   const isCreator = !!(detail?.createdById && user?.id && detail.createdById === user.id);
   const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
-  const canEditContent = isCreator || (detail?.members?.some((m) => m.userId === user?.id && m.role === 'EDITOR') ?? false);
-  const canClose = !isClosed && (canEditContent || isSuperAdmin);
+  const canManageOpenRun = !isClosed && (isSuperAdmin || isCreator || (detail?.members?.some((m) => m.userId === user?.id && m.role === 'EDITOR') ?? false));
+  const canClose = canManageOpenRun;
   const canReopen = !!isClosed && (isCreator || isSuperAdmin);
+  const canManagePermissions = !isClosed && (isCreator || isSuperAdmin);
 
   const fetchDetail = async () => {
     if (!id) return;
@@ -218,7 +219,7 @@ export function RunDetailPage() {
           <p className="text-muted-foreground flex items-center gap-2 flex-wrap mt-1">
             <span>{new Date(detail.createdAt).toLocaleDateString()}</span>
             <span>—</span>
-            {!isClosed && canEditContent ? (
+            {!isClosed && canManageOpenRun ? (
               <>
                 <Label className="text-muted-foreground font-normal">Empresa:</Label>
                 <Select value={COMPANY_OPTIONS.includes(detail.company || '') ? (detail.company ?? '') : ''} onChange={(e) => void handleCompanyChange(e.target.value)} className="w-36 h-8 text-sm">
@@ -266,12 +267,12 @@ export function RunDetailPage() {
               {updatingStatus ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Reabriendo...</> : 'Reabrir conciliación'}
             </Button>
           )}
-          {!isClosed && pendingCount > 0 && (
+          {canManageOpenRun && pendingCount > 0 && (
             <Button variant="outline" onClick={() => setNotifyDialogOpen(true)}>
               <Send className="mr-2 h-4 w-4" />Notificar Pendientes
             </Button>
           )}
-          {!isClosed && canEditContent && (
+          {!isClosed && canManageOpenRun && (
             <Button variant="outline" onClick={() => setUpdateSystemDialogOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />Actualizar Excel sistema
             </Button>
@@ -283,10 +284,10 @@ export function RunDetailPage() {
       </div>
 
       <div className="flex gap-0 rounded-lg border bg-card overflow-hidden min-h-[calc(100vh-12rem)]">
-        <RunDetailSidebar active={section} onSelect={setSection} issuesCount={detail.issues?.length ?? 0} showPermisos={isCreator} />
+        <RunDetailSidebar active={section} onSelect={setSection} issuesCount={detail.issues?.length ?? 0} showPermisos={canManagePermissions} />
         <div className="flex-1 overflow-auto p-4">
           {section === 'resumen' && (
-            <ResumenPanel detail={detail} pendingItems={pendingItems} systemById={systemById} extractById={extractById} isClosed={!!isClosed} canEdit={canEditContent} onResolvePending={handleResolvePending} onOpenAddPending={(sysId) => { setPendingSystemLineId(sysId); setPendingDialogOpen(true); }} />
+            <ResumenPanel detail={detail} pendingItems={pendingItems} systemById={systemById} extractById={extractById} isClosed={!!isClosed} canEdit={canManageOpenRun} onResolvePending={handleResolvePending} onOpenAddPending={(sysId) => { setPendingSystemLineId(sysId); setPendingDialogOpen(true); }} />
           )}
           {section === 'libro-banco' && (
             <LibroBancoPanel
@@ -301,8 +302,8 @@ export function RunDetailPage() {
               matches={detail.matches} unmatchedSystem={detail.unmatchedSystem} unmatchedExtract={detail.unmatchedExtract}
               systemLines={detail.systemLines} extractLines={extractLinesActive} extractById={extractById} systemById={systemById}
               excludeConcepts={detail.excludeConcepts ?? []} pendingAreaBySystemLineId={pendingAreaBySystemLineId}
-              onSave={canEditContent ? handleWorkspaceSave : undefined} onFinalize={canEditContent ? handleWorkspaceFinalize : undefined}
-              onChangeMatchSuccess={fetchDetail} runId={canEditContent ? id : undefined}
+              onSave={canManageOpenRun ? handleWorkspaceSave : undefined} onFinalize={canManageOpenRun ? handleWorkspaceFinalize : undefined}
+              onChangeMatchSuccess={fetchDetail} runId={canManageOpenRun ? id : undefined}
             />
           )}
           {section === 'workspace' && isClosed && (
@@ -312,17 +313,17 @@ export function RunDetailPage() {
             <ExclusionesPanel
               excludeConcepts={detail.excludeConcepts ?? []} extractLines={detail.extractLines}
               excludedSummary={detail.excludedSummary ?? []}
-              canEdit={canEditContent} isClosed={!!isClosed} runId={id}
-              onRemoveExcludedConcept={canEditContent && !isClosed && id ? async (concept) => { const updated = await conciliacionesApi.removeExcludedConcept(id, concept); setDetail(updated); toast.success('Exclusión quitada'); } : undefined}
-              onExcludeConcepts={canEditContent && !isClosed && id ? async (concepts) => { await conciliacionesApi.excludeConcepts(id, concepts); await fetchDetail(); toast.success(concepts.length === 1 ? 'Concepto excluido' : `${concepts.length} conceptos excluidos`); } : undefined}
-              onExcludeByCategory={canEditContent && !isClosed && id ? async (categoryId) => { await conciliacionesApi.excludeByCategory(id, categoryId); await fetchDetail(); toast.success('Conceptos de la categoría excluidos'); } : undefined}
+              canEdit={canManageOpenRun} isClosed={!!isClosed} runId={id}
+              onRemoveExcludedConcept={canManageOpenRun && !isClosed && id ? async (concept) => { const updated = await conciliacionesApi.removeExcludedConcept(id, concept); setDetail(updated); toast.success('Exclusión quitada'); } : undefined}
+              onExcludeConcepts={canManageOpenRun && !isClosed && id ? async (concepts) => { await conciliacionesApi.excludeConcepts(id, concepts); await fetchDetail(); toast.success(concepts.length === 1 ? 'Concepto excluido' : `${concepts.length} conceptos excluidos`); } : undefined}
+              onExcludeByCategory={canManageOpenRun && !isClosed && id ? async (categoryId) => { await conciliacionesApi.excludeByCategory(id, categoryId); await fetchDetail(); toast.success('Conceptos de la categoría excluidos'); } : undefined}
               onSuccess={fetchDetail}
             />
           )}
           {section === 'issues' && (
-            <IssuesPanel runId={id!} issues={detail.issues ?? []} isOwner={isCreator} onRefresh={fetchDetail} />
+            <IssuesPanel runId={id!} issues={detail.issues ?? []} isOwner={isCreator || isSuperAdmin} isClosed={!!isClosed} onRefresh={fetchDetail} />
           )}
-          {section === 'permisos' && isCreator && (
+          {section === 'permisos' && canManagePermissions && (
             <PermissionsPanel detail={detail} onRefresh={fetchDetail} />
           )}
         </div>
