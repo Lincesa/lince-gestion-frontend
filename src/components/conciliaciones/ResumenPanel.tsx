@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
-import type { RunDetail, PendingItem, SystemLine, ExtractLine } from '@/types/conciliaciones.types';
+import { hasCarryoverContext, type RunDetail, type PendingItem, type SystemLine, type ExtractLine } from '@/types/conciliaciones.types';
 
 interface ResumenPanelProps {
   detail: RunDetail;
@@ -61,10 +61,19 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
               <TableBody>
                 {activePending.map((pending) => {
                   const sys = pending.systemLine || systemById.get(pending.systemLineId || '');
+                  const isCarried = hasCarryoverContext(pending);
                   return (
                     <TableRow key={pending.id}>
                       <TableCell><Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300">{pending.area}</Badge></TableCell>
-                      <TableCell className="max-w-[200px] truncate">{sys?.description || '-'}</TableCell>
+                      <TableCell className="max-w-[200px]">
+                        <p className="truncate">{sys?.description || '-'}</p>
+                        {isCarried && (
+                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300" title={pending.sourceRunId ?? pending.originPendingItemId ?? undefined}>
+                            <Badge variant="secondary" className="mr-1 text-xs">Arrastrado</Badge>
+                            {pending.carriedAt ? `desde ${new Date(pending.carriedAt).toLocaleDateString()}` : 'de una ejecución anterior'}
+                          </p>
+                        )}
+                      </TableCell>
                       <TableCell>{sys?.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'}</TableCell>
                       <TableCell>{sys?.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'}</TableCell>
                       <TableCell>${sys?.amount.toFixed(2) || '0.00'}</TableCell>

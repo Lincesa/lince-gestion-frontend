@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChangeMatchDialog } from './ChangeMatchDialog';
-import type { UnmatchedSystem, SystemLine, ExtractLine, Match } from '@/types/conciliaciones.types';
+import { hasCarryoverContext, type UnmatchedSystem, type SystemLine, type ExtractLine, type Match, type PendingItem } from '@/types/conciliaciones.types';
 
 interface WorkspacePanelProps {
   matches: Match[];
@@ -23,13 +23,14 @@ interface WorkspacePanelProps {
   onChangeMatchSuccess?: () => void;
   runId?: string;
   pendingAreaBySystemLineId?: Map<string, string>;
+  pendingItems?: PendingItem[];
 }
 
 const AREAS = ['Dirección', 'Tesorería'];
 const TAB_SISTEMA = 'sistema';
 const TAB_EXTRACTO = 'extracto';
 
-export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, systemLines, extractLines, systemById, extractById, onSave, onFinalize, onChangeMatchSuccess, runId, pendingAreaBySystemLineId }: WorkspacePanelProps) {
+export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, systemLines, extractLines, systemById, extractById, onSave, onFinalize, onChangeMatchSuccess, runId, pendingAreaBySystemLineId, pendingItems = [] }: WorkspacePanelProps) {
   const [workItems, setWorkItems] = useState<Map<string, { area: string; status: 'OVERDUE' | 'DEFERRED' }>>(new Map());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [bulkArea, setBulkArea] = useState('');
@@ -165,6 +166,11 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
   const pendingCount = Array.from(workItems.values()).filter((i) => i.area).length;
   const overdueCount = allIncorrect.filter((i) => (workItems.get(i.id)?.status || i.status) === 'OVERDUE').length;
   const deferredCount = allIncorrect.filter((i) => (workItems.get(i.id)?.status || i.status) === 'DEFERRED').length;
+  const carriedPendingBySystemLineId = useMemo(() => new Map(
+    pendingItems
+      .filter((pending) => pending.status !== 'RESOLVED' && pending.systemLineId && hasCarryoverContext(pending))
+      .map((pending) => [pending.systemLineId!, pending]),
+  ), [pendingItems]);
 
   return (
     <>
@@ -317,7 +323,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                     <input type="checkbox" checked={selectedItems.size === allIncorrect.length && allIncorrect.length > 0} onChange={handleToggleAll} disabled={!onSave} className="h-4 w-4 rounded border-input" />
                   </TableHead>
                   <TableHead>Descripción</TableHead><TableHead>Fecha Emisión</TableHead><TableHead>Fecha Venc.</TableHead>
-                  <TableHead>Importe</TableHead><TableHead>Estado</TableHead><TableHead>Área Asignada</TableHead>
+                  <TableHead>Importe</TableHead><TableHead>Estado</TableHead><TableHead>Área Asignada</TableHead><TableHead>Contexto</TableHead>
                   {runId && <TableHead></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -327,6 +333,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                   if (!sys) return null;
                   const workData = workItems.get(item.id);
                   const currentStatus = workData?.status ?? item.status;
+                  const carriedPending = carriedPendingBySystemLineId.get(item.id);
                   return (
                     <TableRow key={item.id}>
                       <TableCell>
@@ -347,6 +354,13 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                           <option value="">Sin asignar</option>
                           {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
                         </Select>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-300">
+                        {carriedPending ? (
+                          <span title={carriedPending.sourceRunId ?? carriedPending.originPendingItemId ?? undefined}>
+                            Arrastrado{carriedPending.carriedAt ? ` · ${new Date(carriedPending.carriedAt).toLocaleDateString()}` : ''}
+                          </span>
+                        ) : '-'}
                       </TableCell>
                       {runId && (
                         <TableCell>
