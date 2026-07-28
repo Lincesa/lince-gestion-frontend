@@ -26,17 +26,17 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_CLASSES: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
-  QUEUED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  QUEUED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
+  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
 };
 
 const WAVE_STATUS_CLASSES: Record<string, string> = {
-  SCHEDULED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  SCHEDULED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
+  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
 };
 
 const WAVE_STATUS_LABELS: Record<string, string> = {
@@ -47,9 +47,9 @@ const WAVE_STATUS_LABELS: Record<string, string> = {
 };
 
 const REC_STATUS_CLASSES: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  SENT: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  PENDING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
+  SENT: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
   SKIPPED: 'bg-muted text-muted-foreground',
 };
 
@@ -62,8 +62,8 @@ const REC_STATUS_LABELS: Record<string, string> = {
 
 const LOG_LEVEL_CLASSES: Record<string, string> = {
   INFO: 'bg-muted text-muted-foreground',
-  WARN: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  ERROR: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  WARN: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
+  ERROR: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
 };
 
 const LOG_EVENT_LABELS: Record<string, string> = {
@@ -496,7 +496,7 @@ export function CampaignDetailPage() {
                 {!loadingPreview && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {preview.length} clientes encontrados ·{' '}
-                    <span className="text-green-600 dark:text-green-400">{willSendCount} se enviarán</span>
+                    <span className="text-green-600 dark:text-green-200">{willSendCount} se enviarán</span>
                     {willSkipCount > 0 && (
                       <span className="text-muted-foreground"> · {willSkipCount} se omitirán</span>
                     )}
@@ -600,7 +600,7 @@ export function CampaignDetailPage() {
                       <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{p.producto || '—'}</td>
                       <td className="px-4 py-2.5">
                         {p.willSend ? (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200">
                             Enviar
                           </span>
                         ) : (
@@ -715,7 +715,7 @@ export function CampaignDetailPage() {
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{kpi.label}</p>
             <p className={[
               'mt-1 text-2xl font-bold',
-              kpi.positive && kpi.value > 0 ? 'text-green-600 dark:text-green-400' : '',
+              kpi.positive && kpi.value > 0 ? 'text-green-600 dark:text-green-200' : '',
               kpi.negative && kpi.value > 0 ? 'text-destructive' : '',
               !kpi.positive && !kpi.negative ? 'text-foreground' : '',
             ].filter(Boolean).join(' ')}>
@@ -739,7 +739,7 @@ export function CampaignDetailPage() {
             {c.startedAt && <span>Iniciada: {formatDate(c.startedAt)}</span>}
             {c.completedAt && <span>Completada: {formatDate(c.completedAt)}</span>}
             {c.pendingCount > 0 && (
-              <span className="text-yellow-600 dark:text-yellow-400">{c.pendingCount} pendientes</span>
+              <span className="text-yellow-600 dark:text-yellow-200">{c.pendingCount} pendientes</span>
             )}
           </div>
         </div>
@@ -814,7 +814,7 @@ export function CampaignDetailPage() {
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">{wave.recipientCount}</td>
                     <td className="px-4 py-2.5">
-                      <span className="text-green-600 dark:text-green-400 font-medium">{wave.sentCount}</span>
+                      <span className="text-green-600 dark:text-green-200 font-medium">{wave.sentCount}</span>
                     </td>
                     <td className="px-4 py-2.5">
                       {wave.failedCount > 0 ? (

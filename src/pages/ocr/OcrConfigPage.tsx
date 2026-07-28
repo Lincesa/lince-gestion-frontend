@@ -116,7 +116,7 @@ export function OcrConfigPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2 text-sm text-red-700 dark:text-red-400">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2 text-sm text-red-700 dark:text-red-200">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           {error}
         </div>
@@ -191,8 +191,8 @@ export function OcrConfigPage() {
       })}
 
       <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-        <p className="text-xs text-blue-700 dark:text-blue-400 font-medium mb-1">Nota sobre el OCR</p>
-        <p className="text-xs text-blue-600 dark:text-blue-400">
+        <p className="text-xs text-blue-700 dark:text-blue-200 font-medium mb-1">Nota sobre el OCR</p>
+        <p className="text-xs text-blue-600 dark:text-blue-200">
           Los campos se extraen con Google Document AI (u OCR fallback según configuración).
           La precisión depende de la calidad de la imagen.
           Los campos obligatorios no detectados generan alertas al equipo ADMIN y permiten corrección manual.

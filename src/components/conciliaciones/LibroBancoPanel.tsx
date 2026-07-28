@@ -89,28 +89,28 @@ export function LibroBancoPanel({ systemLines, matches, unmatchedSystem, extract
 
       {/* Totalizadores */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 p-3">
-          <p className="text-xs font-medium text-green-700 dark:text-green-400">Correctos</p>
-          <p className="text-xl font-bold text-green-600 dark:text-green-500">{totals.matchedCount}</p>
-          <p className="text-xs text-green-600 dark:text-green-500">${totals.matchedAmount.toFixed(2)}</p>
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+          <p className="text-xs font-medium text-green-700 dark:text-green-200">Correctos</p>
+          <p className="text-xl font-bold text-green-700 dark:text-green-100">{totals.matchedCount}</p>
+          <p className="text-xs text-green-700 dark:text-green-200">${totals.matchedAmount.toFixed(2)}</p>
         </div>
-        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 p-3">
-          <p className="text-xs font-medium text-red-700 dark:text-red-400">Vencidos</p>
-          <p className="text-xl font-bold text-red-600 dark:text-red-500">{totals.overdueCount}</p>
-          <p className="text-xs text-red-600 dark:text-red-500">${totals.overdueAmount.toFixed(2)}</p>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+          <p className="text-xs font-medium text-red-700 dark:text-red-200">Vencidos</p>
+          <p className="text-xl font-bold text-red-700 dark:text-red-100">{totals.overdueCount}</p>
+          <p className="text-xs text-red-700 dark:text-red-200">${totals.overdueAmount.toFixed(2)}</p>
         </div>
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 p-3">
-          <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Diferidos</p>
-          <p className="text-xl font-bold text-yellow-600 dark:text-yellow-500">{totals.deferredCount}</p>
-          <p className="text-xs text-yellow-600 dark:text-yellow-500">${totals.deferredAmount.toFixed(2)}</p>
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-200">Diferidos</p>
+          <p className="text-xl font-bold text-amber-700 dark:text-amber-100">{totals.deferredCount}</p>
+          <p className="text-xs text-amber-700 dark:text-amber-200">${totals.deferredAmount.toFixed(2)}</p>
         </div>
       </div>
 
       {/* Leyenda */}
       <div className="flex gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-green-200 dark:bg-green-800" />Verde = Correcto (matcheado)</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-red-200 dark:bg-red-800" />Rojo = Vencido</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-yellow-200 dark:bg-yellow-800" />Amarillo = Diferido</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-green-500/40" />Verde = Correcto (matcheado)</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-red-500/40" />Rojo = Vencido</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-amber-500/40" />Amarillo = Diferido</span>
       </div>
 
       {/* Buscador */}

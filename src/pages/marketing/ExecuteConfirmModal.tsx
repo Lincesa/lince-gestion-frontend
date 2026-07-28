@@ -21,7 +21,7 @@ export function ExecuteConfirmModal({ campaign, submitting, onConfirm, onClose }
     <Dialog open onClose={onClose} title="Confirmar envío masivo">
       <div className="space-y-5">
         <div className="flex gap-3 rounded-md border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900/50 dark:bg-yellow-900/20">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600 dark:text-yellow-200 mt-0.5" />
           <div className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1">
             <p className="font-semibold">Esta acción enviará mensajes de WhatsApp a todos los destinatarios de la campaña.</p>
             <p>Una vez iniciada, no se puede cancelar.</p>

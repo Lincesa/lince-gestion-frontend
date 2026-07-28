@@ -39,7 +39,7 @@ type PresenceStatus = 'si' | 'duda' | 'no';
 const PRESENCE_CONFIG: Record<PresenceStatus, { label: string; className: string; icon: ReactNode }> = {
   si: {
     label: 'Detectado',
-    className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
     icon: <CheckCircle className="h-3.5 w-3.5" />,
   },
   duda: {
@@ -49,7 +49,7 @@ const PRESENCE_CONFIG: Record<PresenceStatus, { label: string; className: string
   },
   no: {
     label: 'No encontró',
-    className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
     icon: <XCircle className="h-3.5 w-3.5" />,
   },
 };
@@ -284,7 +284,7 @@ export function OcrDashboardPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
           {error}
         </div>
       )}
@@ -314,13 +314,13 @@ export function OcrDashboardPage() {
               <div key={label} className="flex items-center gap-3">
                 <span className="w-24 shrink-0 text-sm text-foreground">{label}</span>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-200">
                     <CheckCircle className="h-3.5 w-3.5" />{counts.si}
                   </span>
-                  <span className="flex items-center gap-1 font-medium text-yellow-600 dark:text-yellow-400">
+                  <span className="flex items-center gap-1 font-medium text-yellow-600 dark:text-yellow-200">
                     <AlertTriangle className="h-3.5 w-3.5" />{counts.duda}
                   </span>
-                  <span className="flex items-center gap-1 font-medium text-red-500 dark:text-red-400">
+                  <span className="flex items-center gap-1 font-medium text-red-500 dark:text-red-200">
                     <XCircle className="h-3.5 w-3.5" />{counts.no}
                   </span>
                 </div>
@@ -494,7 +494,7 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'dni')} /></td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {doc.status === DocumentStatus.PENDIENTE || doc.status === DocumentStatus.PROCESANDO ? (
-                        <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-400">
+                        <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-200">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           Procesando OCR…
                         </span>
