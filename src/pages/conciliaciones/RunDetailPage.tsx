@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Loader2, Send, Upload } from 'lucide-react';
+import { Check, Download, Loader2, Pencil, Send, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import { useAppSelector } from '@/store';
@@ -38,6 +38,9 @@ export function RunDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updateSystemDialogOpen, setUpdateSystemDialogOpen] = useState(false);
   const [updatingWindowDays, setUpdatingWindowDays] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
 
   const isClosed = detail?.status === 'CLOSED';
   const isCreator = !!(detail?.createdById && user?.id && detail.createdById === user.id);
@@ -65,6 +68,12 @@ export function RunDetailPage() {
     setIsLoading(true);
     void fetchDetail();
   }, [id]);
+
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setTitleDraft(detail?.title ?? '');
+    }
+  }, [detail?.title, isEditingTitle]);
 
   const handleExport = async () => {
     if (!id) return;
@@ -156,6 +165,32 @@ export function RunDetailPage() {
     }
   };
 
+  const handleStartTitleEdit = () => {
+    setTitleDraft(detail?.title ?? '');
+    setIsEditingTitle(true);
+  };
+
+  const handleCancelTitleEdit = () => {
+    setTitleDraft(detail?.title ?? '');
+    setIsEditingTitle(false);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!id || !detail) return;
+    const nextTitle = titleDraft.trim() || null;
+    setIsSavingTitle(true);
+    try {
+      const updated = await conciliacionesApi.updateRun(id, { title: nextTitle });
+      setDetail(updated);
+      setIsEditingTitle(false);
+      toast.success('Título actualizado');
+    } catch {
+      toast.error('Error al actualizar título');
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
+
   const handleWorkspaceFinalize = async () => {
     if (!id || !detail) return;
     const pendingItems = detail.pendingItems || [];
@@ -211,7 +246,37 @@ export function RunDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{detail.title || 'Conciliación'}</h1>
+            {isEditingTitle ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSaveTitle();
+                    if (e.key === 'Escape') handleCancelTitleEdit();
+                  }}
+                  className="h-8 w-64 text-lg font-semibold"
+                  placeholder="Conciliación"
+                  autoFocus
+                  disabled={isSavingTitle}
+                />
+                <Button size="sm" variant="ghost" onClick={() => void handleSaveTitle()} disabled={isSavingTitle}>
+                  {isSavingTitle ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleCancelTitleEdit} disabled={isSavingTitle}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold">{detail.title || 'Conciliación'}</h1>
+                {canManageOpenRun && (
+                  <Button size="sm" variant="ghost" onClick={handleStartTitleEdit} className="h-8 w-8 p-0">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            )}
             <Badge className={detail.status === 'CLOSED' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'}>
               {detail.status === 'CLOSED' ? 'Cerrada' : 'Abierta'}
             </Badge>
