@@ -107,6 +107,20 @@ export interface AusenciaEmpleado {
   updatedAt: string;
 }
 
+// Regla de horario esperado por empleado: pisa el esperado L-V para ciertos días de la semana
+// (1=Lun ... 5=Vie) dentro de un rango de fechas opcional (null = abierto).
+export interface HorarioReglaEmpleado {
+  id: string;
+  empleadoId: string;
+  diasSemana: number[];
+  desde: string | null;
+  hasta: string | null;
+  horasEsperadas: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PinSummaryRow {
   pin: string;
   planta: Planta;

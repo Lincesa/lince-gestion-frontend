@@ -9,7 +9,7 @@ import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
 import { useCanPerform } from '@/hooks/useCanPerform';
 import { ModuleKey } from '@/types/auth.types';
-import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
+import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsistencia, HorarioReglaEmpleado, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -167,6 +167,29 @@ function formatFichajeHora(iso: string): string {
 
 function formatSoloHora(iso: string): string {
   return fmtSoloHora.format(new Date(iso));
+}
+
+// Días de la jornada normal (1=Lun ... 5=Vie) para las reglas de horario esperado.
+const DIAS_SEMANA_LV: Array<{ value: number; label: string; short: string }> = [
+  { value: 1, label: 'Lunes', short: 'Lun' },
+  { value: 2, label: 'Martes', short: 'Mar' },
+  { value: 3, label: 'Miércoles', short: 'Mié' },
+  { value: 4, label: 'Jueves', short: 'Jue' },
+  { value: 5, label: 'Viernes', short: 'Vie' },
+];
+
+function formatReglaDias(diasSemana: number[]): string {
+  return [...diasSemana]
+    .sort((a, b) => a - b)
+    .map((d) => DIAS_SEMANA_LV.find((x) => x.value === d)?.short ?? `#${d}`)
+    .join(', ');
+}
+
+function formatReglaRango(desde: string | null, hasta: string | null): string {
+  if (!desde && !hasta) return 'siempre';
+  if (desde && hasta) return `${desde} → ${hasta}`;
+  if (desde) return `desde ${desde}`;
+  return `hasta ${hasta}`;
 }
 
 function formatDuracion(ms: number): string {
@@ -760,6 +783,13 @@ export function RrhhPage() {
   const [manualFichajeDate, setManualFichajeDate] = useState('');
   const [manualFichajeRows, setManualFichajeRows] = useState<ManualFichajeRow[]>([]);
   const [manualFichajeSaving, setManualFichajeSaving] = useState(false);
+
+  // Modal "Horarios" — reglas de horario esperado por empleado (por día de semana + rango).
+  const [reglasEmp, setReglasEmp] = useState<{ id: string; firstName: string; lastName: string; planta: Planta; horasEsperadasDia: number | null } | null>(null);
+  const [reglasList, setReglasList] = useState<HorarioReglaEmpleado[]>([]);
+  const [reglasLoading, setReglasLoading] = useState(false);
+  const [reglaDraft, setReglaDraft] = useState<{ diasSemana: number[]; desde: string; hasta: string; horas: string }>({ diasSemana: [], desde: '', hasta: '', horas: '' });
+  const [reglaSaving, setReglaSaving] = useState(false);
 
   const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
@@ -1681,6 +1711,93 @@ export function RrhhPage() {
       await refreshAfterFichajeEdit();
     }
     if (failed > 0) toast.error(`${failed} fichaje${failed > 1 ? 's' : ''} no se pudo guardar`);
+  };
+
+  // ── Reglas de horario esperado por empleado ────────────────────────────────
+
+  const loadReglasHorario = async (empleadoId: string) => {
+    setReglasLoading(true);
+    try {
+      const reglas = await asistenciaCalendarApi.listHorarioReglas(empleadoId);
+      setReglasList(reglas);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReglasLoading(false);
+    }
+  };
+
+  const openReglasModal = (emp: EmpleadoAsistencia) => {
+    setReglasEmp({
+      id: emp.id,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      planta: emp.planta,
+      horasEsperadasDia: emp.horasEsperadasDia,
+    });
+    setReglaDraft({ diasSemana: [], desde: '', hasta: '', horas: '' });
+    setReglasList([]);
+    void loadReglasHorario(emp.id);
+  };
+
+  const closeReglasModal = () => {
+    if (reglaSaving) return;
+    setReglasEmp(null);
+    setReglasList([]);
+  };
+
+  const toggleReglaDia = (dia: number) => {
+    setReglaDraft((prev) => ({
+      ...prev,
+      diasSemana: prev.diasSemana.includes(dia)
+        ? prev.diasSemana.filter((d) => d !== dia)
+        : [...prev.diasSemana, dia].sort((a, b) => a - b),
+    }));
+  };
+
+  const addReglaHorario = async () => {
+    if (!reglasEmp) return;
+    if (reglaDraft.diasSemana.length === 0) {
+      toast.error('Elegí al menos un día de la semana');
+      return;
+    }
+    const horas = Number(reglaDraft.horas);
+    if (reglaDraft.horas.trim() === '' || !Number.isFinite(horas) || horas < 0 || horas > 24) {
+      toast.error('Horas esperadas inválidas (0 a 24)');
+      return;
+    }
+    if (reglaDraft.desde && reglaDraft.hasta && reglaDraft.desde > reglaDraft.hasta) {
+      toast.error('La fecha "desde" no puede ser mayor que "hasta"');
+      return;
+    }
+    setReglaSaving(true);
+    try {
+      await asistenciaCalendarApi.createHorarioRegla({
+        empleadoId: reglasEmp.id,
+        diasSemana: reglaDraft.diasSemana,
+        desde: reglaDraft.desde || null,
+        hasta: reglaDraft.hasta || null,
+        horasEsperadas: horas,
+      });
+      toast.success('Regla agregada');
+      setReglaDraft({ diasSemana: [], desde: '', hasta: '', horas: '' });
+      await loadReglasHorario(reglasEmp.id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReglaSaving(false);
+    }
+  };
+
+  const deleteReglaHorario = async (id: string) => {
+    if (!reglasEmp) return;
+    try {
+      await asistenciaCalendarApi.deleteHorarioRegla(id);
+      toast.success('Regla eliminada');
+      await loadReglasHorario(reglasEmp.id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   const openReportFixModal = (day: ReporteEmpleadoRango['dias'][number]) => {
@@ -2990,6 +3107,125 @@ export function RrhhPage() {
         </div>
       </Dialog>
 
+      <Dialog
+        open={reglasEmp !== null}
+        onClose={closeReglasModal}
+        title={`Horarios — ${reglasEmp ? `${reglasEmp.firstName} ${reglasEmp.lastName}` : ''}`}
+        description="Horas esperadas por día de semana (solo lunes a viernes). Pisan el esperado base dentro del rango indicado."
+        panelClassName="sm:max-w-xl"
+      >
+        <p className="text-xs text-muted-foreground">
+          Esperado base:{' '}
+          <span className="font-medium text-foreground">
+            {reglasEmp?.horasEsperadasDia != null ? `${reglasEmp.horasEsperadasDia} h` : 'default de la planta'}
+          </span>
+          . El sábado y el domingo no se editan acá.
+        </p>
+
+        <div className="mt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reglas actuales</p>
+          {reglasLoading ? (
+            <p className="mt-2 text-xs text-muted-foreground">Cargando…</p>
+          ) : reglasList.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">Sin reglas. El empleado usa su esperado base todos los días.</p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {reglasList.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs">
+                  <span>
+                    <span className="font-medium">{formatReglaDias(r.diasSemana)}</span>
+                    {' · '}
+                    {formatReglaRango(r.desde, r.hasta)}
+                    {' → '}
+                    <span className="font-semibold">{r.horasEsperadas} h</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void deleteReglaHorario(r.id)}
+                    title="Eliminar regla"
+                    className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-md border border-dashed border-border p-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Nueva regla</p>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {DIAS_SEMANA_LV.map((d) => {
+              const selected = reglaDraft.diasSemana.includes(d.value);
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => toggleReglaDia(d.value)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    selected
+                      ? 'border-primary bg-primary/10 text-foreground font-medium'
+                      : 'border-border text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {d.short}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Desde
+              <input
+                type="date"
+                value={reglaDraft.desde}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, desde: e.target.value }))}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Hasta
+              <input
+                type="date"
+                value={reglaDraft.hasta}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, hasta: e.target.value }))}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Horas
+              <input
+                type="number"
+                min={0}
+                max={24}
+                step={0.5}
+                value={reglaDraft.horas}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, horas: e.target.value }))}
+                className="w-20 rounded border border-border bg-background px-2 py-1 text-xs tabular-nums"
+              />
+            </label>
+            <Button
+              type="button"
+              onClick={() => void addReglaHorario()}
+              disabled={reglaSaving}
+              className="h-8 px-3 text-xs"
+            >
+              {reglaSaving ? 'Agregando…' : 'Agregar regla'}
+            </Button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Dejá las fechas vacías para que aplique siempre. No se permiten reglas solapadas para el mismo día.
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="outline" onClick={closeReglasModal} disabled={reglaSaving}>
+            Cerrar
+          </Button>
+        </div>
+      </Dialog>
+
       {activeView === 'reportes' && (
       <>
       <Dialog
@@ -4015,6 +4251,17 @@ export function RrhhPage() {
                                         className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
                                       >
                                         Editar
+                                      </button>
+                                    )}
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openReglasModal(emp)}
+                                        title="Programar horarios esperados por día de semana"
+                                        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                                      >
+                                        <CalendarDays className="h-3.5 w-3.5" />
+                                        Horarios
                                       </button>
                                     )}
                                     {canAdmin && (
