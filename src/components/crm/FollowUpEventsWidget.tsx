@@ -11,10 +11,10 @@ const FOLLOW_STATUSES = ['READY', 'SCHEDULED', 'COMPLETED', 'CANCELLED'];
 
 function getStatusBadge(status: string) {
   const classes: Record<string, string> = {
-    READY: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    SCHEDULED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    READY: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+    SCHEDULED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
     COMPLETED: 'bg-muted text-muted-foreground',
-    CANCELLED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    CANCELLED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
   };
   const labels: Record<string, string> = {
     READY: 'Listo',

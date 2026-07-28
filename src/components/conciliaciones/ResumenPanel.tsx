@@ -25,25 +25,25 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-5">
-        <Card className="border-l-4 border-l-green-500 bg-green-50 dark:bg-green-950/20">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">Correctos</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-green-600 dark:text-green-500">{detail.matches.length}</div></CardContent>
+        <Card className="border-l-4 border-l-green-500 border-green-500/30 bg-green-500/10">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-green-700 dark:text-green-200">Correctos</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-green-700 dark:text-green-100">{detail.matches.length}</div></CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Solo Extracto</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-blue-600 dark:text-blue-500">{detail.unmatchedExtract.length}</div></CardContent>
+        <Card className="border-l-4 border-l-blue-500 border-blue-500/30 bg-blue-500/10">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-200">Solo Extracto</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-blue-700 dark:text-blue-100">{detail.unmatchedExtract.length}</div></CardContent>
         </Card>
-        <Card className="border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/20">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">Vencidos</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-red-600 dark:text-red-500">{detail.unmatchedSystem.filter((u) => u.status === 'OVERDUE').length}</div></CardContent>
+        <Card className="border-l-4 border-l-red-500 border-red-500/30 bg-red-500/10">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-red-700 dark:text-red-200">Vencidos</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-red-700 dark:text-red-100">{detail.unmatchedSystem.filter((u) => u.status === 'OVERDUE').length}</div></CardContent>
         </Card>
-        <Card className="border-l-4 border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-yellow-700 dark:text-yellow-400">Diferidos</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-yellow-600 dark:text-yellow-500">{detail.unmatchedSystem.filter((u) => u.status === 'DEFERRED').length}</div></CardContent>
+        <Card className="border-l-4 border-l-amber-500 border-amber-500/30 bg-amber-500/10">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-200">Diferidos</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-amber-700 dark:text-amber-100">{detail.unmatchedSystem.filter((u) => u.status === 'DEFERRED').length}</div></CardContent>
         </Card>
-        <Card className="border-l-4 border-l-orange-500 bg-orange-50 dark:bg-orange-950/20">
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-400">Pendientes</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-orange-600 dark:text-orange-500">{activePending.length}</div></CardContent>
+        <Card className="border-l-4 border-l-orange-500 border-orange-500/30 bg-orange-500/10">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-200">Pendientes</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-orange-700 dark:text-orange-100">{activePending.length}</div></CardContent>
         </Card>
       </div>
 
