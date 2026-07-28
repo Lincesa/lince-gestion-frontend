@@ -19,6 +19,7 @@ import { ExclusionesPanel } from '@/components/conciliaciones/ExclusionesPanel';
 import { IssuesPanel } from '@/components/conciliaciones/IssuesPanel';
 import { PermissionsPanel } from '@/components/conciliaciones/PermissionsPanel';
 import { LibroBancoPanel } from '@/components/conciliaciones/LibroBancoPanel';
+import { GlobalRole } from '@/types/auth.types';
 import type { RunDetail } from '@/types/conciliaciones.types';
 import type { RunDetailSection } from '@/components/conciliaciones/RunDetailSidebar';
 
@@ -40,7 +41,10 @@ export function RunDetailPage() {
 
   const isClosed = detail?.status === 'CLOSED';
   const isCreator = !!(detail?.createdById && user?.id && detail.createdById === user.id);
-  const canEdit = isCreator || (detail?.members?.some((m) => m.userId === user?.id && m.role === 'EDITOR') ?? false);
+  const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
+  const canEditContent = isCreator || (detail?.members?.some((m) => m.userId === user?.id && m.role === 'EDITOR') ?? false);
+  const canClose = !isClosed && (canEditContent || isSuperAdmin);
+  const canReopen = !!isClosed && (isCreator || isSuperAdmin);
 
   const fetchDetail = async () => {
     if (!id) return;
@@ -214,7 +218,7 @@ export function RunDetailPage() {
           <p className="text-muted-foreground flex items-center gap-2 flex-wrap mt-1">
             <span>{new Date(detail.createdAt).toLocaleDateString()}</span>
             <span>—</span>
-            {!isClosed && canEdit ? (
+            {!isClosed && canEditContent ? (
               <>
                 <Label className="text-muted-foreground font-normal">Empresa:</Label>
                 <Select value={COMPANY_OPTIONS.includes(detail.company || '') ? (detail.company ?? '') : ''} onChange={(e) => void handleCompanyChange(e.target.value)} className="w-36 h-8 text-sm">
@@ -252,12 +256,12 @@ export function RunDetailPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {canEdit && !isClosed && (
+          {canClose && (
             <Button onClick={handleToggleStatus} disabled={updatingStatus}>
               {updatingStatus ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cerrando...</> : 'Cerrar conciliación'}
             </Button>
           )}
-          {isClosed && isCreator && (
+          {canReopen && (
             <Button onClick={handleToggleStatus} disabled={updatingStatus}>
               {updatingStatus ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Reabriendo...</> : 'Reabrir conciliación'}
             </Button>
@@ -267,7 +271,7 @@ export function RunDetailPage() {
               <Send className="mr-2 h-4 w-4" />Notificar Pendientes
             </Button>
           )}
-          {!isClosed && (
+          {!isClosed && canEditContent && (
             <Button variant="outline" onClick={() => setUpdateSystemDialogOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />Actualizar Excel sistema
             </Button>
@@ -282,7 +286,7 @@ export function RunDetailPage() {
         <RunDetailSidebar active={section} onSelect={setSection} issuesCount={detail.issues?.length ?? 0} showPermisos={isCreator} />
         <div className="flex-1 overflow-auto p-4">
           {section === 'resumen' && (
-            <ResumenPanel detail={detail} pendingItems={pendingItems} systemById={systemById} extractById={extractById} isClosed={!!isClosed} canEdit={canEdit} onResolvePending={handleResolvePending} onOpenAddPending={(sysId) => { setPendingSystemLineId(sysId); setPendingDialogOpen(true); }} />
+            <ResumenPanel detail={detail} pendingItems={pendingItems} systemById={systemById} extractById={extractById} isClosed={!!isClosed} canEdit={canEditContent} onResolvePending={handleResolvePending} onOpenAddPending={(sysId) => { setPendingSystemLineId(sysId); setPendingDialogOpen(true); }} />
           )}
           {section === 'libro-banco' && (
             <LibroBancoPanel
@@ -297,8 +301,8 @@ export function RunDetailPage() {
               matches={detail.matches} unmatchedSystem={detail.unmatchedSystem} unmatchedExtract={detail.unmatchedExtract}
               systemLines={detail.systemLines} extractLines={extractLinesActive} extractById={extractById} systemById={systemById}
               excludeConcepts={detail.excludeConcepts ?? []} pendingAreaBySystemLineId={pendingAreaBySystemLineId}
-              onSave={canEdit ? handleWorkspaceSave : undefined} onFinalize={canEdit ? handleWorkspaceFinalize : undefined}
-              onChangeMatchSuccess={fetchDetail} runId={canEdit ? id : undefined}
+              onSave={canEditContent ? handleWorkspaceSave : undefined} onFinalize={canEditContent ? handleWorkspaceFinalize : undefined}
+              onChangeMatchSuccess={fetchDetail} runId={canEditContent ? id : undefined}
             />
           )}
           {section === 'workspace' && isClosed && (
@@ -308,10 +312,10 @@ export function RunDetailPage() {
             <ExclusionesPanel
               excludeConcepts={detail.excludeConcepts ?? []} extractLines={detail.extractLines}
               excludedSummary={detail.excludedSummary ?? []}
-              canEdit={canEdit} isClosed={!!isClosed} runId={id}
-              onRemoveExcludedConcept={canEdit && !isClosed && id ? async (concept) => { const updated = await conciliacionesApi.removeExcludedConcept(id, concept); setDetail(updated); toast.success('Exclusión quitada'); } : undefined}
-              onExcludeConcepts={canEdit && !isClosed && id ? async (concepts) => { await conciliacionesApi.excludeConcepts(id, concepts); await fetchDetail(); toast.success(concepts.length === 1 ? 'Concepto excluido' : `${concepts.length} conceptos excluidos`); } : undefined}
-              onExcludeByCategory={canEdit && !isClosed && id ? async (categoryId) => { await conciliacionesApi.excludeByCategory(id, categoryId); await fetchDetail(); toast.success('Conceptos de la categoría excluidos'); } : undefined}
+              canEdit={canEditContent} isClosed={!!isClosed} runId={id}
+              onRemoveExcludedConcept={canEditContent && !isClosed && id ? async (concept) => { const updated = await conciliacionesApi.removeExcludedConcept(id, concept); setDetail(updated); toast.success('Exclusión quitada'); } : undefined}
+              onExcludeConcepts={canEditContent && !isClosed && id ? async (concepts) => { await conciliacionesApi.excludeConcepts(id, concepts); await fetchDetail(); toast.success(concepts.length === 1 ? 'Concepto excluido' : `${concepts.length} conceptos excluidos`); } : undefined}
+              onExcludeByCategory={canEditContent && !isClosed && id ? async (categoryId) => { await conciliacionesApi.excludeByCategory(id, categoryId); await fetchDetail(); toast.success('Conceptos de la categoría excluidos'); } : undefined}
               onSuccess={fetchDetail}
             />
           )}
