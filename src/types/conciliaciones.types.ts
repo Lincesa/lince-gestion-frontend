@@ -84,6 +84,54 @@ export type ReconciliationQualityDiagnostics = {
   issues: ReconciliationQualityIssue[];
 };
 
+export type ReconciliationDashboardFilters = {
+  company?: string;
+  bankName?: string;
+  accountRef?: string;
+  from?: string;
+  to?: string;
+};
+
+export type ReconciliationDashboardRow = {
+  month: string;
+  fortnight: 'first' | 'second';
+  company: string | null;
+  bankName: string | null;
+  accountRef: string | null;
+  runCount: number;
+  expensesAmount: number;
+  expensesCount: number;
+  matchedAmount: number;
+  matchedCount: number;
+  unmatchedExtractAmount: number;
+  unmatchedExtractCount: number;
+  unmatchedSystemAmount: number;
+  unmatchedSystemCount: number;
+  pendingOpenCount: number;
+  pendingResolvedCount: number;
+  pendingCarriedCount: number;
+  categories: Array<{ name: string; amount: number; count: number }>;
+};
+
+export type ReconciliationDashboard = {
+  filters: Record<keyof ReconciliationDashboardFilters, string | null>;
+  summary: {
+    totalRuns: number;
+    expensesAmount: number;
+    expensesCount: number;
+    matchedAmount: number;
+    matchedCount: number;
+    unmatchedExtractAmount: number;
+    unmatchedExtractCount: number;
+    unmatchedSystemAmount: number;
+    unmatchedSystemCount: number;
+    pendingOpenCount: number;
+    pendingResolvedCount: number;
+    pendingCarriedCount: number;
+  };
+  rows: ReconciliationDashboardRow[];
+};
+
 export type ExpenseRule = {
   id: string;
   pattern: string;
