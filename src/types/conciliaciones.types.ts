@@ -101,6 +101,8 @@ export type ReconciliationDashboardRow = {
   runCount: number;
   expensesAmount: number;
   expensesCount: number;
+  excludedAmount: number;
+  excludedCount: number;
   matchedAmount: number;
   matchedCount: number;
   unmatchedExtractAmount: number;
@@ -111,6 +113,7 @@ export type ReconciliationDashboardRow = {
   pendingResolvedCount: number;
   pendingCarriedCount: number;
   categories: Array<{ name: string; amount: number; count: number }>;
+  excludedConcepts: Array<{ concept: string; category: string; amount: number; count: number }>;
 };
 
 export type ReconciliationDashboard = {
@@ -119,6 +122,8 @@ export type ReconciliationDashboard = {
     totalRuns: number;
     expensesAmount: number;
     expensesCount: number;
+    excludedAmount: number;
+    excludedCount: number;
     matchedAmount: number;
     matchedCount: number;
     unmatchedExtractAmount: number;
