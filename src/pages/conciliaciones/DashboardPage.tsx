@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
-import type { ReconciliationRun } from '@/types/conciliaciones.types';
+import type { ReconciliationQualityDiagnostics, ReconciliationQualityIssue, ReconciliationRun } from '@/types/conciliaciones.types';
 
 const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
 
@@ -18,17 +18,39 @@ const COMPANY_COLORS: Record<string, string> = {
   Zumbi: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
 };
 
+const qualityContext = (issue: ReconciliationQualityIssue) => {
+  const date = issue.cutDate ? new Date(issue.cutDate).toLocaleDateString() : null;
+  return [issue.company, issue.bankName, issue.accountRef, date].filter(Boolean).join(' · ') || 'Sin contexto adicional';
+};
+
 export function ConciliacionesDashboardPage() {
   const navigate = useNavigate();
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
+  const [qualityDiagnostics, setQualityDiagnostics] = useState<ReconciliationQualityDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState('');
 
   useEffect(() => {
     setLoading(true);
-    conciliacionesApi.listRuns(companyFilter || undefined)
-      .then(setRuns)
-      .catch(() => toast.error('No se pudieron cargar las conciliaciones'))
+    setQualityDiagnostics(null);
+    const company = companyFilter || undefined;
+    Promise.allSettled([
+      conciliacionesApi.listRuns(company),
+      conciliacionesApi.getQualityDiagnostics(company),
+    ])
+      .then(([runsResult, qualityResult]) => {
+        if (runsResult.status === 'fulfilled') {
+          setRuns(runsResult.value);
+        } else {
+          toast.error('No se pudieron cargar las conciliaciones');
+        }
+
+        if (qualityResult.status === 'fulfilled') {
+          setQualityDiagnostics(qualityResult.value);
+        } else {
+          toast.error('No se pudieron cargar los diagnósticos de calidad');
+        }
+      })
       .finally(() => setLoading(false));
   }, [companyFilter]);
 
@@ -93,6 +115,37 @@ export function ConciliacionesDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {qualityDiagnostics && qualityDiagnostics.summary.totalIssues > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div>
+                <CardTitle className="text-base">Datos a corregir antes del dashboard</CardTitle>
+                <CardDescription>
+                  {qualityDiagnostics.summary.totalIssues} dato{qualityDiagnostics.summary.totalIssues !== 1 ? 's' : ''} pendiente{qualityDiagnostics.summary.totalIssues !== 1 ? 's' : ''} en {qualityDiagnostics.summary.totalRuns} conciliación{qualityDiagnostics.summary.totalRuns !== 1 ? 'es' : ''}.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="divide-y divide-amber-200/70 dark:divide-amber-900/70">
+              {qualityDiagnostics.issues.map((issue) => (
+                <button
+                  key={`${issue.runId}-${issue.code}`}
+                  type="button"
+                  className="flex w-full flex-col gap-1 py-3 text-left first:pt-0 last:pb-0 hover:text-primary"
+                  onClick={() => navigate(`/conciliaciones/run/${issue.runId}`)}
+                >
+                  <span className="text-sm font-medium">{issue.message}</span>
+                  <span className="text-xs text-muted-foreground">{qualityContext(issue)}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filtro por empresa */}
       <div className="flex items-center gap-3">

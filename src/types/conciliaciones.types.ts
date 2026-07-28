@@ -61,6 +61,29 @@ export type ReconciliationRun = {
   createdById: string;
 };
 
+export type ReconciliationQualityIssue = {
+  runId: string;
+  severity: 'warning';
+  code: string;
+  message: string;
+  fields: Array<'company' | 'bankName' | 'accountRef' | 'cutDate'>;
+  createdAt: string | Date;
+  company: string | null;
+  bankName: string | null;
+  accountRef: string | null;
+  cutDate: string | Date | null;
+};
+
+export type ReconciliationQualityDiagnostics = {
+  summary: {
+    totalRuns: number;
+    totalIssues: number;
+    warningIssues: number;
+    errorIssues: number;
+  };
+  issues: ReconciliationQualityIssue[];
+};
+
 export type ExpenseRule = {
   id: string;
   pattern: string;
