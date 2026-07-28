@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Download, Loader2, Pencil, Send, Upload, X } from 'lucide-react';
+import { AlertTriangle, Check, Download, Loader2, Pencil, Send, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import { useAppSelector } from '@/store';
@@ -142,6 +142,17 @@ export function RunDetailPage() {
     } catch { toast.error('Error al actualizar banco'); }
   };
 
+  const handleAccountRefChange = async (accountRef: string) => {
+    if (!id || !detail) return;
+    const nextAccountRef = accountRef.trim() || null;
+    if ((detail.accountRef ?? null) === nextAccountRef) return;
+    try {
+      await conciliacionesApi.updateRun(id, { accountRef: nextAccountRef });
+      void fetchDetail();
+      toast.success('Referencia de cuenta actualizada');
+    } catch { toast.error('Error al actualizar referencia de cuenta'); }
+  };
+
   const handleCompanyChange = async (comp: string) => {
     if (!id || !detail) return;
     try {
@@ -240,6 +251,17 @@ export function RunDetailPage() {
   const pendingItems = detail.pendingItems || [];
   const pendingByArea = pendingItems.filter((p) => p.status !== 'RESOLVED').reduce((acc, p) => { acc[p.area] = (acc[p.area] || 0) + 1; return acc; }, {} as Record<string, number>);
   const pendingCount = pendingItems.filter((p) => p.status !== 'RESOLVED').length;
+  const missingBankIdentity = !detail.company || !detail.bankName || !detail.accountRef;
+  const missingBankIdentityLabel = !detail.company
+    ? 'Falta empresa'
+    : !detail.bankName
+      ? 'Falta banco'
+      : 'Falta referencia de cuenta';
+  const bankIdentityRemediation = !missingBankIdentity || canManageOpenRun
+    ? ''
+    : canReopen
+      ? ' · reabrila para completar la identidad bancaria'
+      : ' · pedile a un editor o superadmin que complete la identidad bancaria';
 
   return (
     <div className="space-y-4">
@@ -296,6 +318,14 @@ export function RunDetailPage() {
                   <option value="">Sin definir</option>
                   {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
                 </Select>
+                <Label className="text-muted-foreground font-normal">Cuenta:</Label>
+                <Input
+                  className="w-36 h-8 text-sm"
+                  defaultValue={detail.accountRef ?? ''}
+                  key={`account-${detail.accountRef ?? ''}`}
+                  placeholder="Sin cuenta"
+                  onBlur={(e) => void handleAccountRefChange(e.target.value)}
+                />
                 <Label className="text-muted-foreground font-normal">Ventana días:</Label>
                 <Input
                   type="number"
@@ -315,9 +345,19 @@ export function RunDetailPage() {
                 {detail.company && <span className="font-medium text-foreground">{detail.company}</span>}
                 {detail.company && <span>·</span>}
                 <span>{detail.bankName || 'Sin banco'}</span>
+                {detail.accountRef && <><span>·</span><span>Cuenta: {detail.accountRef}</span></>}
                 <span>·</span>
                 <span>Ventana: {detail.windowDays ?? 0} días</span>
               </>
+            )}
+            {missingBankIdentity && (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300" title="El arrastre de pendientes y el dashboard necesitan empresa, banco y cuenta completos.">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {missingBankIdentityLabel}
+                  {bankIdentityRemediation}
+                </span>
+              </span>
             )}
           </p>
         </div>
@@ -366,7 +406,7 @@ export function RunDetailPage() {
             <WorkspacePanel
               matches={detail.matches} unmatchedSystem={detail.unmatchedSystem} unmatchedExtract={detail.unmatchedExtract}
               systemLines={detail.systemLines} extractLines={extractLinesActive} extractById={extractById} systemById={systemById}
-              excludeConcepts={detail.excludeConcepts ?? []} pendingAreaBySystemLineId={pendingAreaBySystemLineId}
+              excludeConcepts={detail.excludeConcepts ?? []} pendingAreaBySystemLineId={pendingAreaBySystemLineId} pendingItems={pendingItems}
               onSave={canManageOpenRun ? handleWorkspaceSave : undefined} onFinalize={canManageOpenRun ? handleWorkspaceFinalize : undefined}
               onChangeMatchSuccess={fetchDetail} runId={canManageOpenRun ? id : undefined}
             />

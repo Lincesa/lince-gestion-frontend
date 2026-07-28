@@ -122,8 +122,20 @@ export type PendingItem = {
   resolvedAt?: string | null;
   note?: string | null;
   systemLineId?: string | null;
-  systemLine?: SystemLine;
+  systemLine?: SystemLine | null;
+  /** Identifies the run that carried this pending item into the current run. */
+  sourceRunId?: string | null;
+  /** Original pending-item identifier, retained across carryovers. */
+  originPendingItemId?: string | null;
+  /** Timestamp at which the pending item was carried into this run. */
+  carriedAt?: string | null;
+  /** Backend deduplication identity for the linked system line. */
+  fingerprint?: string | null;
 };
+
+export const hasCarryoverContext = (pending: PendingItem) => Boolean(
+  pending.sourceRunId || pending.originPendingItemId || pending.carriedAt,
+);
 
 export type IssueComment = {
   id: string;
@@ -154,6 +166,7 @@ export type RunDetail = {
   id: string;
   title?: string | null;
   bankName?: string | null;
+  accountRef?: string | null;
   company?: string | null;
   windowDays?: number;
   status?: RunStatus;
