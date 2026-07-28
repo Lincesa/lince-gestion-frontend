@@ -147,7 +147,7 @@ export function OcrFacturasPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-200">
           {error}
         </div>
       )}
@@ -322,8 +322,8 @@ export function OcrFacturasPage() {
       )}
 
       <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-        <p className="text-xs text-blue-700 dark:text-blue-400 font-medium mb-1">Corrección de campos</p>
-        <p className="text-xs text-blue-600 dark:text-blue-400">
+        <p className="text-xs text-blue-700 dark:text-blue-200 font-medium mb-1">Corrección de campos</p>
+        <p className="text-xs text-blue-600 dark:text-blue-200">
           Podés corregir campos mal extraídos en facturas con estado "Con errores" o "Válido".
           La aprobación final siempre la realiza el equipo ADMIN.
         </p>
@@ -407,11 +407,11 @@ function CorrectFieldsModal({
           {doc.validationErrors && doc.validationErrors.length > 0 && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
               <div className="flex items-center gap-1.5 mb-1">
-                <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                <p className="text-xs font-medium text-red-700 dark:text-red-400">Campos con errores OCR</p>
+                <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-200" />
+                <p className="text-xs font-medium text-red-700 dark:text-red-200">Campos con errores OCR</p>
               </div>
               {doc.validationErrors.map((e, i) => (
-                <p key={i} className="text-xs text-red-600 dark:text-red-400">• {e}</p>
+                <p key={i} className="text-xs text-red-600 dark:text-red-200">• {e}</p>
               ))}
             </div>
           )}

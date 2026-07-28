@@ -110,7 +110,7 @@ export function OcrTestModal({ open, onClose, loading, error, type, fields, prev
 
           {/* Error */}
           {!loading && error && (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-200">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -134,8 +134,8 @@ export function OcrTestModal({ open, onClose, loading, error, type, fields, prev
                       {isFirmado ? (
                         <span className={`flex items-center gap-1 text-sm font-medium ${
                           value === 'si'
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
+                            ? 'text-green-600 dark:text-green-200'
+                            : 'text-red-600 dark:text-red-200'
                         }`}>
                           {value === 'si'
                             ? <><CheckCircle className="h-3.5 w-3.5" /> Sí</>

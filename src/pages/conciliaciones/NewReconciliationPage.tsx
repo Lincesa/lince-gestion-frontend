@@ -254,7 +254,7 @@ export function NewReconciliationPage() {
 
       <Card className="border-l-4 border-l-green-500">
         <CardHeader>
-          <CardTitle className="text-green-700 dark:text-green-400">4. Parámetros de Conciliación</CardTitle>
+          <CardTitle className="text-green-700 dark:text-green-200">4. Parámetros de Conciliación</CardTitle>
           <CardDescription>Configura las opciones de conciliación</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

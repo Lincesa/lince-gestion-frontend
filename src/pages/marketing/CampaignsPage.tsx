@@ -30,10 +30,10 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_CLASSES: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
-  QUEUED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  QUEUED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200',
+  RUNNING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
+  COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200',
 };
 
 const ADVISORS = ['EZEQUIEL', 'DENIS', 'MARTIN', 'JULIAN'];
@@ -337,7 +337,7 @@ function NewCampaignWizard({ templates, loadingTemplates, productos, submitting,
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">{previewItems.length}</span> clientes ·{' '}
-                  <span className="text-green-600 dark:text-green-400 font-medium">{willSendCount} se enviarán</span>
+                  <span className="text-green-600 dark:text-green-200 font-medium">{willSendCount} se enviarán</span>
                   {willSkipCount > 0 && <span> · {willSkipCount} se omitirán</span>}
                 </p>
                 <div className="flex gap-2">
@@ -385,7 +385,7 @@ function NewCampaignWizard({ templates, loadingTemplates, productos, submitting,
                           <td className="px-3 py-2 text-muted-foreground">{p.estado || '—'}</td>
                           <td className="px-3 py-2">
                             {p.willSend ? (
-                              <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Enviar</span>
+                              <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200">Enviar</span>
                             ) : (
                               <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground" title={p.skipReason}>Omitir</span>
                             )}
@@ -535,7 +535,7 @@ function NewCampaignWizard({ templates, loadingTemplates, productos, submitting,
             </div>
             <div className="flex justify-between border-t border-border pt-2 mt-2">
               <span className="text-muted-foreground">Se enviarán a</span>
-              <span className="font-medium text-green-600 dark:text-green-400">{willSendCount} clientes</span>
+              <span className="font-medium text-green-600 dark:text-green-200">{willSendCount} clientes</span>
             </div>
             <div className="border-t border-border pt-2 mt-2 space-y-1">
               <span className="text-muted-foreground text-xs">Oleadas ({waveDrafts.length})</span>
