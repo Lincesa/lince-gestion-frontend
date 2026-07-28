@@ -3,6 +3,8 @@ import { Calendar, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
 import type { DiaNoLaborable, Planta, TipoExcepcionDia } from '@/types';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import { MonthGrid, type DayDecoration } from './MonthGrid';
 import { dateToYmd, plantaLabel } from './calendarHelpers';
 
@@ -21,6 +23,7 @@ function bgForRegistro(d: DiaNoLaborable): string {
 }
 
 export function FeriadosTab() {
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.ASISTENCIA);
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -283,7 +286,7 @@ export function FeriadosTab() {
             </div>
 
             <div className="flex items-center justify-between mt-5 pt-4 border-t">
-              {editor.existing ? (
+              {editor.existing && canAdmin ? (
                 <button
                   type="button"
                   onClick={remove}
@@ -300,16 +303,18 @@ export function FeriadosTab() {
                   disabled={saving}
                   className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent"
                 >
-                  Cancelar
+                  {canEdit ? 'Cancelar' : 'Cerrar'}
                 </button>
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                >
-                  {saving ? 'Guardando…' : editor.existing ? 'Actualizar' : 'Guardar'}
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving}
+                    className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                  >
+                    {saving ? 'Guardando…' : editor.existing ? 'Actualizar' : 'Guardar'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

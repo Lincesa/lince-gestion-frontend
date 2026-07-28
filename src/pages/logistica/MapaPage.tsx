@@ -18,6 +18,8 @@ import { GeoPointModal } from '@/components/logistica/GeoPointModal';
 import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 import type { MapaRemitosParams } from '@/api/logistica';
 import type { RemitoLogistica, GeoPoint } from '@/types/logistica.types';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 
 // ─── Leaflet icons ────────────────────────────────────────────────────────────
 
@@ -72,6 +74,7 @@ interface ControlPanelProps {
 
 function MapaControlPanel({ filters, onFiltersChange, onFlyTo }: ControlPanelProps) {
   const dispatch = useAppDispatch();
+  const { canEdit } = useCanPerform(ModuleKey.LOGISTICA);
   const { layers, visibility, geoSearch } = useAppSelector((s) => s.geoLayers);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -343,15 +346,17 @@ function MapaControlPanel({ filters, onFiltersChange, onFlyTo }: ControlPanelPro
               </ul>
 
               {/* Nuevo punto */}
-              <div className="border-t border-border p-3">
-                <button
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                  onClick={() => dispatch(openCreatePoint())}
-                >
-                  <Plus size={12} />
-                  Nuevo punto
-                </button>
-              </div>
+              {canEdit && (
+                <div className="border-t border-border p-3">
+                  <button
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                    onClick={() => dispatch(openCreatePoint())}
+                  >
+                    <Plus size={12} />
+                    Nuevo punto
+                  </button>
+                </div>
+              )}
             </>
           )}
         </>
@@ -364,6 +369,7 @@ function MapaControlPanel({ filters, onFiltersChange, onFlyTo }: ControlPanelPro
 
 export function MapaPage() {
   const dispatch                   = useAppDispatch();
+  const { canEdit }                = useCanPerform(ModuleKey.LOGISTICA);
   const { mapaItems, mapaLoading } = useAppSelector((s) => s.remitosLogistica);
   const { layers, visibility, geoSearch } = useAppSelector((s) => s.geoLayers);
 
@@ -462,12 +468,14 @@ export function MapaPage() {
                       ))}
                     </div>
                   )}
-                  <button
-                    className="mt-2 w-full rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                    onClick={() => dispatch(openEditPoint(point))}
-                  >
-                    Editar
-                  </button>
+                  {canEdit && (
+                    <button
+                      className="mt-2 w-full rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                      onClick={() => dispatch(openEditPoint(point))}
+                    >
+                      Editar
+                    </button>
+                  )}
                 </div>
               </Popup>
             </Marker>

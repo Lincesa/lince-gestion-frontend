@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { asistenciaApi } from '@/api/asistencia';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
 import type { AusenciaEmpleado, EmpleadoAsistencia, TipoAusencia } from '@/types';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 import { MonthGrid, type DayDecoration } from './MonthGrid';
 import {
   dateToYmd,
@@ -22,6 +24,7 @@ const TIPO_OPTIONS: TipoAusencia[] = [
 ];
 
 export function AusenciasTab() {
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.ASISTENCIA);
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -306,13 +309,15 @@ export function AusenciasTab() {
                           </span>
                         )}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => remove(a.id)}
-                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-rose-600"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {canAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => remove(a.id)}
+                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-rose-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -420,16 +425,18 @@ export function AusenciasTab() {
                 disabled={saving}
                 className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent"
               >
-                Cancelar
+                {canEdit ? 'Cancelar' : 'Cerrar'}
               </button>
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving}
-                className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {saving ? 'Guardando…' : editor.existing ? 'Actualizar' : 'Guardar'}
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={saving}
+                  className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {saving ? 'Guardando…' : editor.existing ? 'Actualizar' : 'Guardar'}
+                </button>
+              )}
             </div>
           </div>
         </div>

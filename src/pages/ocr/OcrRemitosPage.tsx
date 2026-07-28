@@ -251,15 +251,19 @@ export function OcrRemitosPage() {
 
       // Si el error es de S3 (servicio no configurado), mostrarlo claramente
       const isStorageError = msg.includes('S3') || msg.includes('almacenamiento') || msg.includes('AWS');
+      // Guard de volumen del backend (HTTP 429): no es un fallo reintenable.
+      const isRateLimited = msg.includes('Límite de subidas');
 
       toast.error(
         isStorageError
           ? 'Servicio de almacenamiento no disponible. Contactar al administrador.'
-          : `Error al subir: ${msg}`,
+          : isRateLimited
+            ? 'Alcanzaste el límite de subidas. Esperá unos minutos o avisá al administrador.'
+            : `Error al subir: ${msg}`,
       );
 
-      // Si el archivo llegó al backend pero falló S3, guardarlo en cola offline
-      if (!isStorageError) {
+      // Encolar para reintento solo si fue un fallo transitorio (no límite ni S3).
+      if (!isStorageError && !isRateLimited) {
         const offlineItem: QueueItem = {
           id:       crypto.randomUUID(),
           preview:  previewUrl ?? 'Remito pendiente',

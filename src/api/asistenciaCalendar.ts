@@ -1,6 +1,7 @@
 import type {
   AusenciaEmpleado,
   DiaNoLaborable,
+  HorarioReglaEmpleado,
   Planta,
   TipoAusencia,
   TipoExcepcionDia,
@@ -26,6 +27,14 @@ export interface CreateAusenciaPayload {
 }
 
 export type UpdateAusenciaPayload = Partial<Omit<CreateAusenciaPayload, 'empleadoId'>>;
+
+export interface CreateHorarioReglaPayload {
+  empleadoId: string;
+  diasSemana: number[];
+  desde?: string | null;
+  hasta?: string | null;
+  horasEsperadas: number;
+}
 
 function buildQs(params: Record<string, string | undefined>): string {
   const qs = new URLSearchParams();
@@ -64,4 +73,15 @@ export const asistenciaCalendarApi = {
 
   deleteAusencia: (id: string) =>
     api.delete<void>(`/asistencia/calendar/ausencias/${id}`),
+
+  listHorarioReglas: (empleadoId?: string) =>
+    api.get<HorarioReglaEmpleado[]>(
+      `/asistencia/calendar/horario-reglas${buildQs({ empleadoId })}`,
+    ),
+
+  createHorarioRegla: (payload: CreateHorarioReglaPayload) =>
+    api.post<HorarioReglaEmpleado>('/asistencia/calendar/horario-reglas', payload),
+
+  deleteHorarioRegla: (id: string) =>
+    api.delete<void>(`/asistencia/calendar/horario-reglas/${id}`),
 };

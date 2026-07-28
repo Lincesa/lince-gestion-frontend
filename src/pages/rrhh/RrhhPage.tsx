@@ -7,7 +7,9 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { asistenciaApi, type UpdateEmpleadoPayload } from '@/api/asistencia';
 import { asistenciaCalendarApi } from '@/api/asistenciaCalendar';
-import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsistencia, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
+import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsistencia, HorarioReglaEmpleado, MonthlyAttendanceDay, MonthlyAttendanceEmployeeRow, MonthlyAttendanceSummary, Planta, PinSummaryRow, ReporteEmpleadoRango, TipoAusencia } from '@/types';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
@@ -167,6 +169,29 @@ function formatSoloHora(iso: string): string {
   return fmtSoloHora.format(new Date(iso));
 }
 
+// Días de la jornada normal (1=Lun ... 5=Vie) para las reglas de horario esperado.
+const DIAS_SEMANA_LV: Array<{ value: number; label: string; short: string }> = [
+  { value: 1, label: 'Lunes', short: 'Lun' },
+  { value: 2, label: 'Martes', short: 'Mar' },
+  { value: 3, label: 'Miércoles', short: 'Mié' },
+  { value: 4, label: 'Jueves', short: 'Jue' },
+  { value: 5, label: 'Viernes', short: 'Vie' },
+];
+
+function formatReglaDias(diasSemana: number[]): string {
+  return [...diasSemana]
+    .sort((a, b) => a - b)
+    .map((d) => DIAS_SEMANA_LV.find((x) => x.value === d)?.short ?? `#${d}`)
+    .join(', ');
+}
+
+function formatReglaRango(desde: string | null, hasta: string | null): string {
+  if (!desde && !hasta) return 'siempre';
+  if (desde && hasta) return `${desde} → ${hasta}`;
+  if (desde) return `desde ${desde}`;
+  return `hasta ${hasta}`;
+}
+
 function formatDuracion(ms: number): string {
   if (ms < 0) return '—';
   if (ms === 0) return '0 min';
@@ -186,9 +211,10 @@ function formatSaldoJornada(ms: number): string {
   return `${ms > 0 ? '+' : '-'} ${formatDuracion(abs)}`;
 }
 
-// Horas extra en 2 baldes (SOLO Tucumán): 50% (sábado hasta las 13, sobre lo esperado) y
-// 100% (sábado desde 13, domingo y feriados). El backend ya envía extra50Ms/extra100Ms; el
-// front solo los lee y agrega, sin re-derivar nada por día calendario.
+// Partición del SALDO en 2 franjas (SOLO Tucumán): 50% = saldo NETO de la jornada normal
+// (lunes a sábado hasta las 13), puede ser a favor (+) o en contra (−); 100% = horas donde no se
+// espera jornada (sábado desde 13, domingos y feriados/no laborables), siempre >= 0.
+// Invariante: extra50Ms + extra100Ms === saldo. El backend ya los envía; el front solo lee y agrega.
 interface ExtraBreakdown {
   extra50Ms: number;
   extra100Ms: number;
@@ -234,8 +260,8 @@ function extraBreakdownFromEmployeeRow(row: MonthlyAttendanceEmployeeRow): Extra
 
 function allExtraBreakdownParts(values: ExtraBreakdown) {
   return [
-    { key: 'e50', shortLabel: '50%', label: 'Extra 50%', title: 'Horas extra al 50% (sábado hasta las 13)', ms: values.extra50Ms },
-    { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas extra al 100% (sábado desde 13, domingo y feriados)', ms: values.extra100Ms },
+    { key: 'e50', shortLabel: '50%', label: 'Saldo 50%', title: 'Saldo de la jornada normal (lunes a sábado hasta las 13): a favor (+) u horas que debe (−)', ms: values.extra50Ms },
+    { key: 'e100', shortLabel: '100%', label: 'Extra 100%', title: 'Horas al 100% (sábado desde 13, domingos y feriados)', ms: values.extra100Ms },
   ];
 }
 
@@ -251,11 +277,27 @@ function formatExtraCell(ms: number): string {
   return ms === 0 ? '—' : formatDuracion(ms);
 }
 
+// La franja 50% es el saldo NETO de la jornada normal: puede ser a favor (+) o en contra (−),
+// así que se muestra con signo (como el saldo). El 100% siempre es >= 0.
+function formatExtra50Cell(ms: number): string {
+  return ms === 0 ? '—' : formatSaldoJornada(ms);
+}
+
+function extraSignColorClass(ms: number): string {
+  if (ms > 0) return 'text-emerald-600';
+  if (ms < 0) return 'text-red-600';
+  return 'text-muted-foreground';
+}
+
+function formatExtraPartValue(part: { key: string; ms: number }): string {
+  return part.key === 'e50' ? formatExtra50Cell(part.ms) : formatExtraCell(part.ms);
+}
+
 function formatExtraBreakdownText(values: ExtraBreakdown, compact = false): string {
   const parts = extraBreakdownParts(values);
   if (parts.length === 0) return '—';
   return parts
-    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatDuracion(part.ms)}`)
+    .map((part) => `${compact ? part.shortLabel : part.label}: ${part.key === 'e50' ? formatSaldoJornada(part.ms) : formatDuracion(part.ms)}`)
     .join(compact ? ' · ' : ' | ');
 }
 
@@ -659,6 +701,7 @@ function monthlyCellExportText(day: MonthlyAttendanceDay): string {
 
 
 export function RrhhPage() {
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.ASISTENCIA);
   const location = useLocation();
   const navigate = useNavigate();
   const activeView = location.pathname.endsWith('/reportes')
@@ -740,6 +783,13 @@ export function RrhhPage() {
   const [manualFichajeDate, setManualFichajeDate] = useState('');
   const [manualFichajeRows, setManualFichajeRows] = useState<ManualFichajeRow[]>([]);
   const [manualFichajeSaving, setManualFichajeSaving] = useState(false);
+
+  // Modal "Horarios" — reglas de horario esperado por empleado (por día de semana + rango).
+  const [reglasEmp, setReglasEmp] = useState<{ id: string; firstName: string; lastName: string; planta: Planta; horasEsperadasDia: number | null } | null>(null);
+  const [reglasList, setReglasList] = useState<HorarioReglaEmpleado[]>([]);
+  const [reglasLoading, setReglasLoading] = useState(false);
+  const [reglaDraft, setReglaDraft] = useState<{ diasSemana: number[]; desde: string; hasta: string; horas: string }>({ diasSemana: [], desde: '', hasta: '', horas: '' });
+  const [reglaSaving, setReglaSaving] = useState(false);
 
   const [pendingReportAutoLoad, setPendingReportAutoLoad] = useState(false);
 
@@ -1183,7 +1233,7 @@ export function RrhhPage() {
       ['Días con tramos', reportData.resumen.diasConTramos],
       ['Horas esperadas', reportData.resumen.esperadoMs / 3600000],
       ['Horas trabajadas', reportData.resumen.trabajadoMs / 3600000],
-      ['Extra 50%', formatExtraCell(reportBreakdown.extra50Ms)],
+      ['Saldo 50%', formatExtra50Cell(reportBreakdown.extra50Ms)],
       ['Extra 100%', formatExtraCell(reportBreakdown.extra100Ms)],
       ['Horas extra legible', formatExtraBreakdownText(reportBreakdown)],
       ['Horas justificadas', (reportData.resumen.justificadoMs ?? 0) / 3600000],
@@ -1209,7 +1259,7 @@ export function RrhhPage() {
         'Día hábil': day.diaHabil ? 'Sí' : 'No',
         'Horas debidas': day.esperadoMs / 3600000,
         'Horas trabajadas': day.trabajadoMs / 3600000,
-        'Extra 50%': formatExtraCell(extraBreakdown.extra50Ms),
+        'Saldo 50%': formatExtra50Cell(extraBreakdown.extra50Ms),
         'Extra 100%': formatExtraCell(extraBreakdown.extra100Ms),
         'Horas extra legible': formatExtraBreakdownText(extraBreakdown),
         'Horas justificadas': day.justificadoMs / 3600000,
@@ -1283,7 +1333,7 @@ export function RrhhPage() {
         'PIN',
         ...days.map((day) => monthlyDayHeader(day.fecha)),
         'Total trabajado',
-        ...(showMonthlyBreakdown ? ['Saldo', 'Extra 50%', 'Extra 100%'] : []),
+        ...(showMonthlyBreakdown ? ['Saldo', 'Saldo 50%', 'Extra 100%'] : []),
       ]);
 
       headerRow.eachCell((cell) => {
@@ -1305,7 +1355,7 @@ export function RrhhPage() {
                 const extraBreakdown = extraBreakdownFromEmployeeRow(row);
                 return [
                   formatSaldoJornada(row.balanceMs),
-                  formatExtraCell(extraBreakdown.extra50Ms),
+                  formatExtra50Cell(extraBreakdown.extra50Ms),
                   formatExtraCell(extraBreakdown.extra100Ms),
                 ];
               })()
@@ -1343,16 +1393,14 @@ export function RrhhPage() {
           saldoCell.font = { bold: true, color: { argb: row.balanceMs < 0 ? 'FF7F1D1D' : 'FF14532D' }, size: 10 };
           saldoCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-          // Extra 50% y 100% son horas extra (siempre >= 0): verde si hay horas, neutro si es 0.
+          // 50% es saldo neto (puede ser negativo → rojo); 100% es extra puro (>= 0 → verde/neutro).
           for (let colNumber = days.length + 5; colNumber <= days.length + 6; colNumber += 1) {
             const cell = dataRow.getCell(colNumber);
             const numericValue = [extraBreakdown.extra50Ms, extraBreakdown.extra100Ms][colNumber - (days.length + 5)];
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB' },
-            };
-            cell.font = { color: { argb: numericValue > 0 ? 'FF14532D' : 'FF6B7280' }, size: 10 };
+            const bg = numericValue > 0 ? 'FFD9EAD3' : numericValue < 0 ? 'FFF4CCCC' : 'FFF9FAFB';
+            const fg = numericValue > 0 ? 'FF14532D' : numericValue < 0 ? 'FF7F1D1D' : 'FF6B7280';
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.font = { color: { argb: fg }, size: 10 };
             cell.alignment = { vertical: 'middle', horizontal: 'right' };
           }
         }
@@ -1663,6 +1711,93 @@ export function RrhhPage() {
       await refreshAfterFichajeEdit();
     }
     if (failed > 0) toast.error(`${failed} fichaje${failed > 1 ? 's' : ''} no se pudo guardar`);
+  };
+
+  // ── Reglas de horario esperado por empleado ────────────────────────────────
+
+  const loadReglasHorario = async (empleadoId: string) => {
+    setReglasLoading(true);
+    try {
+      const reglas = await asistenciaCalendarApi.listHorarioReglas(empleadoId);
+      setReglasList(reglas);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReglasLoading(false);
+    }
+  };
+
+  const openReglasModal = (emp: EmpleadoAsistencia) => {
+    setReglasEmp({
+      id: emp.id,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      planta: emp.planta,
+      horasEsperadasDia: emp.horasEsperadasDia,
+    });
+    setReglaDraft({ diasSemana: [], desde: '', hasta: '', horas: '' });
+    setReglasList([]);
+    void loadReglasHorario(emp.id);
+  };
+
+  const closeReglasModal = () => {
+    if (reglaSaving) return;
+    setReglasEmp(null);
+    setReglasList([]);
+  };
+
+  const toggleReglaDia = (dia: number) => {
+    setReglaDraft((prev) => ({
+      ...prev,
+      diasSemana: prev.diasSemana.includes(dia)
+        ? prev.diasSemana.filter((d) => d !== dia)
+        : [...prev.diasSemana, dia].sort((a, b) => a - b),
+    }));
+  };
+
+  const addReglaHorario = async () => {
+    if (!reglasEmp) return;
+    if (reglaDraft.diasSemana.length === 0) {
+      toast.error('Elegí al menos un día de la semana');
+      return;
+    }
+    const horas = Number(reglaDraft.horas);
+    if (reglaDraft.horas.trim() === '' || !Number.isFinite(horas) || horas < 0 || horas > 24) {
+      toast.error('Horas esperadas inválidas (0 a 24)');
+      return;
+    }
+    if (reglaDraft.desde && reglaDraft.hasta && reglaDraft.desde > reglaDraft.hasta) {
+      toast.error('La fecha "desde" no puede ser mayor que "hasta"');
+      return;
+    }
+    setReglaSaving(true);
+    try {
+      await asistenciaCalendarApi.createHorarioRegla({
+        empleadoId: reglasEmp.id,
+        diasSemana: reglaDraft.diasSemana,
+        desde: reglaDraft.desde || null,
+        hasta: reglaDraft.hasta || null,
+        horasEsperadas: horas,
+      });
+      toast.success('Regla agregada');
+      setReglaDraft({ diasSemana: [], desde: '', hasta: '', horas: '' });
+      await loadReglasHorario(reglasEmp.id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReglaSaving(false);
+    }
+  };
+
+  const deleteReglaHorario = async (id: string) => {
+    if (!reglasEmp) return;
+    try {
+      await asistenciaCalendarApi.deleteHorarioRegla(id);
+      toast.success('Regla eliminada');
+      await loadReglasHorario(reglasEmp.id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   const openReportFixModal = (day: ReporteEmpleadoRango['dias'][number]) => {
@@ -2085,15 +2220,17 @@ export function RrhhPage() {
             {draft.saving ? '…' : 'Guardar'}
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => void deleteEditRow(draft.fichajeId)}
-          disabled={draft.saving}
-          title={draft.isNew ? 'Descartar' : 'Eliminar fichaje'}
-          className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {(draft.isNew || canAdmin) && (
+          <button
+            type="button"
+            onClick={() => void deleteEditRow(draft.fichajeId)}
+            disabled={draft.saving}
+            title={draft.isNew ? 'Descartar' : 'Eliminar fichaje'}
+            className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     );
   };
@@ -2104,15 +2241,17 @@ export function RrhhPage() {
         <h1 className="text-xl font-semibold tracking-tight text-foreground">RRHH</h1>
         {activeView === 'general' && (
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <button
-            type="button"
-            onClick={openEditHorariosModal}
-            disabled={loading || aggregates.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Editar horarios
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openEditHorariosModal}
+              disabled={loading || aggregates.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent disabled:opacity-50"
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Editar horarios
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -2596,7 +2735,7 @@ export function RrhhPage() {
                           <th className="px-3 py-2.5 text-right">Esperado</th>
                           {monthlyData.planta === 'tucuman' && (
                             <>
-                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Saldo de la jornada normal — lunes a sábado hasta las 13 (a favor + / en contra −)">50%</th>
                               <th className="px-3 py-2.5 text-right whitespace-nowrap" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
@@ -2621,7 +2760,7 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra50Ms)}</td>
+                                <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${extraSignColorClass(saldoBreakdown.extra50Ms)}`}>{formatExtra50Cell(saldoBreakdown.extra50Ms)}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra100Ms)}</td>
                               </>
                             )}
@@ -2669,7 +2808,7 @@ export function RrhhPage() {
                           {monthlyData.planta === 'tucuman' && (
                             <>
                               <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100">Saldo</th>
-                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 50% (sábado hasta las 13)">50%</th>
+                              <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Saldo de la jornada normal — lunes a sábado hasta las 13 (a favor + / en contra −)">50%</th>
                               <th className="rounded-md bg-slate-200 px-3 py-2 text-right min-w-[96px] text-slate-800 dark:bg-slate-800 dark:text-slate-100" title="Horas extra al 100% (sábado desde 13, domingo y feriados)">100%</th>
                             </>
                           )}
@@ -2721,7 +2860,7 @@ export function RrhhPage() {
                                   </td>
                                   {allExtraBreakdownParts(saldoBreakdown).map((part) => (
                                     <td key={part.key} className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${saldoBreakdownPillClass(part.ms)}`} title={part.title}>
-                                      {formatExtraCell(part.ms)}
+                                      {formatExtraPartValue(part)}
                                     </td>
                                   ))}
                                 </>
@@ -2968,6 +3107,125 @@ export function RrhhPage() {
         </div>
       </Dialog>
 
+      <Dialog
+        open={reglasEmp !== null}
+        onClose={closeReglasModal}
+        title={`Horarios — ${reglasEmp ? `${reglasEmp.firstName} ${reglasEmp.lastName}` : ''}`}
+        description="Horas esperadas por día de semana (solo lunes a viernes). Pisan el esperado base dentro del rango indicado."
+        panelClassName="sm:max-w-xl"
+      >
+        <p className="text-xs text-muted-foreground">
+          Esperado base:{' '}
+          <span className="font-medium text-foreground">
+            {reglasEmp?.horasEsperadasDia != null ? `${reglasEmp.horasEsperadasDia} h` : 'default de la planta'}
+          </span>
+          . El sábado y el domingo no se editan acá.
+        </p>
+
+        <div className="mt-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Reglas actuales</p>
+          {reglasLoading ? (
+            <p className="mt-2 text-xs text-muted-foreground">Cargando…</p>
+          ) : reglasList.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">Sin reglas. El empleado usa su esperado base todos los días.</p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {reglasList.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs">
+                  <span>
+                    <span className="font-medium">{formatReglaDias(r.diasSemana)}</span>
+                    {' · '}
+                    {formatReglaRango(r.desde, r.hasta)}
+                    {' → '}
+                    <span className="font-semibold">{r.horasEsperadas} h</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void deleteReglaHorario(r.id)}
+                    title="Eliminar regla"
+                    className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-md border border-dashed border-border p-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Nueva regla</p>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {DIAS_SEMANA_LV.map((d) => {
+              const selected = reglaDraft.diasSemana.includes(d.value);
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => toggleReglaDia(d.value)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    selected
+                      ? 'border-primary bg-primary/10 text-foreground font-medium'
+                      : 'border-border text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {d.short}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Desde
+              <input
+                type="date"
+                value={reglaDraft.desde}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, desde: e.target.value }))}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Hasta
+              <input
+                type="date"
+                value={reglaDraft.hasta}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, hasta: e.target.value }))}
+                className="rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Horas
+              <input
+                type="number"
+                min={0}
+                max={24}
+                step={0.5}
+                value={reglaDraft.horas}
+                onChange={(e) => setReglaDraft((prev) => ({ ...prev, horas: e.target.value }))}
+                className="w-20 rounded border border-border bg-background px-2 py-1 text-xs tabular-nums"
+              />
+            </label>
+            <Button
+              type="button"
+              onClick={() => void addReglaHorario()}
+              disabled={reglaSaving}
+              className="h-8 px-3 text-xs"
+            >
+              {reglaSaving ? 'Agregando…' : 'Agregar regla'}
+            </Button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Dejá las fechas vacías para que aplique siempre. No se permiten reglas solapadas para el mismo día.
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="outline" onClick={closeReglasModal} disabled={reglaSaving}>
+            Cerrar
+          </Button>
+        </div>
+      </Dialog>
+
       {activeView === 'reportes' && (
       <>
       <Dialog
@@ -3068,7 +3326,7 @@ export function RrhhPage() {
         </div>
         <div className="mt-4 flex justify-between gap-2 border-t border-border pt-3">
           <div>
-            {dayExceptionExistingId && (
+            {dayExceptionExistingId && canAdmin && (
               <Button type="button" variant="outline" onClick={() => void deleteDayException()} disabled={dayExceptionSaving}>
                 Eliminar
               </Button>
@@ -3076,11 +3334,13 @@ export function RrhhPage() {
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={() => setDayExceptionOpen(false)} disabled={dayExceptionSaving}>
-              Cancelar
+              {canEdit ? 'Cancelar' : 'Cerrar'}
             </Button>
+            {canEdit && (
             <Button type="button" onClick={() => void saveDayException()} disabled={dayExceptionSaving || dayExceptionLoading}>
               {dayExceptionSaving ? 'Guardando…' : 'Guardar excepción'}
             </Button>
+            )}
           </div>
         </div>
       </Dialog>
@@ -3235,7 +3495,7 @@ export function RrhhPage() {
           {hasReport && reportData.empleado.planta === 'tucuman' && (
             <div
               className="rounded-lg border border-border bg-card p-3 shadow-sm"
-              title={`El total de horas extra es ${formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}`}
+              title={`El saldo total (50% + 100%) es ${formatSaldoJornada(sumExtraBreakdown(reportExtraBreakdown))}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -3243,7 +3503,7 @@ export function RrhhPage() {
                     Horas extra
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Al 50% (sábado hasta las 13) y al 100% (sábado desde 13, domingo y feriados).
+                    50% = saldo de la jornada normal (lun a sáb hasta 13, +/−); 100% = sábado desde 13, domingos y feriados.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -3254,15 +3514,15 @@ export function RrhhPage() {
                       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${saldoBreakdownPillClass(part.ms)}`}
                     >
                       <span>{part.label}</span>
-                      <span className="font-mono tabular-nums">{formatDuracion(part.ms)}</span>
+                      <span className="font-mono tabular-nums">{formatExtraPartValue(part)}</span>
                     </span>
                   ))}
                   {!hasExtraBreakdown(reportExtraBreakdown) && (
-                    <span className="text-xs text-muted-foreground">Sin horas extra en el período.</span>
+                    <span className="text-xs text-muted-foreground">Sin saldo de horas en el período.</span>
                   )}
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${saldoBreakdownPillClass(sumExtraBreakdown(reportExtraBreakdown))}`}>
                     <span>Total</span>
-                    <span className="font-mono tabular-nums">{formatDuracion(sumExtraBreakdown(reportExtraBreakdown))}</span>
+                    <span className="font-mono tabular-nums">{formatSaldoJornada(sumExtraBreakdown(reportExtraBreakdown))}</span>
                   </span>
                 </div>
               </div>
@@ -3352,7 +3612,7 @@ export function RrhhPage() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="mb-2 flex flex-wrap gap-2">
-                            {day.fichajes.length > 0 ? (
+                            {canEdit && (day.fichajes.length > 0 ? (
                               <button
                                 type="button"
                                 onClick={() => openReportFixModal(day)}
@@ -3370,7 +3630,7 @@ export function RrhhPage() {
                                   + Agregar fichaje
                                 </button>
                               )
-                            )}
+                            ))}
                             <button
                               type="button"
                               onClick={() => void openDayExceptionModal(day)}
@@ -3605,15 +3865,17 @@ export function RrhhPage() {
                                   <option value="0">Entrada</option>
                                   <option value="1">Salida</option>
                                 </select>
-                                <button
-                                  type="button"
-                                  onClick={() => void saveRow(f)}
-                                  disabled={savingId === f.id}
-                                  className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50"
-                                >
-                                  <Save className="h-3 w-3" />
-                                  Guardar
-                                </button>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveRow(f)}
+                                    disabled={savingId === f.id}
+                                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50"
+                                  >
+                                    <Save className="h-3 w-3" />
+                                    Guardar
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -3652,6 +3914,7 @@ export function RrhhPage() {
                     </div>
                   </td>
                   <td className="px-5 py-5 text-right align-middle">
+                    {canEdit && (
                     <button
                       type="button"
                       onClick={() => openManualFichajeModal(emp)}
@@ -3659,6 +3922,7 @@ export function RrhhPage() {
                     >
                       + Agregar fichaje
                     </button>
+                    )}
                   </td>
                 </tr>
               </tbody>
@@ -3801,16 +4065,18 @@ export function RrhhPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${empLoading ? 'animate-spin' : ''}`} />
               Actualizar
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '', horasEsperadasDia: '' });
-                setNuevoEmpOpen(true);
-              }}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              + Nuevo empleado
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNuevoEmpForm({ firstName: '', lastName: '', pin: '', planta: selectedPlanta, dni: '', horasEsperadasDia: '' });
+                  setNuevoEmpOpen(true);
+                }}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-border bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                + Nuevo empleado
+              </button>
+            )}
           </div>
 
           <div className="rounded-xl border border-border overflow-hidden shadow-sm bg-card">
@@ -3978,20 +4244,35 @@ export function RrhhPage() {
                                   </>
                                 ) : (
                                   <>
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditEmp(emp)}
-                                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => void deleteEmp(emp.id, `${emp.firstName} ${emp.lastName}`)}
-                                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-                                    >
-                                      Eliminar
-                                    </button>
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditEmp(emp)}
+                                        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                                      >
+                                        Editar
+                                      </button>
+                                    )}
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openReglasModal(emp)}
+                                        title="Programar horarios esperados por día de semana"
+                                        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                                      >
+                                        <CalendarDays className="h-3.5 w-3.5" />
+                                        Horarios
+                                      </button>
+                                    )}
+                                    {canAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void deleteEmp(emp.id, `${emp.firstName} ${emp.lastName}`)}
+                                        className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -4156,7 +4437,7 @@ export function RrhhPage() {
                               <div className="flex items-center gap-2">
                                 <select
                                   value={row.empleadoId ?? ''}
-                                  disabled={isAssigning}
+                                  disabled={isAssigning || !canEdit}
                                   onChange={(e) => {
                                     const next = e.target.value || null;
                                     if (next === (row.empleadoId ?? null)) return;
@@ -4179,7 +4460,7 @@ export function RrhhPage() {
                                     </option>
                                   ))}
                                 </select>
-                                {!row.empleadoId && (
+                                {!row.empleadoId && canEdit && (
                                   <button
                                     type="button"
                                     disabled={isAssigning}
