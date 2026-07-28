@@ -5,6 +5,8 @@ import type {
   RunPayload,
   RunDetail,
   ReconciliationQualityDiagnostics,
+  ReconciliationDashboard,
+  ReconciliationDashboardFilters,
   ExpenseCategory,
   Message,
   Issue,
@@ -13,12 +15,24 @@ import type {
 
 const BASE = `${API_BASE_URL}/conciliaciones`;
 
+const buildQuery = (params: ReconciliationDashboardFilters) => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) search.set(key, value);
+  });
+  const query = search.toString();
+  return query ? `?${query}` : '';
+};
+
 export const conciliacionesApi = {
   listRuns: (company?: string) =>
     apiFetch<ReconciliationRun[]>(`/conciliaciones/reconciliations${company ? `?company=${encodeURIComponent(company)}` : ''}`),
 
   getQualityDiagnostics: (company?: string) =>
-    apiFetch<ReconciliationQualityDiagnostics>(`/conciliaciones/reconciliations/quality${company ? `?company=${encodeURIComponent(company)}` : ''}`),
+    apiFetch<ReconciliationQualityDiagnostics>(`/conciliaciones/reconciliations/quality${buildQuery({ company })}`),
+
+  getDashboard: (filters: ReconciliationDashboardFilters = {}) =>
+    apiFetch<ReconciliationDashboard>(`/conciliaciones/reconciliations/dashboard${buildQuery(filters)}`),
 
   getRun: (id: string) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`),
