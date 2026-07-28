@@ -1,10 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import { Toaster } from 'sonner';
 import { store } from './store';
 import { setAccessToken, setTokens, clearAuth } from './store/auth/authSlice';
 import { API_BASE_URL, configureApiClient } from './api/client';
+import { ThemeToaster } from './components/ui/ThemeToaster';
 import { AppRouter } from './router';
 import './index.css';
 
@@ -46,7 +46,7 @@ void hydrateAccessTokenFromRefresh().finally(() => {
     <StrictMode>
       <Provider store={store}>
         <AppRouter />
-        <Toaster richColors position="top-right" />
+        <ThemeToaster />
       </Provider>
     </StrictMode>,
   );

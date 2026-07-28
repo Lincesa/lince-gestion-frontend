@@ -185,8 +185,8 @@ export function ChangeMatchDialog({
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
           <span className="text-sm">
-            Diferencia: <strong className={isValid ? 'text-green-600 dark:text-green-400' : 'text-destructive'}>${difference.toFixed(2)}</strong>
-            {isValid && <span className="ml-2 text-green-600 dark:text-green-400">✓ Coincide</span>}
+            Diferencia: <strong className={isValid ? 'text-green-700 dark:text-green-200' : 'text-destructive'}>${difference.toFixed(2)}</strong>
+            {isValid && <span className="ml-2 text-green-700 dark:text-green-200">✓ Coincide</span>}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Cancelar</Button>

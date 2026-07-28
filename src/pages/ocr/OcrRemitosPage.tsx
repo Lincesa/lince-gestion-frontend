@@ -368,8 +368,8 @@ export function OcrRemitosPage() {
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
           isOnline
-            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200'
+            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200'
         }`}>
           {isOnline ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
           {isOnline ? 'Online' : 'Offline — guardando localmente'}
@@ -377,7 +377,7 @@ export function OcrRemitosPage() {
       </div>
 
       {cameraError && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-400 flex items-start gap-2">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800 text-sm text-red-700 dark:text-red-200 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           {cameraError}
         </div>
@@ -527,7 +527,7 @@ export function OcrRemitosPage() {
           </div>
 
           {pollErrors && pollErrors.length > 0 && (
-            <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-800 text-xs text-orange-700 dark:text-orange-400 space-y-1">
+            <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-800 text-xs text-orange-700 dark:text-orange-200 space-y-1">
               <p className="font-medium">Observaciones:</p>
               {pollErrors.map((e, i) => <p key={i}>• {e}</p>)}
             </div>
@@ -546,7 +546,7 @@ export function OcrRemitosPage() {
       {step === 'error' && (
         <div className="border border-red-200 rounded-xl p-6 text-center space-y-3 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
           <AlertTriangle className="h-10 w-10 mx-auto text-red-500" />
-          <p className="text-sm font-medium text-red-700 dark:text-red-400">No se pudo procesar el remito</p>
+          <p className="text-sm font-medium text-red-700 dark:text-red-200">No se pudo procesar el remito</p>
           <button onClick={resetFlow} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-accent">
             Intentar de nuevo
           </button>
@@ -566,10 +566,10 @@ export function OcrRemitosPage() {
                   'bg-red-100 dark:bg-red-900/30'
                 }`}>
                   {item.status === 'synced'
-                    ? <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    ? <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-200" />
                     : item.status === 'pending'
-                    ? <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />}
+                    ? <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-200" />
+                    : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-200" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">
@@ -588,9 +588,9 @@ export function OcrRemitosPage() {
                   )}
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  item.status === 'synced'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                  item.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  item.status === 'synced'  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200' :
+                  item.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200'
                 }`}>
                   {item.status === 'synced' ? 'Enviado' : item.status === 'pending' ? 'Pendiente' : 'Error'}
                 </span>

@@ -226,9 +226,9 @@ export function SatisfactionPage() {
                           {s.recomendacion ? (
                             <span className={[
                               'px-2 py-0.5 rounded-full text-xs font-medium',
-                              s.recomendacion === 'SI' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                              s.recomendacion === 'NO' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                              'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+                              s.recomendacion === 'SI' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200' :
+                              s.recomendacion === 'NO' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200' :
+                              'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200',
                             ].join(' ')}>
                               {RECOMENDACION_LABELS[s.recomendacion] ?? s.recomendacion}
                             </span>

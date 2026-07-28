@@ -78,9 +78,9 @@ export function CategoriesPage() {
         <p className="text-muted-foreground">Agrupá conceptos del extracto (ej. IVA PATO, IVA GATO → IVA) para clasificar y excluir más fácil en cada conciliación.</p>
       </div>
 
-      <Card className="border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+      <Card className="border-l-4 border-l-blue-500 border-blue-500/30 bg-blue-500/10">
         <CardHeader>
-          <CardTitle className="text-lg text-blue-700 dark:text-blue-400">💡 ¿Para qué sirven las Categorías?</CardTitle>
+          <CardTitle className="text-lg text-blue-700 dark:text-blue-200">💡 ¿Para qué sirven las Categorías?</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p><strong>Agrupar conceptos:</strong> Definí categorías (ej. "IVA") y reglas que matchean texto del concepto. Así "IVA PATO", "IVA GATO", "IVA PERRO" se clasifican todos como <strong>IVA</strong>.</p>

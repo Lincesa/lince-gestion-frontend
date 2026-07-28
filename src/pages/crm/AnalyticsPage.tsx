@@ -60,7 +60,7 @@ function DeltaBadge({ delta }: { delta: number }) {
   if (delta === 0) return <span className="text-xs text-muted-foreground">—</span>;
   const positive = delta > 0;
   return (
-    <span className={`text-xs font-medium ${positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+    <span className={`text-xs font-medium ${positive ? 'text-green-600 dark:text-green-200' : 'text-red-600 dark:text-red-200'}`}>
       {positive ? '+' : ''}{delta}
     </span>
   );
