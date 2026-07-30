@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { ReconciliationDashboard, ReconciliationQualityDiagnostics, ReconciliationQualityIssue } from '@/types/conciliaciones.types';
 
 const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
+const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
 
 const qualityContext = (issue: ReconciliationQualityIssue) => {
   const date = issue.cutDate ? new Date(issue.cutDate).toLocaleDateString() : null;
@@ -71,6 +72,7 @@ export function ConciliacionesDashboardPage() {
   const [qualityDiagnostics, setQualityDiagnostics] = useState<ReconciliationQualityDiagnostics | null>(null);
   const [dashboard, setDashboard] = useState<ReconciliationDashboard | null>(null);
   const [companyFilter, setCompanyFilter] = useState('');
+  const [bankFilter, setBankFilter] = useState('');
   const [fromFilter, setFromFilter] = useState('');
   const [toFilter, setToFilter] = useState('');
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -79,11 +81,12 @@ export function ConciliacionesDashboardPage() {
   useEffect(() => {
     let cancelled = false;
     const company = companyFilter || undefined;
+    const bankName = bankFilter || undefined;
     const from = fromFilter || undefined;
     const to = toFilter || undefined;
 
     setDashboardLoading(true);
-    conciliacionesApi.getDashboard({ company, from, to })
+    conciliacionesApi.getDashboard({ company, bankName, from, to })
       .then((value) => {
         if (!cancelled) setDashboard(value);
       })
@@ -109,11 +112,11 @@ export function ConciliacionesDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [companyFilter, fromFilter, toFilter]);
+  }, [companyFilter, bankFilter, fromFilter, toFilter]);
 
   const totalIssues = qualityDiagnostics?.summary.totalIssues ?? 0;
   const summary = dashboard?.summary;
-  const hasActiveFilters = Boolean(companyFilter || fromFilter || toFilter);
+  const hasActiveFilters = Boolean(companyFilter || bankFilter || fromFilter || toFilter);
   const excludedConceptRows = useMemo(() => (dashboard?.rows.flatMap((row) =>
     row.excludedConcepts.map((concept) => ({
       key: [row.month, row.fortnight, row.company, row.bankName, row.accountRef, concept.concept].join('|'),
@@ -141,12 +144,19 @@ export function ConciliacionesDashboardPage() {
           <CardTitle className="text-base">Filtros</CardTitle>
           <CardDescription>Los importes se agrupan por fecha local Argentina.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(11rem,14rem)_minmax(9rem,11rem)_minmax(9rem,11rem)_auto] lg:items-end">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(11rem,14rem)_minmax(12rem,16rem)_minmax(9rem,11rem)_minmax(9rem,11rem)_auto] lg:items-end">
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-muted-foreground">Empresa</span>
             <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-full">
               <option value="">Todas las empresas</option>
               {COMPANY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium text-muted-foreground">Banco</span>
+            <Select value={bankFilter} onChange={(e) => setBankFilter(e.target.value)} className="w-full">
+              <option value="">Todos los bancos</option>
+              {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
             </Select>
           </label>
           <label className="grid gap-1 text-sm">
@@ -171,7 +181,7 @@ export function ConciliacionesDashboardPage() {
             <button
               type="button"
               className="h-10 self-end text-left text-xs text-primary underline hover:no-underline sm:text-center lg:text-left"
-              onClick={() => { setCompanyFilter(''); setFromFilter(''); setToFilter(''); }}
+              onClick={() => { setCompanyFilter(''); setBankFilter(''); setFromFilter(''); setToFilter(''); }}
             >
               Limpiar filtros
             </button>
