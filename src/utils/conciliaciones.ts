@@ -1,9 +1,62 @@
+import { ACCOUNT_REF_SEPARATOR, ACCOUNT_TYPE_OPTIONS, type AccountTypeOption } from '@/constants/conciliaciones';
+
 export function normConcept(s: string | null | undefined): string {
   return (s ?? '')
     .replace(/\u00A0/g, ' ')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+const ACCOUNT_TYPE_SET = new Set<string>(ACCOUNT_TYPE_OPTIONS);
+
+export type ParsedAccountRef = {
+  type: AccountTypeOption | null;
+  number: string;
+  isCanonical: boolean;
+  isLegacy: boolean;
+  raw: string;
+};
+
+export function formatAccountRef(type: string, number?: string): string | null {
+  const normalizedType = type.trim();
+  if (!normalizedType || !ACCOUNT_TYPE_SET.has(normalizedType)) return null;
+  const ref = (number ?? '').trim();
+  return ref ? `${normalizedType}${ACCOUNT_REF_SEPARATOR}${ref}` : normalizedType;
+}
+
+export function parseAccountRef(raw: string | null | undefined): ParsedAccountRef {
+  const value = (raw ?? '').trim();
+  if (!value) {
+    return { type: null, number: '', isCanonical: false, isLegacy: false, raw: '' };
+  }
+
+  if (ACCOUNT_TYPE_SET.has(value)) {
+    return {
+      type: value as AccountTypeOption,
+      number: '',
+      isCanonical: true,
+      isLegacy: false,
+      raw: value,
+    };
+  }
+
+  for (const type of ACCOUNT_TYPE_OPTIONS) {
+    const prefix = `${type}${ACCOUNT_REF_SEPARATOR}`;
+    if (value.startsWith(prefix)) {
+      const number = value.slice(prefix.length).trim();
+      if (!number) continue;
+      return {
+        type,
+        number,
+        isCanonical: true,
+        isLegacy: false,
+        raw: value,
+      };
+    }
+  }
+
+  return { type: null, number: '', isCanonical: false, isLegacy: true, raw: value };
 }
 
 export function groupConceptVariants(

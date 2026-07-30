@@ -116,6 +116,15 @@ export type ReconciliationDashboardRow = {
   excludedConcepts: Array<{ concept: string; category: string; amount: number; count: number }>;
 };
 
+export type ReconciliationDashboardIdentityGaps = {
+  missingCompany: number;
+  missingBankName: number;
+  missingAccountRef: number;
+  missingCutDate: number;
+  totalIncomplete: number;
+  message: string | null;
+};
+
 export type ReconciliationDashboard = {
   filters: Record<keyof ReconciliationDashboardFilters, string | null>;
   summary: {
@@ -134,6 +143,7 @@ export type ReconciliationDashboard = {
     pendingResolvedCount: number;
     pendingCarriedCount: number;
   };
+  identityGaps: ReconciliationDashboardIdentityGaps;
   rows: ReconciliationDashboardRow[];
 };
 

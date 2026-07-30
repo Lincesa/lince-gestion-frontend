@@ -8,9 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import { COMPANY_OPTIONS } from '@/constants/conciliaciones';
 import type { ReconciliationRun } from '@/types/conciliaciones.types';
-
-const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
 
 const COMPANY_COLORS: Record<string, string> = {
   Lince: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',

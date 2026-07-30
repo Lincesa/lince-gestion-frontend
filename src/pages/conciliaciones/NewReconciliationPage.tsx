@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import { AccountRefFields } from '@/components/conciliaciones/AccountRefFields';
+import { BANK_OPTIONS, COMPANY_OPTIONS } from '@/constants/conciliaciones';
 import type { ExtractMapping, SystemMapping, ExpenseCategory } from '@/types/conciliaciones.types';
 import { groupConceptVariants, normConcept } from '@/utils/conciliaciones';
 
@@ -47,9 +49,6 @@ function autoMapSystem(cols: string[]): Partial<ReturnType<typeof initSystemMapp
 const initExtractMapping = (): ExtractMapping => ({ amountMode: 'single', dateCol: '', conceptCol: '', amountCol: '', debeCol: '', haberCol: '' });
 const initSystemMapping = (): SystemMapping => ({ amountMode: 'single', issueDateCol: '', dueDateCol: '', descriptionCol: '', amountCol: '', debeCol: '', haberCol: '' });
 
-const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
-const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
-
 export function NewReconciliationPage() {
   const navigate = useNavigate();
   const [extract, setExtract] = useState<FileState>(initFileState());
@@ -58,6 +57,7 @@ export function NewReconciliationPage() {
   const [systemMapping, setSystemMapping] = useState<SystemMapping>(initSystemMapping());
   const [bankName, setBankName] = useState('');
   const [company, setCompany] = useState('');
+  const [accountRef, setAccountRef] = useState<string | null>(null);
   const [windowDays, setWindowDays] = useState(0);
   const [cutDate, setCutDate] = useState('');
   const [excludeConcepts, setExcludeConcepts] = useState<string[]>([]);
@@ -122,6 +122,7 @@ export function NewReconciliationPage() {
       const result = await conciliacionesApi.createRun({
         bankName: bankName || undefined,
         company: company || undefined,
+        accountRef: accountRef || undefined,
         windowDays,
         cutDate: cutDate || undefined,
         enabledCategoryIds: enabledCategoryIds.length ? enabledCategoryIds : undefined,
@@ -276,6 +277,11 @@ export function NewReconciliationPage() {
               <Input placeholder="Nombre del banco" value={bankName === 'Otro' ? '' : bankName} onChange={(e) => setBankName(e.target.value.trim() || 'Otro')} />
             )}
           </div>
+          <AccountRefFields
+            value={accountRef}
+            onChange={setAccountRef}
+            idPrefix="new-run-account"
+          />
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Ventana de días</Label>

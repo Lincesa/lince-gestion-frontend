@@ -19,12 +19,11 @@ import { ExclusionesPanel } from '@/components/conciliaciones/ExclusionesPanel';
 import { IssuesPanel } from '@/components/conciliaciones/IssuesPanel';
 import { PermissionsPanel } from '@/components/conciliaciones/PermissionsPanel';
 import { LibroBancoPanel } from '@/components/conciliaciones/LibroBancoPanel';
+import { AccountRefFields } from '@/components/conciliaciones/AccountRefFields';
+import { BANK_OPTIONS, COMPANY_OPTIONS } from '@/constants/conciliaciones';
 import { GlobalRole } from '@/types/auth.types';
 import type { RunDetail } from '@/types/conciliaciones.types';
 import type { RunDetailSection } from '@/components/conciliaciones/RunDetailSidebar';
-
-const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
-const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
 
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -318,13 +317,12 @@ export function RunDetailPage() {
                   <option value="">Sin definir</option>
                   {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
                 </Select>
-                <Label className="text-muted-foreground font-normal">Cuenta:</Label>
-                <Input
-                  className="w-36 h-8 text-sm"
-                  defaultValue={detail.accountRef ?? ''}
-                  key={`account-${detail.accountRef ?? ''}`}
-                  placeholder="Sin cuenta"
-                  onBlur={(e) => void handleAccountRefChange(e.target.value)}
+                <AccountRefFields
+                  value={detail.accountRef}
+                  compact
+                  idPrefix={`run-${detail.id}-account`}
+                  commitMode="blur"
+                  onChange={(next) => void handleAccountRefChange(next ?? '')}
                 />
                 <Label className="text-muted-foreground font-normal">Ventana días:</Label>
                 <Input
