@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { conciliacionesApi } from '@/api/conciliaciones';
+import { AccountRefFields } from '@/components/conciliaciones/AccountRefFields';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import { BANK_OPTIONS, COMPANY_OPTIONS } from '@/constants/conciliaciones';
 import type { ReconciliationDashboard, ReconciliationQualityDiagnostics, ReconciliationQualityIssue } from '@/types/conciliaciones.types';
-
-const COMPANY_OPTIONS = ['Lince', 'Lercara', 'Zumbi'];
-const BANK_OPTIONS = ['Banco Nación', 'Banco Galicia', 'Banco Santander', 'Banco Provincia', 'Banco Macro', 'Banco Supervielle', 'Mercado Pago'];
 
 const qualityContext = (issue: ReconciliationQualityIssue) => {
   const date = issue.cutDate ? new Date(issue.cutDate).toLocaleDateString() : null;
@@ -73,6 +72,7 @@ export function ConciliacionesDashboardPage() {
   const [dashboard, setDashboard] = useState<ReconciliationDashboard | null>(null);
   const [companyFilter, setCompanyFilter] = useState('');
   const [bankFilter, setBankFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState<string | null>(null);
   const [fromFilter, setFromFilter] = useState('');
   const [toFilter, setToFilter] = useState('');
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -82,11 +82,12 @@ export function ConciliacionesDashboardPage() {
     let cancelled = false;
     const company = companyFilter || undefined;
     const bankName = bankFilter || undefined;
+    const accountRef = accountFilter || undefined;
     const from = fromFilter || undefined;
     const to = toFilter || undefined;
 
     setDashboardLoading(true);
-    conciliacionesApi.getDashboard({ company, bankName, from, to })
+    conciliacionesApi.getDashboard({ company, bankName, accountRef, from, to })
       .then((value) => {
         if (!cancelled) setDashboard(value);
       })
@@ -112,11 +113,11 @@ export function ConciliacionesDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [companyFilter, bankFilter, fromFilter, toFilter]);
+  }, [companyFilter, bankFilter, accountFilter, fromFilter, toFilter]);
 
   const totalIssues = qualityDiagnostics?.summary.totalIssues ?? 0;
   const summary = dashboard?.summary;
-  const hasActiveFilters = Boolean(companyFilter || bankFilter || fromFilter || toFilter);
+  const hasActiveFilters = Boolean(companyFilter || bankFilter || accountFilter || fromFilter || toFilter);
   const excludedConceptRows = useMemo(() => (dashboard?.rows.flatMap((row) =>
     row.excludedConcepts.map((concept) => ({
       key: [row.month, row.fortnight, row.company, row.bankName, row.accountRef, concept.concept].join('|'),
@@ -144,7 +145,7 @@ export function ConciliacionesDashboardPage() {
           <CardTitle className="text-base">Filtros</CardTitle>
           <CardDescription>Los importes se agrupan por fecha local Argentina.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(11rem,14rem)_minmax(12rem,16rem)_minmax(9rem,11rem)_minmax(9rem,11rem)_auto] lg:items-end">
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(11rem,14rem)_minmax(12rem,16rem)_minmax(16rem,22rem)_minmax(9rem,11rem)_minmax(9rem,11rem)_auto] 2xl:items-end">
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-muted-foreground">Empresa</span>
             <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-full">
@@ -159,6 +160,15 @@ export function ConciliacionesDashboardPage() {
               {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
             </Select>
           </label>
+          <div className="grid gap-1 text-sm sm:col-span-2 xl:col-span-1">
+            <span className="font-medium text-muted-foreground">Cuenta</span>
+            <AccountRefFields
+              value={accountFilter}
+              onChange={setAccountFilter}
+              showLabels={false}
+              idPrefix="dashboard-account-filter"
+            />
+          </div>
           <label className="grid gap-1 text-sm">
             <span className="font-medium text-muted-foreground">Desde</span>
             <input
@@ -180,14 +190,34 @@ export function ConciliacionesDashboardPage() {
           {hasActiveFilters && (
             <button
               type="button"
-              className="h-10 self-end text-left text-xs text-primary underline hover:no-underline sm:text-center lg:text-left"
-              onClick={() => { setCompanyFilter(''); setBankFilter(''); setFromFilter(''); setToFilter(''); }}
+              className="h-10 self-end text-left text-xs text-primary underline hover:no-underline sm:text-center 2xl:text-left"
+              onClick={() => {
+                setCompanyFilter('');
+                setBankFilter('');
+                setAccountFilter(null);
+                setFromFilter('');
+                setToFilter('');
+              }}
             >
               Limpiar filtros
             </button>
           )}
         </CardContent>
       </Card>
+
+      {!dashboardLoading && dashboard?.identityGaps?.message && (
+        <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div>
+                <CardTitle className="text-base">Datos incompletos en el período</CardTitle>
+                <CardDescription>{dashboard.identityGaps.message} Completalos en cada conciliación para mejorar el arrastre y los filtros.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card>
@@ -287,7 +317,7 @@ export function ConciliacionesDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sin datos para el filtro</CardTitle>
-            <CardDescription>No hay conciliaciones con identidad bancaria para el rango seleccionado.</CardDescription>
+            <CardDescription>No hay conciliaciones para el rango o filtros seleccionados.</CardDescription>
           </CardHeader>
         </Card>
       )}
