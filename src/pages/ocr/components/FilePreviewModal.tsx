@@ -1,10 +1,11 @@
 /**
  * FilePreviewModal — visor de archivos a pantalla completa.
- * Soporta imágenes (con zoom + arrastre) y PDFs (via <iframe>).
- * Se abre sobre el DocumentDetailModal (z-60).
+ * Soporta imágenes (zoom, arrastre, rotación) y PDFs (via <iframe>).
+ * Se monta en document.body para no quedar recortado por el layout (header/overflow).
  */
 import { useEffect, useRef, useState } from 'react';
-import { X, FileText, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw } from 'lucide-react';
 
 interface Props {
   url:      string;
@@ -19,18 +20,29 @@ const ZOOM_STEP = 0.25;
 export function FilePreviewModal({ url, isPdf, onClose }: Props) {
   const [scale, setScale]       = useState(1);
   const [offset, setOffset]     = useState({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState(0);
   const [dragging, setDragging] = useState(false);
   const containerRef  = useRef<HTMLDivElement>(null);
   const dragStart     = useRef({ x: 0, y: 0 });
   const offsetAtDrag  = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+    setRotation(0);
+  }, [url]);
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handler);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
-  // Rueda del mouse: listener no-pasivo para poder llamar preventDefault
   useEffect(() => {
     const el = containerRef.current;
     if (!el || isPdf) return;
@@ -55,8 +67,8 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
     });
   };
 
-  const reset = () => {
-    setScale(1);
+  const rotateBy = (delta: 90 | -90) => {
+    setRotation(prev => (prev + delta + 360) % 360);
     setOffset({ x: 0, y: 0 });
   };
 
@@ -78,9 +90,8 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
 
   const handleMouseUp = () => setDragging(false);
 
-  return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90">
-      {/* Barra superior */}
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-black/95">
       <div className="flex items-center justify-between px-4 py-3 shrink-0">
         <div className="flex items-center gap-2 text-white/70 text-sm">
           <FileText className="h-4 w-4" />
@@ -109,12 +120,18 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
               <ZoomIn className="h-4 w-4" />
             </button>
             <button
-              onClick={reset}
-              disabled={scale === 1}
-              className="ml-1 rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
-              aria-label="Restablecer zoom"
+              onClick={() => rotateBy(-90)}
+              className="ml-1 rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Rotar izquierda"
             >
               <RotateCcw className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => rotateBy(90)}
+              className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Rotar derecha"
+            >
+              <RotateCw className="h-4 w-4" />
             </button>
           </div>
         )}
@@ -128,7 +145,6 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
         </button>
       </div>
 
-      {/* Contenido */}
       <div
         ref={containerRef}
         className="flex-1 overflow-hidden px-4 pb-4"
@@ -151,7 +167,7 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
               alt="Documento original"
               className="max-h-full max-w-full rounded-lg object-contain"
               style={{
-                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale}) rotate(${rotation}deg)`,
                 transformOrigin: 'center',
                 transition: dragging ? 'none' : 'transform 0.15s ease',
                 userSelect: 'none',
@@ -162,6 +178,7 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
