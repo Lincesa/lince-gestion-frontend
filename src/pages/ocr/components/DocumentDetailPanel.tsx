@@ -475,7 +475,9 @@ export function DocumentDetailPanel({
         <FilePreviewModal
           url={viewUrl}
           isPdf={doc?.s3Key.endsWith('.pdf') ?? false}
+          documentId={documentId}
           onClose={() => setPreviewOpen(false)}
+          onRotated={(nextUrl) => setViewUrl(nextUrl)}
         />
       )}
     </>
