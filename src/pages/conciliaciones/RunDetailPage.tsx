@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { Dialog } from '@/components/ui/Dialog';
 import { AddPendingDialog } from '@/components/conciliaciones/AddPendingDialog';
 import { NotifyDialog } from '@/components/conciliaciones/NotifyDialog';
 import { UpdateSystemDialog } from '@/components/conciliaciones/UpdateSystemDialog';
@@ -25,6 +26,36 @@ import { GlobalRole } from '@/types/auth.types';
 import type { RunDetail } from '@/types/conciliaciones.types';
 import type { RunDetailSection } from '@/components/conciliaciones/RunDetailSidebar';
 import { formatCalendarDate, toDateInputValue } from '@/utils/conciliaciones';
+
+function closeBlockers(detail: RunDetail): string[] {
+  const openPendings = (detail.pendingItems ?? []).filter((p) => p.status !== 'RESOLVED');
+  const pendingBySystem = new Set(
+    openPendings.filter((p) => p.systemLineId && (p.note ?? '').trim()).map((p) => p.systemLineId!),
+  );
+  const pendingByExtract = new Set(
+    openPendings.filter((p) => p.extractLineId && (p.note ?? '').trim()).map((p) => p.extractLineId!),
+  );
+  const missing: string[] = [];
+  for (const row of detail.unmatchedExtract ?? []) {
+    if (!(row.justification ?? '').trim() && !pendingByExtract.has(row.extractLineId)) {
+      const line = detail.extractLines.find((l) => l.id === row.extractLineId);
+      missing.push(`Extracto sin justificar: ${line?.concept || row.extractLineId.slice(0, 8)}`);
+    }
+  }
+  for (const row of detail.unmatchedSystem ?? []) {
+    if (!(row.justification ?? '').trim() && !pendingBySystem.has(row.systemLineId)) {
+      const line = detail.systemLines.find((l) => l.id === row.systemLineId);
+      missing.push(`Sistema sin justificar: ${line?.description || row.systemLineId.slice(0, 8)}`);
+    }
+  }
+  for (const pending of openPendings) {
+    if (!(pending.note ?? '').trim()) {
+      missing.push(`Pendiente sin nota (${pending.area})`);
+    }
+  }
+  return missing;
+}
+
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const user = useAppSelector((s) => s.auth.user);
@@ -41,6 +72,8 @@ export function RunDetailPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [closeBlockersOpen, setCloseBlockersOpen] = useState(false);
+  const [closeBlockerList, setCloseBlockerList] = useState<string[]>([]);
 
   const isClosed = detail?.status === 'CLOSED';
   const isCreator = !!(detail?.createdById && user?.id && detail.createdById === user.id);
@@ -93,7 +126,7 @@ export function RunDetailPage() {
 
   const handleAddPending = async (area: string, note: string) => {
     if (!id) return;
-    await conciliacionesApi.createPending(id, { area, systemLineId: pendingSystemLineId, note: note || undefined });
+    await conciliacionesApi.createPending(id, { area, systemLineId: pendingSystemLineId || undefined, note });
     void fetchDetail();
   };
 
@@ -113,24 +146,63 @@ export function RunDetailPage() {
     await conciliacionesApi.notifyPending(id, { areas, customMessage: customMessage || undefined });
   };
 
-  const handleWorkspaceSave = async (items: Array<{ systemLineId: string; area: string; status: 'OVERDUE' | 'DEFERRED' }>) => {
+  const handleWorkspaceSave = async (items: Array<{ systemLineId: string; area: string; status: 'OVERDUE' | 'DEFERRED'; note: string }>) => {
     if (!id) return;
     for (const item of items) {
-      await conciliacionesApi.createPending(id, { area: item.area, systemLineId: item.systemLineId, note: `Estado: ${item.status === 'OVERDUE' ? 'Vencido' : 'Diferido'}` });
+      await conciliacionesApi.createPending(id, {
+        area: item.area,
+        systemLineId: item.systemLineId,
+        note: item.note,
+      });
     }
+    void fetchDetail();
+  };
+
+  const handleJustifySystem = async (systemLineId: string, justification: string) => {
+    if (!id) return;
+    const updated = await conciliacionesApi.justifyUnmatchedSystemByLine(id, systemLineId, justification);
+    setDetail(updated);
+  };
+
+  const handleJustifyExtract = async (extractLineId: string, justification: string) => {
+    if (!id) return;
+    const updated = await conciliacionesApi.justifyUnmatchedExtractByLine(id, extractLineId, justification);
+    setDetail(updated);
+  };
+
+  const handleConvertExtractToPending = async (extractLineId: string, area: string, note: string) => {
+    if (!id) return;
+    await conciliacionesApi.createPending(id, { area, extractLineId, note });
     void fetchDetail();
   };
 
   const handleToggleStatus = async () => {
     if (!id || !detail) return;
     const next = detail.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+    if (next === 'CLOSED') {
+      const blockers = closeBlockers(detail);
+      if (blockers.length > 0) {
+        setCloseBlockerList(blockers);
+        setCloseBlockersOpen(true);
+        return;
+      }
+    }
     setUpdatingStatus(true);
     try {
       await conciliacionesApi.updateRun(id, { status: next });
       setDetail((d) => d ? { ...d, status: next } : d);
       toast.success(next === 'CLOSED' ? 'Conciliación cerrada' : 'Conciliación reabierta');
-    } catch { toast.error('Error al cambiar estado'); }
-    finally { setUpdatingStatus(false); }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cambiar estado';
+      if (next === 'CLOSED') {
+        setCloseBlockerList([msg]);
+        setCloseBlockersOpen(true);
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setUpdatingStatus(false);
+    }
   };
 
   const handleBankChange = async (bank: string) => {
@@ -267,6 +339,7 @@ export function RunDetailPage() {
   const pendingItems = detail.pendingItems || [];
   const pendingByArea = pendingItems.filter((p) => p.status !== 'RESOLVED').reduce((acc, p) => { acc[p.area] = (acc[p.area] || 0) + 1; return acc; }, {} as Record<string, number>);
   const pendingCount = pendingItems.filter((p) => p.status !== 'RESOLVED').length;
+  const uncoveredCloseItems = closeBlockers(detail);
   const missingBankIdentity = !detail.company || !detail.bankName || !detail.accountRef;
   const missingBankIdentityLabel = !detail.company
     ? 'Falta empresa'
@@ -414,6 +487,22 @@ export function RunDetailPage() {
         </div>
       </div>
 
+      {!isClosed && uncoveredCloseItems.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">
+                Hay {uncoveredCloseItems.length} ítem{uncoveredCloseItems.length !== 1 ? 's' : ''} sin justificar para poder cerrar
+              </p>
+              <p className="mt-1 text-xs opacity-90">
+                Justificá los sin match o convertílos a pendientes con nota desde el Espacio de trabajo.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-0 rounded-lg border bg-card overflow-hidden min-h-[calc(100vh-12rem)]">
         <RunDetailSidebar active={section} onSelect={setSection} issuesCount={detail.issues?.length ?? 0} showPermisos={canManagePermissions} />
         <div className="flex-1 overflow-auto p-4">
@@ -434,6 +523,9 @@ export function RunDetailPage() {
               systemLines={detail.systemLines} extractLines={extractLinesActive} extractById={extractById} systemById={systemById}
               excludeConcepts={detail.excludeConcepts ?? []} pendingAreaBySystemLineId={pendingAreaBySystemLineId} pendingItems={pendingItems}
               onSave={canManageOpenRun ? handleWorkspaceSave : undefined} onFinalize={canManageOpenRun ? handleWorkspaceFinalize : undefined}
+              onJustifySystem={canManageOpenRun ? handleJustifySystem : undefined}
+              onJustifyExtract={canManageOpenRun ? handleJustifyExtract : undefined}
+              onConvertExtractToPending={canManageOpenRun ? handleConvertExtractToPending : undefined}
               onChangeMatchSuccess={fetchDetail} runId={canManageOpenRun ? id : undefined}
             />
           )}
@@ -463,6 +555,23 @@ export function RunDetailPage() {
       <AddPendingDialog open={pendingDialogOpen} onClose={() => setPendingDialogOpen(false)} systemLineId={pendingSystemLineId} onSubmit={handleAddPending} />
       <NotifyDialog open={notifyDialogOpen} onClose={() => setNotifyDialogOpen(false)} pendingByArea={pendingByArea} onSubmit={handleNotify} />
       {id && <UpdateSystemDialog open={updateSystemDialogOpen} onClose={() => setUpdateSystemDialogOpen(false)} runId={id} onSuccess={fetchDetail} />}
+      <Dialog
+        open={closeBlockersOpen}
+        onClose={() => setCloseBlockersOpen(false)}
+        title="No se puede cerrar todavía"
+        description="Hay sin match o pendientes sin justificación. Completalos y volvé a intentar."
+        panelClassName="!max-w-xl"
+      >
+        <ul className="max-h-72 space-y-2 overflow-auto text-sm">
+          {closeBlockerList.map((item) => (
+            <li key={item} className="rounded-md border px-3 py-2">{item}</li>
+          ))}
+        </ul>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setCloseBlockersOpen(false)}>Entendido</Button>
+          <Button onClick={() => { setCloseBlockersOpen(false); setSection('workspace'); }}>Ir al workspace</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -13,15 +13,18 @@ import { formatCalendarDate } from '@/utils/conciliaciones';
 interface WorkspacePanelProps {
   matches: Match[];
   unmatchedSystem: UnmatchedSystem[];
-  unmatchedExtract: { extractLineId: string }[];
+  unmatchedExtract: { id?: string; extractLineId: string; justification?: string | null }[];
   systemLines: SystemLine[];
   extractLines: ExtractLine[];
   systemById: Map<string, SystemLine>;
   extractById: Map<string, ExtractLine>;
   excludeConcepts?: string[];
-  onSave?: (items: Array<{ systemLineId: string; area: string; status: 'OVERDUE' | 'DEFERRED' }>) => Promise<void>;
+  onSave?: (items: Array<{ systemLineId: string; area: string; status: 'OVERDUE' | 'DEFERRED'; note: string }>) => Promise<void>;
   onFinalize?: () => void;
   onChangeMatchSuccess?: () => void;
+  onJustifySystem?: (systemLineId: string, justification: string) => Promise<void>;
+  onJustifyExtract?: (extractLineId: string, justification: string) => Promise<void>;
+  onConvertExtractToPending?: (extractLineId: string, area: string, note: string) => Promise<void>;
   runId?: string;
   pendingAreaBySystemLineId?: Map<string, string>;
   pendingItems?: PendingItem[];
@@ -31,12 +34,14 @@ const AREAS = ['Dirección', 'Tesorería'];
 const TAB_SISTEMA = 'sistema';
 const TAB_EXTRACTO = 'extracto';
 
-export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, systemLines, extractLines, systemById, extractById, onSave, onFinalize, onChangeMatchSuccess, runId, pendingAreaBySystemLineId, pendingItems = [] }: WorkspacePanelProps) {
-  const [workItems, setWorkItems] = useState<Map<string, { area: string; status: 'OVERDUE' | 'DEFERRED' }>>(new Map());
+export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, systemLines, extractLines, systemById, extractById, onSave, onFinalize, onChangeMatchSuccess, onJustifySystem, onJustifyExtract, onConvertExtractToPending, runId, pendingAreaBySystemLineId, pendingItems = [] }: WorkspacePanelProps) {
+  const [workItems, setWorkItems] = useState<Map<string, { area: string; status: 'OVERDUE' | 'DEFERRED'; note: string }>>(new Map());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [bulkArea, setBulkArea] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(TAB_SISTEMA);
+  const [systemJustifications, setSystemJustifications] = useState<Map<string, string>>(new Map());
+  const [extractWork, setExtractWork] = useState<Map<string, { area: string; note: string; justification: string }>>(new Map());
   const [changeMatchSelection, setChangeMatchSelection] = useState<{
     systemIds: string[];
     extractIds: string[];
@@ -53,7 +58,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
       for (const u of unmatchedSystem) {
         const id = u.systemLineId;
         const status = (u.status === 'OVERDUE' || u.status === 'DEFERRED') ? u.status : 'DEFERRED';
-        if (!next.has(id)) { next.set(id, { area: pendingArea.get(id) ?? '', status }); changed = true; }
+        if (!next.has(id)) { next.set(id, { area: pendingArea.get(id) ?? '', status, note: '' }); changed = true; }
         else {
           const current = next.get(id)!;
           const areaFromBackend = pendingArea.get(id) ?? '';
@@ -62,7 +67,29 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
       }
       return changed ? next : prev;
     });
-  }, [unmatchedSystem, pendingAreaBySystemLineId]);
+    setSystemJustifications((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const u of unmatchedSystem) {
+        if (!next.has(u.systemLineId)) {
+          next.set(u.systemLineId, u.justification ?? '');
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setExtractWork((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const row of unmatchedExtract) {
+        if (!next.has(row.extractLineId)) {
+          next.set(row.extractLineId, { area: '', note: '', justification: row.justification ?? '' });
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [unmatchedSystem, unmatchedExtract, pendingAreaBySystemLineId]);
 
   const systemToExtracts = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -132,13 +159,21 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
   const handleAreaChange = (id: string, area: string) => {
     const newItems = new Map(workItems);
     const item = allIncorrect.find((i) => i.id === id);
-    if (item) newItems.set(id, { area, status: workItems.get(id)?.status || item.status });
+    if (item) newItems.set(id, { area, status: workItems.get(id)?.status || item.status, note: workItems.get(id)?.note || '' });
     setWorkItems(newItems);
   };
 
   const handleStatusChange = (id: string, status: 'OVERDUE' | 'DEFERRED') => {
     const newItems = new Map(workItems);
-    newItems.set(id, { area: workItems.get(id)?.area || '', status });
+    newItems.set(id, { area: workItems.get(id)?.area || '', status, note: workItems.get(id)?.note || '' });
+    setWorkItems(newItems);
+  };
+
+  const handleNoteChange = (id: string, note: string) => {
+    const newItems = new Map(workItems);
+    const current = workItems.get(id);
+    if (!current) return;
+    newItems.set(id, { ...current, note });
     setWorkItems(newItems);
   };
 
@@ -147,7 +182,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
     const newItems = new Map(workItems);
     selectedItems.forEach((id) => {
       const item = allIncorrect.find((i) => i.id === id);
-      if (item) newItems.set(id, { area: bulkArea, status: workItems.get(id)?.status || item.status });
+      if (item) newItems.set(id, { area: bulkArea, status: workItems.get(id)?.status || item.status, note: workItems.get(id)?.note || '' });
     });
     setWorkItems(newItems);
     setSelectedItems(new Set());
@@ -155,8 +190,15 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
   };
 
   const handleSave = async () => {
-    const itemsToSave = Array.from(workItems.entries()).filter(([, d]) => d.area).map(([systemLineId, data]) => ({ systemLineId, area: data.area, status: data.status }));
+    const itemsToSave = Array.from(workItems.entries())
+      .filter(([, d]) => d.area)
+      .map(([systemLineId, data]) => ({ systemLineId, area: data.area, status: data.status, note: data.note.trim() }));
     if (itemsToSave.length === 0) { toast.error('No hay movimientos con área asignada'); return; }
+    const missingNote = itemsToSave.filter((item) => !item.note);
+    if (missingNote.length > 0) {
+      toast.error('Cada pendiente necesita una justificación/nota');
+      return;
+    }
     if (!onSave) return;
     setIsSaving(true);
     try { await onSave(itemsToSave); toast.success('Cambios guardados exitosamente'); }
@@ -316,7 +358,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
             </div>
           )}
 
-          <CollapsibleSection title={`Sistema sin match (${allIncorrect.length}) — asigná área`} defaultOpen={allIncorrect.length > 0} maxHeight="50vh">
+          <CollapsibleSection title={`Sistema sin match (${allIncorrect.length}) — justificá o convertí a pendiente`} defaultOpen={allIncorrect.length > 0} maxHeight="50vh">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -324,7 +366,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                     <input type="checkbox" checked={selectedItems.size === allIncorrect.length && allIncorrect.length > 0} onChange={handleToggleAll} disabled={!onSave} className="h-4 w-4 rounded border-input" />
                   </TableHead>
                   <TableHead>Descripción</TableHead><TableHead>Fecha Emisión</TableHead><TableHead>Fecha Venc.</TableHead>
-                  <TableHead>Importe</TableHead><TableHead>Estado</TableHead><TableHead>Área Asignada</TableHead><TableHead>Contexto</TableHead>
+                  <TableHead>Importe</TableHead><TableHead>Estado</TableHead><TableHead>Área</TableHead><TableHead>Nota pendiente</TableHead><TableHead>Justificación</TableHead><TableHead>Contexto</TableHead>
                   {runId && <TableHead></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -335,33 +377,74 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                   const workData = workItems.get(item.id);
                   const currentStatus = workData?.status ?? item.status;
                   const carriedPending = carriedPendingBySystemLineId.get(item.id);
+                  const unmatchedMeta = unmatchedSystem.find((u) => u.systemLineId === item.id);
                   return (
                     <TableRow key={item.id}>
                       <TableCell>
                         <input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => handleToggleItem(item.id)} disabled={!onSave} className="h-4 w-4 rounded border-input" />
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{sys.description || '-'}</TableCell>
+                      <TableCell className="max-w-[160px] truncate">{sys.description || '-'}</TableCell>
                       <TableCell>{formatCalendarDate(sys.issueDate)}</TableCell>
                       <TableCell>{formatCalendarDate(sys.dueDate)}</TableCell>
                       <TableCell>${sys.amount.toFixed(2)}</TableCell>
                       <TableCell>
-                        <Select value={currentStatus} onChange={(e) => handleStatusChange(item.id, e.target.value as 'OVERDUE' | 'DEFERRED')} className="w-32" disabled={!onSave}>
+                        <Select value={currentStatus} onChange={(e) => handleStatusChange(item.id, e.target.value as 'OVERDUE' | 'DEFERRED')} className="w-28" disabled={!onSave}>
                           <option value="OVERDUE">Vencido</option>
                           <option value="DEFERRED">Diferido</option>
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Select value={workData?.area || ''} onChange={(e) => handleAreaChange(item.id, e.target.value)} className="w-40" disabled={!onSave}>
+                        <Select value={workData?.area || ''} onChange={(e) => handleAreaChange(item.id, e.target.value)} className="w-32" disabled={!onSave}>
                           <option value="">Sin asignar</option>
                           {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
                         </Select>
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs"
+                          value={workData?.note || ''}
+                          disabled={!onSave}
+                          placeholder="Nota obligatoria"
+                          onChange={(e) => handleNoteChange(item.id, e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 items-center">
+                          <input
+                            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs"
+                            value={systemJustifications.get(item.id) ?? unmatchedMeta?.justification ?? ''}
+                            disabled={!onJustifySystem}
+                            placeholder="Por qué no matcheó"
+                            onChange={(e) => {
+                              const next = new Map(systemJustifications);
+                              next.set(item.id, e.target.value);
+                              setSystemJustifications(next);
+                            }}
+                          />
+                          {onJustifySystem && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                const text = (systemJustifications.get(item.id) ?? '').trim();
+                                if (!text) { toast.error('Escribí una justificación'); return; }
+                                try {
+                                  await onJustifySystem(item.id, text);
+                                  toast.success('Justificación guardada');
+                                } catch { toast.error('No se pudo guardar'); }
+                              }}
+                            >
+                              Guardar
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-300">
                         {carriedPending ? (
                           <span title={carriedPending.sourceRunId ?? carriedPending.originPendingItemId ?? undefined}>
                             Arrastrado{carriedPending.carriedAt ? ` · ${formatCalendarDate(carriedPending.carriedAt)}` : ''}
                           </span>
-                        ) : '-'}
+                        ) : (unmatchedMeta?.justification ? 'Justificado' : '-')}
                       </TableCell>
                       {runId && (
                         <TableCell>
@@ -380,11 +463,12 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
           )}
 
           {unmatchedExtract.length > 0 && (
-            <CollapsibleSection title={`Solo en extracto (${unmatchedExtract.length})`} defaultOpen={true} maxHeight="50vh">
+            <CollapsibleSection title={`Solo en extracto (${unmatchedExtract.length}) — justificá o pasá a pendiente`} defaultOpen={true} maxHeight="50vh">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead><TableHead>Concepto</TableHead><TableHead>Importe</TableHead>
+                    <TableHead>Justificación</TableHead><TableHead>Área</TableHead><TableHead>Nota pendiente</TableHead>
                     {runId && <TableHead></TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -392,14 +476,90 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                   {unmatchedExtract.map((row) => {
                     const ext = extractById.get(row.extractLineId);
                     if (!ext) return null;
+                    const work = extractWork.get(row.extractLineId) ?? { area: '', note: '', justification: row.justification ?? '' };
                     return (
                       <TableRow key={row.extractLineId} className="bg-blue-50 dark:bg-blue-900/30">
                         <TableCell>{formatCalendarDate(ext.date)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{ext.concept || '-'}</TableCell>
+                        <TableCell className="max-w-[160px] truncate">{ext.concept || '-'}</TableCell>
                         <TableCell>${ext.amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 items-center">
+                            <input
+                              className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs"
+                              value={work.justification}
+                              disabled={!onJustifyExtract}
+                              placeholder="Por qué no matcheó"
+                              onChange={(e) => {
+                                const next = new Map(extractWork);
+                                next.set(row.extractLineId, { ...work, justification: e.target.value });
+                                setExtractWork(next);
+                              }}
+                            />
+                            {onJustifyExtract && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  const text = work.justification.trim();
+                                  if (!text) { toast.error('Escribí una justificación'); return; }
+                                  try {
+                                    await onJustifyExtract(row.extractLineId, text);
+                                    toast.success('Justificación guardada');
+                                  } catch { toast.error('No se pudo guardar'); }
+                                }}
+                              >
+                                Guardar
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={work.area}
+                            disabled={!onConvertExtractToPending}
+                            onChange={(e) => {
+                              const next = new Map(extractWork);
+                              next.set(row.extractLineId, { ...work, area: e.target.value });
+                              setExtractWork(next);
+                            }}
+                            className="w-32"
+                          >
+                            <option value="">Sin asignar</option>
+                            {AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs"
+                            value={work.note}
+                            disabled={!onConvertExtractToPending}
+                            placeholder="Nota obligatoria"
+                            onChange={(e) => {
+                              const next = new Map(extractWork);
+                              next.set(row.extractLineId, { ...work, note: e.target.value });
+                              setExtractWork(next);
+                            }}
+                          />
+                        </TableCell>
                         {runId && (
-                          <TableCell>
+                          <TableCell className="space-x-1 whitespace-nowrap">
                             <Button variant="outline" size="sm" onClick={() => openChangeMatchFromExtract(row.extractLineId)}>Matchear</Button>
+                            {onConvertExtractToPending && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!work.area) { toast.error('Asigná un área'); return; }
+                                  if (!work.note.trim()) { toast.error('La nota es obligatoria'); return; }
+                                  try {
+                                    await onConvertExtractToPending(row.extractLineId, work.area, work.note.trim());
+                                    toast.success('Convertido a pendiente');
+                                  } catch { toast.error('No se pudo convertir'); }
+                                }}
+                              >
+                                A pendiente
+                              </Button>
+                            )}
                           </TableCell>
                         )}
                       </TableRow>
