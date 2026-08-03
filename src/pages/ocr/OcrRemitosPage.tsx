@@ -26,6 +26,7 @@ import { fetchMyFacturas } from '@/store/ocr/documentsSlice';
 // ── Tipos locales ─────────────────────────────────────────────────────────────
 
 type UploadStep = 'idle' | 'capture' | 'preview' | 'uploading' | 'polling' | 'done' | 'error';
+type RotationDegrees = 0 | 90 | 180 | 270;
 
 interface QueueItem {
   id:         string;
@@ -69,7 +70,7 @@ export function OcrRemitosPage() {
   const [queue, setQueue]             = useState<QueueItem[]>(() => loadQueue());
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [isRotating, setIsRotating]   = useState(false);
+  const [rotationDegrees, setRotationDegrees] = useState<RotationDegrees>(0);
   // ticker para re-render mientras haya items dentro de la ventana de 5 min
   const [, setTick] = useState(0);
 
@@ -86,7 +87,8 @@ export function OcrRemitosPage() {
     setTestError(null);
     setTestFields(null);
     try {
-      const file   = capturedBlob instanceof File ? capturedBlob : new File([capturedBlob], 'remito.jpg', { type: capturedBlob.type || 'image/jpeg' });
+      const preparedBlob = await prepareBlobForOcr(capturedBlob, rotationDegrees);
+      const file   = preparedBlob instanceof File ? preparedBlob : new File([preparedBlob], 'remito.jpg', { type: getUploadContentType(preparedBlob) });
       const result = await ocrApi.testExtract(file, DocumentType.REMITO);
       setTestFields(result.fields);
     } catch (err) {
@@ -94,7 +96,7 @@ export function OcrRemitosPage() {
     } finally {
       setTestLoading(false);
     }
-  }, [capturedBlob]);
+  }, [capturedBlob, rotationDegrees]);
 
   const videoRef       = useRef<HTMLVideoElement>(null);
   const streamRef      = useRef<MediaStream | null>(null);
@@ -171,6 +173,7 @@ export function OcrRemitosPage() {
       stopCamera();
       setCapturedBlob(blob);
       setPreviewUrl(URL.createObjectURL(blob));
+      setRotationDegrees(0);
       setStep('preview');
     }, 'image/jpeg', 0.92);
   }, [stopCamera]);
@@ -180,6 +183,7 @@ export function OcrRemitosPage() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setCapturedBlob(null);
     setPreviewUrl(null);
+    setRotationDegrees(0);
     setStep('idle');
   }, [stopCamera, previewUrl]);
 
@@ -190,33 +194,20 @@ export function OcrRemitosPage() {
     if (!file) return;
     setCapturedBlob(file);
     setPreviewUrl(URL.createObjectURL(file));
+    setRotationDegrees(0);
     setStep('preview');
     e.target.value = '';
   };
 
-  const rotatePreview = useCallback(async (degrees: 90 | -90) => {
+  const rotatePreview = useCallback((degrees: 90 | -90) => {
     if (!capturedBlob) return;
 
-    if (!capturedBlob.type.startsWith('image/')) {
+    if (isPdfBlob(capturedBlob)) {
       toast.error('Solo se pueden rotar imágenes. Los PDF se deben corregir antes de subir.');
       return;
     }
 
-    setIsRotating(true);
-    try {
-      const rotatedBlob = await rotateImageBlob(capturedBlob, degrees);
-      const nextPreviewUrl = URL.createObjectURL(rotatedBlob);
-
-      setCapturedBlob(rotatedBlob);
-      setPreviewUrl((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return nextPreviewUrl;
-      });
-    } catch (err) {
-      toast.error(`No se pudo rotar la imagen: ${(err as Error).message}`);
-    } finally {
-      setIsRotating(false);
-    }
+    setRotationDegrees((current) => normalizeRotation(current + degrees));
   }, [capturedBlob]);
 
   // ── Upload pipeline ─────────────────────────────────────────────────────────
@@ -224,14 +215,15 @@ export function OcrRemitosPage() {
   const uploadDocument = useCallback(async () => {
     if (!capturedBlob) return;
 
-    const contentType = (capturedBlob.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
-
     setStep('uploading');
     setUploadPct(0);
 
     let documentId: string | undefined;
 
     try {
+      const uploadBlob = await prepareBlobForOcr(capturedBlob, rotationDegrees);
+      const contentType = getUploadContentType(uploadBlob);
+
       // Paso 1: solicitar presigned URL
       const { uploadUrl, documentId: docId } = await ocrApi.requestUploadUrl(
         DocumentType.REMITO,
@@ -240,7 +232,7 @@ export function OcrRemitosPage() {
       documentId = docId;
 
       // Paso 2: subir a S3 con progreso
-      await ocrApi.uploadToS3(uploadUrl, capturedBlob, contentType, setUploadPct);
+      await ocrApi.uploadToS3(uploadUrl, uploadBlob, contentType, setUploadPct);
 
       // Paso 3: confirmar al backend → dispara OCR (o detecta duplicado)
       const confirmResult = await ocrApi.confirmUpload(documentId);
@@ -303,7 +295,7 @@ export function OcrRemitosPage() {
 
       setStep('error');
     }
-  }, [capturedBlob, previewUrl]);
+  }, [capturedBlob, previewUrl, rotationDegrees]);
 
   const pollDocumentStatus = async (docId: string) => {
     for (let i = 0; i < POLL_MAX_RETRIES; i++) {
@@ -347,6 +339,7 @@ export function OcrRemitosPage() {
     setPollStatus(null);
     setPollErrors(null);
     setUploadPct(0);
+    setRotationDegrees(0);
     setStep('idle');
   };
 
@@ -487,8 +480,15 @@ export function OcrRemitosPage() {
       {/* ── Estado: preview ───────────────────────────────────────── */}
       {step === 'preview' && previewUrl && (
         <div className="border border-border rounded-xl overflow-hidden">
-          {capturedBlob?.type.startsWith('image/') ? (
-            <img src={previewUrl} alt="Preview remito" className="w-full object-contain max-h-64 bg-black" />
+          {capturedBlob && !isPdfBlob(capturedBlob) ? (
+            <div className="w-full h-64 bg-black flex items-center justify-center overflow-hidden">
+              <img
+                src={previewUrl}
+                alt="Preview remito"
+                className="max-w-full max-h-full object-contain transition-transform duration-200"
+                style={{ transform: `rotate(${rotationDegrees}deg)` }}
+              />
+            </div>
           ) : (
             <div className="w-full min-h-48 bg-muted flex flex-col items-center justify-center gap-2 p-6 text-center">
               <Upload className="h-8 w-8 text-muted-foreground" />
@@ -500,24 +500,24 @@ export function OcrRemitosPage() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => rotatePreview(-90)}
-                disabled={isRotating || !capturedBlob?.type.startsWith('image/')}
+                disabled={!capturedBlob || isPdfBlob(capturedBlob)}
                 className="py-2 text-sm rounded-md border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isRotating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                <RotateCcw className="h-4 w-4" />
                 Rotar izquierda
               </button>
               <button
                 onClick={() => rotatePreview(90)}
-                disabled={isRotating || !capturedBlob?.type.startsWith('image/')}
+                disabled={!capturedBlob || isPdfBlob(capturedBlob)}
                 className="py-2 text-sm rounded-md border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isRotating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                <RotateCw className="h-4 w-4" />
                 Rotar derecha
               </button>
             </div>
             <button
               onClick={handleTestExtract}
-              disabled={isRotating}
+              disabled={testLoading}
               className="w-full py-2 text-sm rounded-md border border-primary text-primary font-medium hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <FlaskConical className="h-4 w-4" /> Probar OCR
@@ -531,7 +531,6 @@ export function OcrRemitosPage() {
               </button>
               <button
                 onClick={uploadDocument}
-                disabled={isRotating}
                 className="flex-1 py-2 text-sm rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Upload className="h-4 w-4" /> Enviar
@@ -702,13 +701,18 @@ function loadQueue(): QueueItem[] {
   }
 }
 
-async function rotateImageBlob(blob: Blob, degrees: 90 | -90): Promise<Blob> {
+async function prepareBlobForOcr(blob: Blob, rotationDegrees: RotationDegrees): Promise<Blob> {
+  if (rotationDegrees === 0 || isPdfBlob(blob)) return blob;
+  return rotateImageBlob(blob, rotationDegrees);
+}
+
+async function rotateImageBlob(blob: Blob, degrees: RotationDegrees): Promise<Blob> {
   const sourceUrl = URL.createObjectURL(blob);
 
   try {
     const image = await loadImage(sourceUrl);
     const canvas = document.createElement('canvas');
-    const isSideways = Math.abs(degrees) === 90;
+    const isSideways = degrees === 90 || degrees === 270;
 
     canvas.width  = isSideways ? image.naturalHeight : image.naturalWidth;
     canvas.height = isSideways ? image.naturalWidth : image.naturalHeight;
@@ -767,4 +771,20 @@ function tryCanvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob 
 function getRotatedImageType(sourceType: string): string {
   if (sourceType === 'image/png' || sourceType === 'image/webp') return sourceType;
   return 'image/jpeg';
+}
+
+function getUploadContentType(blob: Blob): 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' {
+  if (isPdfBlob(blob)) return 'application/pdf';
+  if (blob.type === 'image/png' || blob.type === 'image/webp') return blob.type;
+  return 'image/jpeg';
+}
+
+function isPdfBlob(blob: Blob): boolean {
+  if (blob.type === 'application/pdf') return true;
+  return blob instanceof File && blob.name.toLowerCase().endsWith('.pdf');
+}
+
+function normalizeRotation(degrees: number): RotationDegrees {
+  const normalized = ((degrees % 360) + 360) % 360;
+  return normalized as RotationDegrees;
 }
