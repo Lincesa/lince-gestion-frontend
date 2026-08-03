@@ -481,12 +481,16 @@ export function OcrRemitosPage() {
       {step === 'preview' && previewUrl && (
         <div className="border border-border rounded-xl overflow-hidden">
           {capturedBlob && !isPdfBlob(capturedBlob) ? (
-            <div className="w-full h-64 bg-black flex items-center justify-center overflow-hidden">
+            <div className="w-full h-72 bg-black flex items-center justify-center overflow-hidden">
               <img
                 src={previewUrl}
                 alt="Preview remito"
-                className="max-w-full max-h-full object-contain transition-transform duration-200"
-                style={{ transform: `rotate(${rotationDegrees}deg)` }}
+                className="object-contain transition-transform duration-200"
+                style={{
+                  transform: `rotate(${rotationDegrees}deg)`,
+                  maxWidth:  rotationDegrees % 180 === 0 ? '100%' : '18rem',
+                  maxHeight: rotationDegrees % 180 === 0 ? '18rem' : '100%',
+                }}
               />
             </div>
           ) : (
