@@ -21,6 +21,10 @@ export function AddPendingDialog({ open, onClose, onSubmit }: AddPendingDialogPr
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
+    if (!note.trim()) {
+      toast.error('La justificación es obligatoria');
+      return;
+    }
     setIsLoading(true);
     try {
       await onSubmit(area, note);
@@ -46,12 +50,12 @@ export function AddPendingDialog({ open, onClose, onSubmit }: AddPendingDialogPr
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Nota (opcional)</Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Agregar observación..." />
+          <Label>Justificación / nota</Label>
+          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Por qué queda pendiente..." required />
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Guardando...' : 'Guardar'}</Button>
+          <Button onClick={handleSubmit} disabled={isLoading || !note.trim()}>{isLoading ? 'Guardando...' : 'Guardar'}</Button>
         </div>
       </div>
     </Dialog>

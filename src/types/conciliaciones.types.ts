@@ -90,9 +90,15 @@ export type ReconciliationDashboardFilters = {
   accountRef?: string;
   from?: string;
   to?: string;
+  month?: string;
+  fortnight?: 'first' | 'second';
 };
 
 export type ReconciliationDashboardRow = {
+  runId: string;
+  title: string | null;
+  status: 'OPEN' | 'CLOSED';
+  cutDate: string | null;
   month: string;
   fortnight: 'first' | 'second';
   company: string | null;
@@ -109,6 +115,8 @@ export type ReconciliationDashboardRow = {
   unmatchedExtractCount: number;
   unmatchedSystemAmount: number;
   unmatchedSystemCount: number;
+  overdueAmount: number;
+  overdueCount: number;
   pendingOpenCount: number;
   pendingResolvedCount: number;
   pendingCarriedCount: number;
@@ -139,10 +147,13 @@ export type ReconciliationDashboard = {
     unmatchedExtractCount: number;
     unmatchedSystemAmount: number;
     unmatchedSystemCount: number;
+    overdueAmount: number;
+    overdueCount: number;
     pendingOpenCount: number;
     pendingResolvedCount: number;
     pendingCarriedCount: number;
   };
+  systemReconciliationBalance: number | null;
   identityGaps: ReconciliationDashboardIdentityGaps;
   rows: ReconciliationDashboardRow[];
 };
@@ -193,12 +204,16 @@ export type Match = {
 };
 
 export type UnmatchedExtract = {
+  id?: string;
   extractLineId: string;
+  justification?: string | null;
 };
 
 export type UnmatchedSystem = {
+  id?: string;
   systemLineId: string;
   status: 'OVERDUE' | 'DEFERRED';
+  justification?: string | null;
 };
 
 export type PendingItem = {
@@ -208,6 +223,7 @@ export type PendingItem = {
   resolvedAt?: string | null;
   note?: string | null;
   systemLineId?: string | null;
+  extractLineId?: string | null;
   systemLine?: SystemLine | null;
   /** Identifies the run that carried this pending item into the current run. */
   sourceRunId?: string | null;

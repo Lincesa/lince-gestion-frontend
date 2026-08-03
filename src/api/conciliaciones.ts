@@ -34,6 +34,15 @@ export const conciliacionesApi = {
   getDashboard: (filters: ReconciliationDashboardFilters = {}) =>
     apiFetch<ReconciliationDashboard>(`/conciliaciones/reconciliations/dashboard${buildQuery(filters)}`),
 
+  updateDashboardSettings: (data: { systemReconciliationBalance: number | null }) =>
+    apiFetch<{ id: string; systemReconciliationBalance: number | null }>(
+      `/conciliaciones/reconciliations/dashboard/settings`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      },
+    ),
+
   getRun: (id: string) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${id}`),
 
@@ -138,10 +147,22 @@ export const conciliacionesApi = {
     return res.json() as Promise<{ sheets: string[]; rows: Record<string, unknown>[] }>;
   },
 
-  createPending: (runId: string, data: { area: string; systemLineId?: string; note?: string }) =>
+  createPending: (runId: string, data: { area: string; systemLineId?: string; extractLineId?: string; note: string }) =>
     apiFetch(`/conciliaciones/reconciliations/${runId}/pending`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  justifyUnmatchedExtractByLine: (runId: string, extractLineId: string, justification: string) =>
+    apiFetch<RunDetail>(`/conciliaciones/reconciliations/${runId}/unmatched-extract-line/${extractLineId}/justification`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justification }),
+    }),
+
+  justifyUnmatchedSystemByLine: (runId: string, systemLineId: string, justification: string) =>
+    apiFetch<RunDetail>(`/conciliaciones/reconciliations/${runId}/unmatched-system-line/${systemLineId}/justification`, {
+      method: 'PATCH',
+      body: JSON.stringify({ justification }),
     }),
 
   resolvePending: (runId: string, pendingId: string, note: string) =>
