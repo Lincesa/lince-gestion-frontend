@@ -19,6 +19,28 @@ export function toDateInputValue(value: string | Date | null | undefined): strin
   return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
 }
 
+export function currentArgentinaBusinessDateKey(date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+export function currentFortnightSelection(date = new Date()): { month: string; fortnight: 'first' | 'second' } {
+  const dayKey = currentArgentinaBusinessDateKey(date);
+  const day = Number(dayKey.slice(8, 10));
+  return {
+    month: dayKey.slice(0, 7),
+    fortnight: day <= 15 ? 'first' : 'second',
+  };
+}
+
+export function fortnightLabel(fortnight: 'first' | 'second'): string {
+  return fortnight === 'first' ? '1ra quincena' : '2da quincena';
+}
+
 export function normConcept(s: string | null | undefined): string {
   return (s ?? '')
     .replace(/\u00A0/g, ' ')
