@@ -15,25 +15,54 @@ import {
   type RotationDegrees,
 } from '@/utils/image-rotate';
 
-interface Props {
-  url:         string;
-  isPdf:       boolean;
-  documentId?: string;
-  onClose:     () => void;
-  onRotated?:  (viewUrl: string) => void;
+export interface PersistRotationApi {
+  downloadFile: (id: string) => Promise<Blob>;
+  requestReplaceUploadUrl: (
+    id: string,
+    contentType: 'image/jpeg' | 'image/png' | 'image/webp',
+  ) => Promise<{ uploadUrl: string }>;
+  confirmReplace: (id: string) => Promise<{ viewUrl: string | null }>;
+  uploadToS3?: (
+    uploadUrl: string,
+    file: Blob,
+    contentType: string,
+  ) => Promise<void>;
 }
+
+interface Props {
+  url:          string;
+  isPdf:        boolean;
+  documentId?:  string;
+  persistApi?:  PersistRotationApi;
+  onClose:      () => void;
+  onRotated?:   (viewUrl: string) => void;
+}
+
+const DEFAULT_PERSIST_API: PersistRotationApi = {
+  downloadFile:            ocrApi.downloadDocumentFile,
+  requestReplaceUploadUrl: ocrApi.requestReplaceUploadUrl,
+  confirmReplace:          ocrApi.confirmReplace,
+  uploadToS3:              ocrApi.uploadToS3,
+};
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const ZOOM_STEP = 0.25;
 
-export function FilePreviewModal({ url, isPdf, documentId, onClose, onRotated }: Props) {
-  const [scale, setScale]         = useState(1);
-  const [offset, setOffset]       = useState({ x: 0, y: 0 });
-  const [rotation, setRotation]   = useState<RotationDegrees>(0);
+export function FilePreviewModal({
+  url,
+  isPdf,
+  documentId,
+  persistApi = DEFAULT_PERSIST_API,
+  onClose,
+  onRotated,
+}: Props) {
+  const [scale, setScale]           = useState(1);
+  const [offset, setOffset]         = useState({ x: 0, y: 0 });
+  const [rotation, setRotation]     = useState<RotationDegrees>(0);
   const [displayUrl, setDisplayUrl] = useState(url);
-  const [saving, setSaving]       = useState(false);
-  const [dragging, setDragging]   = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [dragging, setDragging]     = useState(false);
   const containerRef  = useRef<HTMLDivElement>(null);
   const dragStart     = useRef({ x: 0, y: 0 });
   const offsetAtDrag  = useRef({ x: 0, y: 0 });
@@ -90,13 +119,14 @@ export function FilePreviewModal({ url, isPdf, documentId, onClose, onRotated }:
 
     setSaving(true);
     try {
-      const sourceBlob = await ocrApi.downloadDocumentFile(documentId);
+      const sourceBlob = await persistApi.downloadFile(documentId);
       const rotatedBlob = await prepareImageBlobForUpload(sourceBlob, rotation);
       const contentType = getRotatedImageContentType(rotatedBlob);
 
-      const { uploadUrl } = await ocrApi.requestReplaceUploadUrl(documentId, contentType);
-      await ocrApi.uploadToS3(uploadUrl, rotatedBlob, contentType);
-      const { viewUrl } = await ocrApi.confirmReplace(documentId);
+      const { uploadUrl } = await persistApi.requestReplaceUploadUrl(documentId, contentType);
+      const upload = persistApi.uploadToS3 ?? ocrApi.uploadToS3;
+      await upload(uploadUrl, rotatedBlob, contentType);
+      const { viewUrl } = await persistApi.confirmReplace(documentId);
 
       const nextUrl = viewUrl ?? displayUrl;
       setDisplayUrl(nextUrl);

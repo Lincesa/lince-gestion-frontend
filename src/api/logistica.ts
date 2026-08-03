@@ -1,4 +1,4 @@
-import { api, API_BASE_URL } from './client';
+import { api, API_BASE_URL, getAccessToken } from './client';
 import type { GeoLayer, GeoPoint, PaginatedRemitos, RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
@@ -18,6 +18,19 @@ export interface MapaRemitosParams {
   dateTo?: string;
   uploadedByEmail?: string;
   cliente?: string;
+}
+
+export interface ReplaceUploadUrlResponse {
+  documentId: string;
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface ConfirmReplaceResponse {
+  documentId: string;
+  viewUrl: string | null;
+  fileHash: string;
 }
 
 export const logisticaApi = {
@@ -48,8 +61,29 @@ export const logisticaApi = {
 
   getViewUrl: (id: string) => api.get<{ url: string }>(`${BASE}/${id}/view-url`),
 
-  /** URL de descarga — el backend redirige 302 a S3 presigned URL */
+  /** URL de descarga — el backend sirve el archivo con Content-Disposition */
   getFileUrl: (id: string) => `${API_BASE_URL}${BASE}/${id}/file`,
+
+  downloadRemitoFile: async (id: string): Promise<Blob> => {
+    const res = await fetch(`${API_BASE_URL}${BASE}/${id}/file`, {
+      headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: 'Error al descargar' }));
+      const raw = (error as { message?: string | string[] }).message;
+      const message = Array.isArray(raw) ? raw.join(' · ') : (raw ?? `Error ${res.status}`);
+      throw new Error(message);
+    }
+    return res.blob();
+  },
+
+  requestReplaceUploadUrl: (
+    id: string,
+    contentType: 'image/jpeg' | 'image/png' | 'image/webp',
+  ) => api.post<ReplaceUploadUrlResponse>(`${BASE}/${id}/replace-upload-url`, { contentType }),
+
+  confirmReplace: (id: string) =>
+    api.post<ConfirmReplaceResponse>(`${BASE}/${id}/confirm-replace`, {}),
 
   deleteRemito: (id: string) => api.delete<{ deleted: boolean }>(`${BASE}/${id}`),
 
