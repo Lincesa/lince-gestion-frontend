@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import type { SystemLine, Match, UnmatchedSystem, ExtractLine } from '@/types/conciliaciones.types';
+import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface LibroBancoPanelProps {
   systemLines: SystemLine[];
@@ -146,8 +147,8 @@ export function LibroBancoPanel({ systemLines, matches, unmatchedSystem, extract
                 <TableRow key={line.id} className={rowClass[line.status]}>
                   <TableCell>{statusBadge(line.status)}</TableCell>
                   <TableCell className="max-w-[220px] truncate">{line.description || '-'}</TableCell>
-                  <TableCell>{line.issueDate ? new Date(line.issueDate).toLocaleDateString() : '-'}</TableCell>
-                  <TableCell>{line.dueDate ? new Date(line.dueDate).toLocaleDateString() : '-'}</TableCell>
+                  <TableCell>{formatCalendarDate(line.issueDate)}</TableCell>
+                  <TableCell>{formatCalendarDate(line.dueDate)}</TableCell>
                   <TableCell className="text-right tabular-nums">${line.amount.toFixed(2)}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-muted-foreground text-sm">{line.extractConcepts || '-'}</TableCell>
                 </TableRow>

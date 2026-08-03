@@ -1,5 +1,24 @@
 import { ACCOUNT_REF_SEPARATOR, ACCOUNT_TYPE_OPTIONS, type AccountTypeOption } from '@/constants/conciliaciones';
 
+export function formatCalendarDate(value: string | Date | null | undefined): string {
+  if (!value) return '-';
+  const raw = typeof value === 'string' ? value : value.toISOString();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${Number(match[3])}/${Number(match[2])}/${match[1]}`;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return `${date.getUTCDate()}/${date.getUTCMonth() + 1}/${date.getUTCFullYear()}`;
+}
+
+export function toDateInputValue(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const raw = typeof value === 'string' ? value : value.toISOString();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+}
+
 export function normConcept(s: string | null | undefined): string {
   return (s ?? '')
     .replace(/\u00A0/g, ' ')

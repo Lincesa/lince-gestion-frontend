@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { hasCarryoverContext, type RunDetail, type PendingItem, type SystemLine, type ExtractLine } from '@/types/conciliaciones.types';
+import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface ResumenPanelProps {
   detail: RunDetail;
@@ -70,12 +71,12 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
                         {isCarried && (
                           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300" title={pending.sourceRunId ?? pending.originPendingItemId ?? undefined}>
                             <Badge variant="secondary" className="mr-1 text-xs">Arrastrado</Badge>
-                            {pending.carriedAt ? `desde ${new Date(pending.carriedAt).toLocaleDateString()}` : 'de una ejecución anterior'}
+                            {pending.carriedAt ? `desde ${formatCalendarDate(pending.carriedAt)}` : 'de una ejecución anterior'}
                           </p>
                         )}
                       </TableCell>
-                      <TableCell>{sys?.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>{sys?.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'}</TableCell>
+                      <TableCell>{formatCalendarDate(sys?.issueDate)}</TableCell>
+                      <TableCell>{formatCalendarDate(sys?.dueDate)}</TableCell>
                       <TableCell>${sys?.amount.toFixed(2) || '0.00'}</TableCell>
                       <TableCell><Badge variant={pending.status === 'OPEN' ? 'destructive' : 'secondary'}>{pending.status === 'OPEN' ? 'Abierto' : 'En Progreso'}</Badge></TableCell>
                       <TableCell className="max-w-[200px] truncate">{pending.note || '-'}</TableCell>
@@ -116,12 +117,12 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
                   return (
                     <Fragment key={matchKey}>
                       <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedMatchKey(isExpanded ? null : matchKey)}>
-                        <TableCell>{ext.date ? new Date(ext.date).toLocaleDateString() : ''}</TableCell>
+                        <TableCell>{formatCalendarDate(ext.date)}</TableCell>
                         <TableCell>{ext.concept}</TableCell>
                         <TableCell>${ext.amount.toFixed(2)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{sys.description || '-'}</TableCell>
-                        <TableCell>{sys.issueDate ? new Date(sys.issueDate).toLocaleDateString() : ''}</TableCell>
-                        <TableCell>{sys.dueDate ? new Date(sys.dueDate).toLocaleDateString() : ''}</TableCell>
+                        <TableCell>{formatCalendarDate(sys.issueDate)}</TableCell>
+                        <TableCell>{formatCalendarDate(sys.dueDate)}</TableCell>
                         <TableCell>${sys.amount.toFixed(2)}</TableCell>
                         <TableCell><Badge variant={match.deltaDays === 0 ? 'default' : 'secondary'}>{match.deltaDays}</Badge></TableCell>
                         <TableCell>{ext.category?.name || '-'}</TableCell>
@@ -132,13 +133,13 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
                             <div className="grid grid-cols-2 gap-4 text-sm">
                               <div>
                                 <p className="text-xs font-medium text-muted-foreground mb-1">Extracto</p>
-                                <p>{ext.date ? new Date(ext.date).toLocaleDateString() : '-'} — {ext.concept || '-'}</p>
+                                <p>{formatCalendarDate(ext.date)} — {ext.concept || '-'}</p>
                                 <p>${ext.amount.toFixed(2)} · {ext.category?.name || '-'}</p>
                               </div>
                               <div>
                                 <p className="text-xs font-medium text-muted-foreground mb-1">Sistema</p>
                                 <p>{sys.description || '-'}</p>
-                                <p>{sys.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'} / {sys.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'} — ${sys.amount.toFixed(2)}</p>
+                                <p>{formatCalendarDate(sys.issueDate)} / {formatCalendarDate(sys.dueDate)} — ${sys.amount.toFixed(2)}</p>
                               </div>
                             </div>
                           </TableCell>
@@ -164,7 +165,7 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
                   if (!ext) return null;
                   return (
                     <TableRow key={row.extractLineId}>
-                      <TableCell>{ext.date ? new Date(ext.date).toLocaleDateString() : ''}</TableCell>
+                      <TableCell>{formatCalendarDate(ext.date)}</TableCell>
                       <TableCell>{ext.concept}</TableCell>
                       <TableCell>${ext.amount.toFixed(2)}</TableCell>
                       <TableCell>{ext.category?.name || '-'}</TableCell>
@@ -201,8 +202,8 @@ export function ResumenPanel({ detail, pendingItems, systemById, extractById, is
                         return (
                           <TableRow key={row.systemLineId}>
                             <TableCell className="max-w-[200px] truncate">{sys.description || '-'}</TableCell>
-                            <TableCell>{sys.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'}</TableCell>
-                            <TableCell>{sys.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'}</TableCell>
+                            <TableCell>{formatCalendarDate(sys.issueDate)}</TableCell>
+                            <TableCell>{formatCalendarDate(sys.dueDate)}</TableCell>
                             <TableCell>${sys.amount.toFixed(2)}</TableCell>
                             <TableCell>
                               {hasPending ? <Badge variant="secondary">Ya pendiente</Badge> : (
