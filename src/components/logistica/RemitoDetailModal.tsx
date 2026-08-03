@@ -4,6 +4,15 @@ import { toast } from 'sonner';
 import { logisticaApi } from '@/api/logistica';
 import type { RemitoDetalle } from '@/types/logistica.types';
 import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
+import { uploadToS3 } from '@/api/ocr';
+
+const LOGISTICA_PERSIST_API = {
+  downloadFile:            (id: string) => logisticaApi.downloadRemitoFile(id),
+  requestReplaceUploadUrl: (id: string, contentType: 'image/jpeg' | 'image/png' | 'image/webp') =>
+    logisticaApi.requestReplaceUploadUrl(id, contentType),
+  confirmReplace:          (id: string) => logisticaApi.confirmReplace(id),
+  uploadToS3,
+};
 
 interface Props {
   remitoId:   string;
@@ -198,7 +207,10 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
         <FilePreviewModal
           url={remito.viewUrl}
           isPdf={remito.isPdf}
+          documentId={remito.id}
+          persistApi={LOGISTICA_PERSIST_API}
           onClose={() => setPreviewOpen(false)}
+          onRotated={(nextUrl) => setRemito((prev) => (prev ? { ...prev, viewUrl: nextUrl } : prev))}
         />
       )}
     </div>
