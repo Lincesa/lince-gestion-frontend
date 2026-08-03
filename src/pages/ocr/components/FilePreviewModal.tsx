@@ -1,32 +1,45 @@
 /**
  * FilePreviewModal — visor de archivos a pantalla completa.
- * Soporta imágenes (zoom, arrastre, rotación) y PDFs (via <iframe>).
+ * Soporta imágenes (zoom, arrastre, rotación persistente) y PDFs (via <iframe>).
  * Se monta en document.body para no quedar recortado por el layout (header/overflow).
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { X, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw, Save, Loader2 } from 'lucide-react';
+import * as ocrApi from '@/api/ocr';
+import {
+  getRotatedImageContentType,
+  normalizeRotation,
+  prepareImageBlobForUpload,
+  type RotationDegrees,
+} from '@/utils/image-rotate';
 
 interface Props {
-  url:      string;
-  isPdf:    boolean;
-  onClose:  () => void;
+  url:         string;
+  isPdf:       boolean;
+  documentId?: string;
+  onClose:     () => void;
+  onRotated?:  (viewUrl: string) => void;
 }
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const ZOOM_STEP = 0.25;
 
-export function FilePreviewModal({ url, isPdf, onClose }: Props) {
-  const [scale, setScale]       = useState(1);
-  const [offset, setOffset]     = useState({ x: 0, y: 0 });
-  const [rotation, setRotation] = useState(0);
-  const [dragging, setDragging] = useState(false);
+export function FilePreviewModal({ url, isPdf, documentId, onClose, onRotated }: Props) {
+  const [scale, setScale]         = useState(1);
+  const [offset, setOffset]       = useState({ x: 0, y: 0 });
+  const [rotation, setRotation]   = useState<RotationDegrees>(0);
+  const [displayUrl, setDisplayUrl] = useState(url);
+  const [saving, setSaving]       = useState(false);
+  const [dragging, setDragging]   = useState(false);
   const containerRef  = useRef<HTMLDivElement>(null);
   const dragStart     = useRef({ x: 0, y: 0 });
   const offsetAtDrag  = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    setDisplayUrl(url);
     setScale(1);
     setOffset({ x: 0, y: 0 });
     setRotation(0);
@@ -68,8 +81,35 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
   };
 
   const rotateBy = (delta: 90 | -90) => {
-    setRotation(prev => (prev + delta + 360) % 360);
+    setRotation(prev => normalizeRotation(prev + delta));
     setOffset({ x: 0, y: 0 });
+  };
+
+  const handleSaveRotation = async () => {
+    if (!documentId || isPdf || rotation === 0 || saving) return;
+
+    setSaving(true);
+    try {
+      const sourceBlob = await ocrApi.downloadDocumentFile(documentId);
+      const rotatedBlob = await prepareImageBlobForUpload(sourceBlob, rotation);
+      const contentType = getRotatedImageContentType(rotatedBlob);
+
+      const { uploadUrl } = await ocrApi.requestReplaceUploadUrl(documentId, contentType);
+      await ocrApi.uploadToS3(uploadUrl, rotatedBlob, contentType);
+      const { viewUrl } = await ocrApi.confirmReplace(documentId);
+
+      const nextUrl = viewUrl ?? displayUrl;
+      setDisplayUrl(nextUrl);
+      setRotation(0);
+      setScale(1);
+      setOffset({ x: 0, y: 0 });
+      onRotated?.(nextUrl);
+      toast.success('Imagen rotada guardada');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo guardar la rotación');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -92,7 +132,7 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-black/95">
-      <div className="flex items-center justify-between px-4 py-3 shrink-0">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 shrink-0">
         <div className="flex items-center gap-2 text-white/70 text-sm">
           <FileText className="h-4 w-4" />
           {isPdf ? 'Documento PDF' : 'Imagen del documento'}
@@ -102,7 +142,7 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => zoomBy(-ZOOM_STEP)}
-              disabled={scale <= MIN_SCALE}
+              disabled={scale <= MIN_SCALE || saving}
               className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
               aria-label="Reducir zoom"
             >
@@ -113,7 +153,7 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
             </span>
             <button
               onClick={() => zoomBy(ZOOM_STEP)}
-              disabled={scale >= MAX_SCALE}
+              disabled={scale >= MAX_SCALE || saving}
               className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
               aria-label="Aumentar zoom"
             >
@@ -121,24 +161,37 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
             </button>
             <button
               onClick={() => rotateBy(-90)}
-              className="ml-1 rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              disabled={saving}
+              className="ml-1 rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
               aria-label="Rotar izquierda"
             >
               <RotateCcw className="h-4 w-4" />
             </button>
             <button
               onClick={() => rotateBy(90)}
-              className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              disabled={saving}
+              className="rounded p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
               aria-label="Rotar derecha"
             >
               <RotateCw className="h-4 w-4" />
             </button>
+            {documentId && rotation !== 0 && (
+              <button
+                onClick={() => void handleSaveRotation()}
+                disabled={saving}
+                className="ml-2 flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {saving ? 'Guardando…' : 'Guardar rotación'}
+              </button>
+            )}
           </div>
         )}
 
         <button
           onClick={onClose}
-          className="rounded p-1 text-white/70 transition-colors hover:text-white"
+          disabled={saving}
+          className="rounded p-1 text-white/70 transition-colors hover:text-white disabled:opacity-30"
           aria-label="Cerrar"
         >
           <X className="h-5 w-5" />
@@ -156,14 +209,14 @@ export function FilePreviewModal({ url, isPdf, onClose }: Props) {
       >
         {isPdf ? (
           <iframe
-            src={url}
+            src={displayUrl}
             className="h-full w-full rounded-lg border border-white/10"
             title="Vista previa del documento"
           />
         ) : (
           <div className="flex h-full w-full select-none items-center justify-center">
             <img
-              src={url}
+              src={displayUrl}
               alt="Documento original"
               className="max-h-full max-w-full rounded-lg object-contain"
               style={{

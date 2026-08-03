@@ -134,6 +134,32 @@ export function getDocumentViewUrl(id: string): Promise<{ viewUrl: string | null
   return api.get<{ viewUrl: string | null }>(`${BASE}/${id}/view-url`);
 }
 
+export interface ReplaceUploadUrlResponse {
+  documentId: string;
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+/** Presigned PUT para sobrescribir la imagen de un documento existente */
+export function requestReplaceUploadUrl(
+  id: string,
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp',
+): Promise<ReplaceUploadUrlResponse> {
+  return api.post<ReplaceUploadUrlResponse>(`${BASE}/${id}/replace-upload-url`, { contentType });
+}
+
+export interface ConfirmReplaceResponse {
+  documentId: string;
+  viewUrl: string | null;
+  fileHash: string;
+}
+
+/** Confirma que el archivo rotado/reemplazado ya está en S3 */
+export function confirmReplace(id: string): Promise<ConfirmReplaceResponse> {
+  return api.post<ConfirmReplaceResponse>(`${BASE}/${id}/confirm-replace`, {});
+}
+
 /** Descarga el archivo original del documento (imagen o PDF) */
 export async function downloadDocumentFile(id: string): Promise<Blob> {
   const res = await fetch(`${API_BASE_URL}${BASE}/${id}/file`, {
