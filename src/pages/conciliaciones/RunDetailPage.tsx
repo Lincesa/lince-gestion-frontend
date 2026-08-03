@@ -24,7 +24,7 @@ import { BANK_OPTIONS, COMPANY_OPTIONS } from '@/constants/conciliaciones';
 import { GlobalRole } from '@/types/auth.types';
 import type { RunDetail } from '@/types/conciliaciones.types';
 import type { RunDetailSection } from '@/components/conciliaciones/RunDetailSidebar';
-
+import { formatCalendarDate, toDateInputValue } from '@/utils/conciliaciones';
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const user = useAppSelector((s) => s.auth.user);
@@ -37,6 +37,7 @@ export function RunDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updateSystemDialogOpen, setUpdateSystemDialogOpen] = useState(false);
   const [updatingWindowDays, setUpdatingWindowDays] = useState(false);
+  const [updatingCutDate, setUpdatingCutDate] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
@@ -172,6 +173,22 @@ export function RunDetailPage() {
       toast.error('Error al actualizar ventana de días');
     } finally {
       setUpdatingWindowDays(false);
+    }
+  };
+
+  const handleCutDateChange = async (next: string) => {
+    if (!id || !detail) return;
+    const current = toDateInputValue(detail.cutDate);
+    if (next === current) return;
+    setUpdatingCutDate(true);
+    try {
+      const updated = await conciliacionesApi.updateRun(id, { cutDate: next || null });
+      setDetail(updated);
+      toast.success('Fecha de corte actualizada: vencidos/diferidos recalculados');
+    } catch {
+      toast.error('Error al actualizar fecha de corte');
+    } finally {
+      setUpdatingCutDate(false);
     }
   };
 
@@ -337,6 +354,15 @@ export function RunDetailPage() {
                     if (next !== (detail.windowDays ?? 0)) void handleWindowDaysChange(next);
                   }}
                 />
+                <Label className="text-muted-foreground font-normal">Corte:</Label>
+                <Input
+                  type="date"
+                  className="w-36 h-8 text-sm"
+                  defaultValue={toDateInputValue(detail.cutDate)}
+                  key={`cut-${toDateInputValue(detail.cutDate)}`}
+                  disabled={updatingCutDate}
+                  onBlur={(e) => void handleCutDateChange(e.target.value)}
+                />
               </>
             ) : (
               <>
@@ -346,6 +372,8 @@ export function RunDetailPage() {
                 {detail.accountRef && <><span>·</span><span>Cuenta: {detail.accountRef}</span></>}
                 <span>·</span>
                 <span>Ventana: {detail.windowDays ?? 0} días</span>
+                <span>·</span>
+                <span>Corte: {detail.cutDate ? formatCalendarDate(detail.cutDate) : '—'}</span>
               </>
             )}
             {missingBankIdentity && (

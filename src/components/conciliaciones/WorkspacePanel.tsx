@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChangeMatchDialog } from './ChangeMatchDialog';
 import { hasCarryoverContext, type UnmatchedSystem, type SystemLine, type ExtractLine, type Match, type PendingItem } from '@/types/conciliaciones.types';
+import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface WorkspacePanelProps {
   matches: Match[];
@@ -230,8 +231,8 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                           <Fragment key={sys.id}>
                             <TableRow className={`${rowClass} cursor-pointer`} onClick={() => setExpandedSystemId(isExpanded ? null : sys.id)}>
                               <TableCell className="max-w-[200px] truncate">{sys.description || '-'}</TableCell>
-                              <TableCell>{sys.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'}</TableCell>
-                              <TableCell>{sys.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'}</TableCell>
+                              <TableCell>{formatCalendarDate(sys.issueDate)}</TableCell>
+                              <TableCell>{formatCalendarDate(sys.dueDate)}</TableCell>
                               <TableCell>${sys.amount.toFixed(2)}</TableCell>
                               <TableCell>{isMatched ? 'Correcto' : un?.status === 'OVERDUE' ? 'Vencido' : 'Diferido'}</TableCell>
                               {runId && (
@@ -247,7 +248,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                                 <TableCell colSpan={runId ? 6 : 5} className="py-2">
                                   <p className="text-xs font-medium text-muted-foreground mb-1">Match con extracto:</p>
                                   <ul className="space-y-1 text-sm">
-                                    {extractIds.map((eid) => { const e = extractById.get(eid); return e ? <li key={eid}>{e.date ? new Date(e.date).toLocaleDateString() : '-'} — {e.concept || '-'} — ${e.amount.toFixed(2)}</li> : null; })}
+                                    {extractIds.map((eid) => { const e = extractById.get(eid); return e ? <li key={eid}>{formatCalendarDate(e.date)} — {e.concept || '-'} — ${e.amount.toFixed(2)}</li> : null; })}
                                   </ul>
                                 </TableCell>
                               </TableRow>
@@ -272,7 +273,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                         return (
                           <Fragment key={ext.id}>
                             <TableRow className={`${rowClass} cursor-pointer`} onClick={() => setExpandedExtractId(isExpanded ? null : ext.id)}>
-                              <TableCell>{ext.date ? new Date(ext.date).toLocaleDateString() : '-'}</TableCell>
+                              <TableCell>{formatCalendarDate(ext.date)}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{ext.concept || '-'}</TableCell>
                               <TableCell>${ext.amount.toFixed(2)}</TableCell>
                               <TableCell>{isMatched ? 'Correcto' : 'Solo extracto'}</TableCell>
@@ -340,8 +341,8 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                         <input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => handleToggleItem(item.id)} disabled={!onSave} className="h-4 w-4 rounded border-input" />
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{sys.description || '-'}</TableCell>
-                      <TableCell>{sys.issueDate ? new Date(sys.issueDate).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell>{sys.dueDate ? new Date(sys.dueDate).toLocaleDateString() : '-'}</TableCell>
+                      <TableCell>{formatCalendarDate(sys.issueDate)}</TableCell>
+                      <TableCell>{formatCalendarDate(sys.dueDate)}</TableCell>
                       <TableCell>${sys.amount.toFixed(2)}</TableCell>
                       <TableCell>
                         <Select value={currentStatus} onChange={(e) => handleStatusChange(item.id, e.target.value as 'OVERDUE' | 'DEFERRED')} className="w-32" disabled={!onSave}>
@@ -358,7 +359,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                       <TableCell className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-300">
                         {carriedPending ? (
                           <span title={carriedPending.sourceRunId ?? carriedPending.originPendingItemId ?? undefined}>
-                            Arrastrado{carriedPending.carriedAt ? ` · ${new Date(carriedPending.carriedAt).toLocaleDateString()}` : ''}
+                            Arrastrado{carriedPending.carriedAt ? ` · ${formatCalendarDate(carriedPending.carriedAt)}` : ''}
                           </span>
                         ) : '-'}
                       </TableCell>
@@ -393,7 +394,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
                     if (!ext) return null;
                     return (
                       <TableRow key={row.extractLineId} className="bg-blue-50 dark:bg-blue-900/30">
-                        <TableCell>{ext.date ? new Date(ext.date).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell>{formatCalendarDate(ext.date)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{ext.concept || '-'}</TableCell>
                         <TableCell>${ext.amount.toFixed(2)}</TableCell>
                         {runId && (

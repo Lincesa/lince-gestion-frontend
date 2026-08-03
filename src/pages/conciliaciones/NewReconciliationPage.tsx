@@ -291,6 +291,9 @@ export function NewReconciliationPage() {
             <div className="space-y-2">
               <Label>Fecha de corte</Label>
               <Input type="date" value={cutDate} onChange={(e) => setCutDate(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Movimientos del sistema con vencimiento hasta esta fecha se marcan como Vencidos; los posteriores como Diferidos. Usá el último día del extracto (ej. 31/07 para la 2da quincena de julio).
+              </p>
             </div>
           </div>
           {conceptOptions.length > 0 && (

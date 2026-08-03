@@ -4,6 +4,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { conciliacionesApi } from '@/api/conciliaciones';
 import type { ExtractLine, SystemLine } from '@/types/conciliaciones.types';
+import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface ChangeMatchDialogProps {
   open: boolean;
@@ -172,7 +173,7 @@ export function ChangeMatchDialog({
                           className="h-4 w-4 rounded border-input"
                         />
                       </td>
-                      <td className="whitespace-nowrap p-2">{extract.date ? new Date(extract.date).toLocaleDateString() : '-'}</td>
+                      <td className="whitespace-nowrap p-2">{formatCalendarDate(extract.date)}</td>
                       <td className="p-2">{extract.concept || '-'}</td>
                       <td className="whitespace-nowrap p-2 text-right">${extract.amount.toFixed(2)}</td>
                     </tr>

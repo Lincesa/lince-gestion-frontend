@@ -255,6 +255,7 @@ export type RunDetail = {
   accountRef?: string | null;
   company?: string | null;
   windowDays?: number;
+  cutDate?: string | null;
   status?: RunStatus;
   createdById?: string;
   excludeConcepts?: string[];
