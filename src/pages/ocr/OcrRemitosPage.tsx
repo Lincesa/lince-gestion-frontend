@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2 } from 'lucide-react';
+import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import * as ocrApi from '@/api/ocr';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { StatusBadge } from './components/StatusBadge';
@@ -69,6 +69,7 @@ export function OcrRemitosPage() {
   const [queue, setQueue]             = useState<QueueItem[]>(() => loadQueue());
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [isRotating, setIsRotating]   = useState(false);
   // ticker para re-render mientras haya items dentro de la ventana de 5 min
   const [, setTick] = useState(0);
 
@@ -192,6 +193,31 @@ export function OcrRemitosPage() {
     setStep('preview');
     e.target.value = '';
   };
+
+  const rotatePreview = useCallback(async (degrees: 90 | -90) => {
+    if (!capturedBlob) return;
+
+    if (!capturedBlob.type.startsWith('image/')) {
+      toast.error('Solo se pueden rotar imágenes. Los PDF se deben corregir antes de subir.');
+      return;
+    }
+
+    setIsRotating(true);
+    try {
+      const rotatedBlob = await rotateImageBlob(capturedBlob, degrees);
+      const nextPreviewUrl = URL.createObjectURL(rotatedBlob);
+
+      setCapturedBlob(rotatedBlob);
+      setPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return nextPreviewUrl;
+      });
+    } catch (err) {
+      toast.error(`No se pudo rotar la imagen: ${(err as Error).message}`);
+    } finally {
+      setIsRotating(false);
+    }
+  }, [capturedBlob]);
 
   // ── Upload pipeline ─────────────────────────────────────────────────────────
 
@@ -461,11 +487,38 @@ export function OcrRemitosPage() {
       {/* ── Estado: preview ───────────────────────────────────────── */}
       {step === 'preview' && previewUrl && (
         <div className="border border-border rounded-xl overflow-hidden">
-          <img src={previewUrl} alt="Preview remito" className="w-full object-contain max-h-64 bg-black" />
+          {capturedBlob?.type.startsWith('image/') ? (
+            <img src={previewUrl} alt="Preview remito" className="w-full object-contain max-h-64 bg-black" />
+          ) : (
+            <div className="w-full min-h-48 bg-muted flex flex-col items-center justify-center gap-2 p-6 text-center">
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">PDF seleccionado</p>
+              <p className="text-xs text-muted-foreground">La rotación desde la terminal está disponible solo para imágenes.</p>
+            </div>
+          )}
           <div className="p-4 flex flex-col gap-2 bg-card">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => rotatePreview(-90)}
+                disabled={isRotating || !capturedBlob?.type.startsWith('image/')}
+                className="py-2 text-sm rounded-md border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isRotating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Rotar izquierda
+              </button>
+              <button
+                onClick={() => rotatePreview(90)}
+                disabled={isRotating || !capturedBlob?.type.startsWith('image/')}
+                className="py-2 text-sm rounded-md border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isRotating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                Rotar derecha
+              </button>
+            </div>
             <button
               onClick={handleTestExtract}
-              className="w-full py-2 text-sm rounded-md border border-primary text-primary font-medium hover:bg-primary/10 flex items-center justify-center gap-2"
+              disabled={isRotating}
+              className="w-full py-2 text-sm rounded-md border border-primary text-primary font-medium hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <FlaskConical className="h-4 w-4" /> Probar OCR
             </button>
@@ -478,7 +531,8 @@ export function OcrRemitosPage() {
               </button>
               <button
                 onClick={uploadDocument}
-                className="flex-1 py-2 text-sm rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 flex items-center justify-center gap-2"
+                disabled={isRotating}
+                className="flex-1 py-2 text-sm rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Upload className="h-4 w-4" /> Enviar
               </button>
@@ -646,4 +700,71 @@ function loadQueue(): QueueItem[] {
   } catch {
     return [];
   }
+}
+
+async function rotateImageBlob(blob: Blob, degrees: 90 | -90): Promise<Blob> {
+  const sourceUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = await loadImage(sourceUrl);
+    const canvas = document.createElement('canvas');
+    const isSideways = Math.abs(degrees) === 90;
+
+    canvas.width  = isSideways ? image.naturalHeight : image.naturalWidth;
+    canvas.height = isSideways ? image.naturalWidth : image.naturalHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas no disponible');
+
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((degrees * Math.PI) / 180);
+    ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+    const outputType = getRotatedImageType(blob.type);
+    const rotated = await canvasToBlob(canvas, outputType);
+
+    if (blob instanceof File) {
+      return new File([rotated], blob.name, {
+        type:        rotated.type || outputType,
+        lastModified: Date.now(),
+      });
+    }
+
+    return rotated;
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada'));
+    image.src = src;
+  });
+}
+
+async function canvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
+  const primary = await tryCanvasToBlob(canvas, type);
+  if (primary) return primary;
+
+  const fallback = await tryCanvasToBlob(canvas, 'image/jpeg');
+  if (fallback) return fallback;
+
+  throw new Error('No se pudo generar la imagen rotada');
+}
+
+function tryCanvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) return resolve(null);
+      resolve(blob);
+    }, type, 0.92);
+  });
+}
+
+function getRotatedImageType(sourceType: string): string {
+  if (sourceType === 'image/png' || sourceType === 'image/webp') return sourceType;
+  return 'image/jpeg';
 }
