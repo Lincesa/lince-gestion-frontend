@@ -214,7 +214,9 @@ function formatSaldoJornada(ms: number): string {
 // Partición del SALDO en 2 franjas (SOLO Tucumán): 50% = saldo NETO de la jornada normal
 // (lunes a sábado hasta las 13), puede ser a favor (+) o en contra (−); 100% = horas donde no se
 // espera jornada (sábado desde 13, domingos y feriados/no laborables), siempre >= 0.
-// Invariante: extra50Ms + extra100Ms === saldo. El backend ya los envía; el front solo lee y agrega.
+// El backend aplica una gracia de 20min a cada franja con excedente antes de enviarla (los
+// primeros 20min de exceso del día no cuentan como extra), así que la suma ya NO coincide exacto
+// con el saldo crudo. El front solo lee y agrega los valores que llegan.
 interface ExtraBreakdown {
   extra50Ms: number;
   extra100Ms: number;
