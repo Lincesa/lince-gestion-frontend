@@ -1,9 +1,9 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Camera, LayoutDashboard, LogOut, Settings } from 'lucide-react';
+import { Camera, LayoutDashboard, LogOut, Settings, Tag } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
-import { GlobalRole } from '@/types';
+import { GlobalRole, ModuleKey } from '@/types';
 
 export function OcrLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -12,6 +12,7 @@ export function OcrLayout() {
 
   const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
   const isTag = user?.area?.toUpperCase() === 'TAG';
+  const isOcrAdmin = user?.modules?.[ModuleKey.OCR]?.role === 'ADMIN';
 
   const handleLogout = async () => {
     try {
@@ -69,6 +70,12 @@ export function OcrLayout() {
           <NavLink to="/ocr/configuracion" className={navClass}>
             <Settings className="h-4 w-4" />
             Configuración
+          </NavLink>
+        )}
+        {isOcrAdmin && (
+          <NavLink to="/ocr/tags" className={navClass}>
+            <Tag className="h-4 w-4" />
+            Tags
           </NavLink>
         )}
       </div>

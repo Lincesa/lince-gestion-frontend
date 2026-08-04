@@ -1,16 +1,22 @@
 import { NavLink, Outlet } from 'react-router-dom';
-
-const TABS = [
-  { to: '/logistica/remitos', label: 'Remitos' },
-  { to: '/logistica/mapa',    label: 'Mapa'    },
-];
+import { useAppSelector } from '@/store';
+import { ModuleKey } from '@/types';
 
 export function LogisticaLayout() {
+  const user = useAppSelector((s) => s.auth.user);
+  const isLogisticaAdmin = user?.modules?.[ModuleKey.LOGISTICA]?.role === 'ADMIN';
+
+  const tabs = [
+    { to: '/logistica/remitos', label: 'Remitos' },
+    { to: '/logistica/mapa',    label: 'Mapa'    },
+    ...(isLogisticaAdmin ? [{ to: '/logistica/tags', label: 'Tags' }] : []),
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b border-border bg-card shrink-0">
         <nav className="flex gap-0 px-4 overflow-x-auto">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}

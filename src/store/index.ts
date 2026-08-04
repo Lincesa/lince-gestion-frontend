@@ -13,6 +13,7 @@ import incidentesReducer from './soporte-it/incidentesSlice';
 import relevamientosReducer from './soporte-it/relevamientosSlice';
 import remitosLogisticaReducer from './logistica/remitosSlice';
 import geoLayersReducer from './logistica/geoLayersSlice';
+import tagsReducer from './tags/tagsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -29,6 +30,7 @@ export const store = configureStore({
     relevamientos: relevamientosReducer,
     remitosLogistica: remitosLogisticaReducer,
     geoLayers: geoLayersReducer,
+    tags: tagsReducer,
   },
 });
 
