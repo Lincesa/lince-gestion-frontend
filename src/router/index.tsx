@@ -113,6 +113,9 @@ const OcrRemitosPage = lazy(() =>
 const OcrConfigPage = lazy(() =>
   import('@/pages/ocr/OcrConfigPage').then((m) => ({ default: m.OcrConfigPage })),
 );
+const TagsStatusPage = lazy(() =>
+  import('@/pages/shared/TagsStatusPage').then((m) => ({ default: m.TagsStatusPage })),
+);
 const RrhhPage = lazy(() =>
   import('@/pages/rrhh/RrhhPage').then((m) => ({ default: m.RrhhPage })),
 );
@@ -464,6 +467,14 @@ const router = createBrowserRouter([
                       </Suspense>
                     ),
                   },
+                  {
+                    path: 'tags',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <TagsStatusPage module="ocr" />
+                      </Suspense>
+                    ),
+                  },
                 ],
               },
             ],
@@ -493,6 +504,14 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <MapaPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'tags',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <TagsStatusPage module="logistica" />
                       </Suspense>
                     ),
                   },
