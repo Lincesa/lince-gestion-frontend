@@ -72,7 +72,7 @@ export function OcrLayout() {
             Configuración
           </NavLink>
         )}
-        {isOcrAdmin && (
+        {(isSuperAdmin || isOcrAdmin) && (
           <NavLink to="/ocr/tags" className={navClass}>
             <Tag className="h-4 w-4" />
             Tags
