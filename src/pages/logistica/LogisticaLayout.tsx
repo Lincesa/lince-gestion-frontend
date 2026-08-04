@@ -1,15 +1,16 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAppSelector } from '@/store';
-import { ModuleKey } from '@/types';
+import { GlobalRole, ModuleKey } from '@/types';
 
 export function LogisticaLayout() {
   const user = useAppSelector((s) => s.auth.user);
+  const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
   const isLogisticaAdmin = user?.modules?.[ModuleKey.LOGISTICA]?.role === 'ADMIN';
 
   const tabs = [
     { to: '/logistica/remitos', label: 'Remitos' },
     { to: '/logistica/mapa',    label: 'Mapa'    },
-    ...(isLogisticaAdmin ? [{ to: '/logistica/tags', label: 'Tags' }] : []),
+    ...(isSuperAdmin || isLogisticaAdmin ? [{ to: '/logistica/tags', label: 'Tags' }] : []),
   ];
 
   return (
