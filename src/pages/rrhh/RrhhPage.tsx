@@ -13,6 +13,7 @@ import type { AttendanceKpis, DiaReporteEmpleado, EmpleadoAsistencia, FichajeAsi
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { DEFAULT_HORAS_POR_PLANTA, resolveHorasEsperadasDia } from '@/constants/jornadas';
+import { formatHoursToHhMm, formatMsToHhMm, parseHhMmToHours } from '@/utils/horasJustificadas';
 
 type EstadoOption = '' | '0' | '1';
 
@@ -1836,7 +1837,7 @@ export function RrhhPage() {
     setDayExceptionForm({
       fecha: day.fecha,
       tipo: day.tipoAusencia ?? 'licencia_medica',
-      horasJustificadas: day.justificadoMs > 0 ? String(day.justificadoMs / 3600000) : '',
+      horasJustificadas: day.justificadoMs > 0 ? formatMsToHhMm(day.justificadoMs) : '',
       motivo: day.motivoNoLaborable ?? '',
     });
     try {
@@ -1851,7 +1852,7 @@ export function RrhhPage() {
         setDayExceptionForm({
           fecha: day.fecha,
           tipo: exact.tipo,
-          horasJustificadas: exact.horasJustificadas != null ? String(exact.horasJustificadas) : '',
+          horasJustificadas: exact.horasJustificadas != null ? formatHoursToHhMm(exact.horasJustificadas) : '',
           motivo: exact.motivo ?? '',
         });
       }
@@ -1864,12 +1865,12 @@ export function RrhhPage() {
 
   const saveDayException = async () => {
     if (!reportData || !dayExceptionForm.fecha) return;
-    const horasText = dayExceptionForm.horasJustificadas.trim();
-    const horasJustificadas = horasText === '' ? null : Number(horasText);
-    if (horasJustificadas !== null && (!Number.isFinite(horasJustificadas) || horasJustificadas < 0 || horasJustificadas > 24)) {
-      toast.error('Las horas justificadas deben estar entre 0 y 24');
+    const parsed = parseHhMmToHours(dayExceptionForm.horasJustificadas);
+    if (!parsed.ok) {
+      toast.error(parsed.error);
       return;
     }
+    const horasJustificadas = parsed.hours;
     setDayExceptionSaving(true);
     try {
       const payload = {
@@ -3284,7 +3285,7 @@ export function RrhhPage() {
           ) : (
             <>
               <p className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3 text-xs text-blue-900 dark:text-blue-100">
-                Dejá las horas vacías para justificar el día completo. Si cargás horas, se descuentan de las horas debidas del día sin contarlas como trabajadas.
+                Dejá las horas vacías para justificar el día completo. Si cargás un valor parcial, usá formato H:MM (ej: 7:53). Se descuentan de las horas debidas del día sin contarlas como trabajadas.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm">
@@ -3302,13 +3303,12 @@ export function RrhhPage() {
                 <label className="space-y-1 text-sm">
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Horas justificadas</span>
                   <input
-                    type="number"
-                    min="0"
-                    max="24"
-                    step="0.25"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
                     value={dayExceptionForm.horasJustificadas}
                     onChange={(e) => setDayExceptionForm((prev) => ({ ...prev, horasJustificadas: e.target.value }))}
-                    placeholder="Día completo"
+                    placeholder="7:53 (vacío = día completo)"
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   />
                 </label>
