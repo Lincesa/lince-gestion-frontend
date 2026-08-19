@@ -92,6 +92,17 @@ function formatEditedAt(doc: OcrDocument): string {
   return `Editado ${new Date(doc.correctedAt).toLocaleString('es-AR')}`;
 }
 
+/**
+ * Un documento sin ningún campo extraído no es un remito con errores de
+ * validación: es una subida que falló entera. Ahí "Sin editar" no dice nada —
+ * lo que el operador necesita leer es el motivo y qué hacer al respecto.
+ */
+function getUploadFailure(doc: OcrDocument): string | null {
+  const hasFields = doc.extractedData && Object.keys(doc.extractedData).length > 0;
+  if (hasFields) return null;
+  return doc.validationErrors?.[0] ?? null;
+}
+
 function PresenceBadge({ status }: { status: PresenceStatus }) {
   const config = PRESENCE_CONFIG[status];
   return (
@@ -504,6 +515,14 @@ export function OcrDashboardPage() {
                         <span className="inline-flex items-center gap-1 text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           Esperando archivo
+                        </span>
+                      ) : getUploadFailure(doc) ? (
+                        <span
+                          title={getUploadFailure(doc) ?? undefined}
+                          className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"
+                        >
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          Subida fallida
                         </span>
                       ) : (
                         formatEditedAt(doc)
