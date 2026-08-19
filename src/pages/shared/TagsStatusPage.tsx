@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronRight, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchTags, fetchTagEvents, suspendTag, reactivateTag } from '@/store/tags/tagsSlice';
-import type { TagsModule, TagStatusEventType } from '@/types/tags.types';
+import type { TagsModule, TagStatusEventType, UploadClient } from '@/types/tags.types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
@@ -20,6 +20,35 @@ const EVENT_LABELS: Record<TagStatusEventType, string> = {
   MANUAL_SUSPEND: 'Suspensión manual',
   MANUAL_REACTIVATE: 'Reactivación manual',
 };
+
+/**
+ * El panel lista todas las cuentas del área TAG, y ahí conviven watchers
+ * automatizados con choferes que suben desde el celular. Sin distinguirlos, la
+ * pantalla presenta a un chofer como si fuera una tag.
+ */
+const UPLOAD_CLIENT_LABELS: Record<UploadClient, { label: string; className: string }> = {
+  WATCHER: {
+    label: 'Watcher',
+    className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  },
+  MOBILE: {
+    label: 'Celular',
+    className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  },
+  WEB: {
+    label: 'Web',
+    className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  },
+};
+
+function UploadClientBadge({ client }: { client: UploadClient }) {
+  const config = UPLOAD_CLIENT_LABELS[client] ?? UPLOAD_CLIENT_LABELS.WEB;
+  return (
+    <Badge variant="secondary" className={config.className}>
+      {config.label}
+    </Badge>
+  );
+}
 
 interface TagsStatusPageProps {
   module: TagsModule;
@@ -80,8 +109,10 @@ export function TagsStatusPage({ module }: TagsStatusPageProps) {
       <div>
         <h1 className="text-lg font-semibold text-foreground">Tags</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Estado de las tags de carga. Una tag se suspende automáticamente ante un posible bucle
-          de subidas y queda inoperativa hasta reactivación manual explícita.
+          Estado de las cuentas de carga. Solo las <strong>watcher</strong> se suspenden
+          automáticamente ante un posible bucle de subidas: una persona que sube rápido —un chofer
+          descargando su cola al recuperar señal, o una carga desde la web— no es un bucle. Todas,
+          en cambio, tienen tope de volumen diario.
         </p>
       </div>
 
@@ -91,6 +122,7 @@ export function TagsStatusPage({ module }: TagsStatusPageProps) {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>Email</TableHead>
+              <TableHead>Cliente</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Motivo</TableHead>
               <TableHead>Fecha</TableHead>
@@ -100,7 +132,7 @@ export function TagsStatusPage({ module }: TagsStatusPageProps) {
           <TableBody>
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
                   No hay tags registradas.
                 </TableCell>
               </TableRow>
@@ -125,6 +157,9 @@ export function TagsStatusPage({ module }: TagsStatusPageProps) {
                       </button>
                     </TableCell>
                     <TableCell className="font-medium text-foreground">{tag.email}</TableCell>
+                    <TableCell>
+                      <UploadClientBadge client={tag.uploadClient} />
+                    </TableCell>
                     <TableCell>
                       {tag.tagSuspended ? (
                         <Badge variant="destructive" className="gap-1">
@@ -169,7 +204,7 @@ export function TagsStatusPage({ module }: TagsStatusPageProps) {
                   </TableRow>
                   {isExpanded && (
                     <TableRow>
-                      <TableCell colSpan={6} className="bg-muted/30">
+                      <TableCell colSpan={7} className="bg-muted/30">
                         {!showingEvents || eventsLoading ? (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
                             <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Cargando historial…
