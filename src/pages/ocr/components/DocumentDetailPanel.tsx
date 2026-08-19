@@ -3,7 +3,7 @@
  * Mobile: modal centrado con overlay. Desktop (md+): sidebar fijo a la derecha sin overlay.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, FileText, Loader2, Maximize2, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDocumentViewUrl } from '@/api/ocr';
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -163,16 +163,19 @@ export function DocumentDetailPanel({
     scrollRef.current?.scrollTo({ top: 0 });
   }, [documentId]);
 
-  const isProcessing =
-    doc?.status === DocumentStatus.PENDIENTE || doc?.status === DocumentStatus.PROCESANDO;
+  // PENDIENTE = el archivo todavía no llegó a S3; PROCESANDO = el OCR está corriendo.
+  // Son estados distintos para el usuario, pero ambos siguen esperando una resolución.
+  const isPending    = doc?.status === DocumentStatus.PENDIENTE;
+  const isProcessing = doc?.status === DocumentStatus.PROCESANDO;
+  const isUnresolved = isPending || isProcessing;
 
   useEffect(() => {
-    if (!isProcessing) return;
+    if (!isUnresolved) return;
     const interval = setInterval(() => {
       void dispatch(fetchDocument(documentId));
     }, 3000);
     return () => clearInterval(interval);
-  }, [isProcessing, dispatch, documentId]);
+  }, [isUnresolved, dispatch, documentId]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -253,6 +256,12 @@ export function DocumentDetailPanel({
               <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-800 shrink-0 dark:bg-yellow-900/30 dark:text-yellow-300">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Procesando OCR…
+              </span>
+            )}
+            {isPending && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
+                <Clock className="h-3 w-3" />
+                Esperando archivo
               </span>
             )}
           </div>

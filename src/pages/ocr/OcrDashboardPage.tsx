@@ -10,6 +10,7 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Download,
   Loader2,
   RefreshCw,
@@ -493,10 +494,16 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'dni')} /></td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {doc.status === DocumentStatus.PENDIENTE || doc.status === DocumentStatus.PROCESANDO ? (
+                      {doc.status === DocumentStatus.PROCESANDO ? (
                         <span className="inline-flex items-center gap-1 text-yellow-700 dark:text-yellow-200">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           Procesando OCR…
+                        </span>
+                      ) : doc.status === DocumentStatus.PENDIENTE ? (
+                        // El archivo todavía no llegó a S3: no hay ningún OCR en curso.
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          Esperando archivo
                         </span>
                       ) : (
                         formatEditedAt(doc)
