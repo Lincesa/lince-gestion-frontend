@@ -5,7 +5,10 @@ import type {
   CampaignRecipient,
   CreateCampaignPayload,
   DirectMessage,
+  MarketingDashboard,
+  TemplateAnalyticsPayload,
   YCloudTemplate,
+  YCloudTemplateAnalytics,
 } from '@/types/marketing.types';
 
 interface MarketingState {
@@ -15,12 +18,16 @@ interface MarketingState {
   templates: YCloudTemplate[];
   directMessages: DirectMessage[];
   filterOptions: { productos: string[] };
+  dashboard: MarketingDashboard | null;
+  templateAnalytics: YCloudTemplateAnalytics | null;
   loadingCampaigns: boolean;
   loadingCurrent: boolean;
   loadingRecipients: boolean;
   loadingTemplates: boolean;
   loadingDirectMessages: boolean;
   loadingFilterOptions: boolean;
+  loadingDashboard: boolean;
+  loadingAnalytics: boolean;
   submitting: boolean;
   error: string | null;
 }
@@ -32,15 +39,28 @@ const initialState: MarketingState = {
   templates: [],
   directMessages: [],
   filterOptions: { productos: [] },
+  dashboard: null,
+  templateAnalytics: null,
   loadingCampaigns: false,
   loadingCurrent: false,
   loadingRecipients: false,
   loadingTemplates: false,
   loadingDirectMessages: false,
   loadingFilterOptions: false,
+  loadingDashboard: false,
+  loadingAnalytics: false,
   submitting: false,
   error: null,
 };
+
+export const fetchDashboard = createAsyncThunk('marketing/fetchDashboard', () =>
+  marketingApi.getDashboard(),
+);
+
+export const fetchTemplateAnalytics = createAsyncThunk(
+  'marketing/fetchTemplateAnalytics',
+  (payload: TemplateAnalyticsPayload) => marketingApi.getTemplateAnalytics(payload),
+);
 
 export const fetchTemplates = createAsyncThunk('marketing/fetchTemplates', () =>
   marketingApi.getTemplates(),
@@ -87,9 +107,36 @@ const campaignsSlice = createSlice({
       state.currentCampaign = null;
       state.recipients = [];
     },
+    clearTemplateAnalytics(state) {
+      state.templateAnalytics = null;
+    },
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchDashboard.pending, (state) => {
+        state.loadingDashboard = true;
+        state.error = null;
+      })
+      .addCase(fetchDashboard.fulfilled, (state, action) => {
+        state.loadingDashboard = false;
+        state.dashboard = action.payload;
+      })
+      .addCase(fetchDashboard.rejected, (state, action) => {
+        state.loadingDashboard = false;
+        state.error = action.error.message ?? 'Error al cargar dashboard';
+      })
+
+      .addCase(fetchTemplateAnalytics.pending, (state) => {
+        state.loadingAnalytics = true;
+      })
+      .addCase(fetchTemplateAnalytics.fulfilled, (state, action) => {
+        state.loadingAnalytics = false;
+        state.templateAnalytics = action.payload;
+      })
+      .addCase(fetchTemplateAnalytics.rejected, (state) => {
+        state.loadingAnalytics = false;
+      })
+
       // templates
       .addCase(fetchTemplates.pending, (state) => { state.loadingTemplates = true; state.error = null; })
       .addCase(fetchTemplates.fulfilled, (state, action) => {
@@ -178,5 +225,5 @@ const campaignsSlice = createSlice({
   },
 });
 
-export const { clearCurrentCampaign } = campaignsSlice.actions;
+export const { clearCurrentCampaign, clearTemplateAnalytics } = campaignsSlice.actions;
 export default campaignsSlice.reducer;

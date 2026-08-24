@@ -86,12 +86,89 @@ export interface YCloudTemplate {
   language: string;
   status: string;
   category: string;
+  qualityRating?: string;
   content: string;
   channelLabel?: string | null;
   headerFormat?: string;
   headerExample?: string;
   footerText?: string;
   buttons?: { type: string; text: string }[];
+}
+
+export interface YCloudBalance {
+  amount: number;
+  currency: string;
+}
+
+export interface YCloudPhoneNumber {
+  id: string;
+  phoneNumber: string;
+  displayPhoneNumber?: string;
+  wabaId: string;
+  verifiedName?: string;
+  status?: string;
+  qualityRating?: string;
+  messagingLimit?: string;
+  whatsappBusinessManagerMessagingLimit?: string;
+  throughputLevel?: string;
+  channelLabel?: string | null;
+}
+
+export interface YCloudTemplateAnalyticsDataPoint {
+  date: string;
+  sent: number;
+  delivered: number;
+  failed: number;
+  read: number;
+  clicks: number;
+  uniqueReplies: number;
+  buttonClicks: { type: string; buttonContent: string; count: number }[];
+}
+
+export interface YCloudTemplateAnalytics {
+  wabaId: string;
+  officialTemplateId?: string | null;
+  templateName: string;
+  language: string;
+  timezone: string;
+  analyticsStatus: string;
+  startDate: string;
+  endDate: string;
+  dataPoints: YCloudTemplateAnalyticsDataPoint[];
+}
+
+export interface MarketingDashboard {
+  balance: YCloudBalance | null;
+  balanceError: string | null;
+  phones: YCloudPhoneNumber[];
+  phonesError: string | null;
+  templates: {
+    total: number;
+    byStatus: Record<string, number>;
+    items: YCloudTemplate[];
+  };
+  templatesError: string | null;
+  local: {
+    campaigns: {
+      total: number;
+      byStatus: Record<string, number>;
+      sentTotal: number;
+      failedTotal: number;
+    };
+    directMessages: {
+      total: number;
+      last7Days: number;
+    };
+  };
+}
+
+export interface TemplateAnalyticsPayload {
+  wabaId: string;
+  startDate: string;
+  endDate: string;
+  officialTemplateId?: string;
+  templateName?: string;
+  language?: string;
 }
 
 export interface DirectMessage {

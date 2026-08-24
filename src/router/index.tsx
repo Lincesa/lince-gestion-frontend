@@ -103,6 +103,9 @@ const MarketingSeguimientoPage = lazy(() =>
 const DirectMessagesPage = lazy(() =>
   import('@/pages/marketing/DirectMessagesPage').then((m) => ({ default: m.DirectMessagesPage })),
 );
+const YcloudDashboardPage = lazy(() =>
+  import('@/pages/marketing/YcloudDashboardPage').then((m) => ({ default: m.YcloudDashboardPage })),
+);
 const OcrDashboardPage = lazy(() =>
   import('@/pages/ocr/OcrDashboardPage').then((m) => ({ default: m.OcrDashboardPage })),
 );
@@ -293,7 +296,15 @@ const router = createBrowserRouter([
                   </Suspense>
                 ),
                 children: [
-                  { index: true, element: <Navigate to="campaigns" replace /> },
+                  { index: true, element: <Navigate to="dashboard" replace /> },
+                  {
+                    path: 'dashboard',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <YcloudDashboardPage />
+                      </Suspense>
+                    ),
+                  },
                   {
                     path: 'campaigns',
                     element: (

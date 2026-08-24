@@ -28,7 +28,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   [ModuleKey.CRM]: 'CRM',
   [ModuleKey.CONCILIACIONES]: 'Conciliaciones',
   [ModuleKey.OCR]: 'OCR',
-  [ModuleKey.MARKETING]: 'Marketing',
+  [ModuleKey.MARKETING]: 'Mensajes y seguimiento',
   [ModuleKey.SOPORTE_IT]: 'Soporte IT',
   [ModuleKey.ASISTENCIA]: 'RRHH',
   [ModuleKey.LOGISTICA]:  'Logística',

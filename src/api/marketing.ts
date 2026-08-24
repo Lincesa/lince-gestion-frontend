@@ -7,8 +7,17 @@ import type {
   CampaignWave,
   CreateCampaignPayload,
   DirectMessage,
+  MarketingDashboard,
+  TemplateAnalyticsPayload,
   YCloudTemplate,
+  YCloudTemplateAnalytics,
 } from '@/types/marketing.types';
+
+export const getDashboard = () =>
+  api.get<MarketingDashboard>('/marketing/dashboard');
+
+export const getTemplateAnalytics = (payload: TemplateAnalyticsPayload) =>
+  api.post<YCloudTemplateAnalytics>('/marketing/templates/analytics', payload);
 
 export const getTemplates = () =>
   api.get<YCloudTemplate[]>('/marketing/templates');

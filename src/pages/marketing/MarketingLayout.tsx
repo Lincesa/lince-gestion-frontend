@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
 const tabs = [
+  { to: '/marketing/dashboard', label: 'Dashboard' },
   { to: '/marketing/campaigns', label: 'Campañas' },
   { to: '/marketing/direct-messages', label: 'Mensajes directos' },
   { to: '/marketing/seguimiento', label: 'Seguimiento' },
