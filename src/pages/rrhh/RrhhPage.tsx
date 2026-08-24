@@ -276,31 +276,43 @@ function hasExtraBreakdown(values: ExtraBreakdown): boolean {
   return extraBreakdownParts(values).length > 0;
 }
 
-function formatExtraCell(ms: number): string {
-  return ms === 0 ? '—' : formatDuracion(ms);
+function formatExtraCell(ms: number, opts?: { hideNegative?: boolean }): string {
+  if (ms === 0) return '—';
+  if (opts?.hideNegative && ms < 0) return '—';
+  return formatDuracion(ms);
 }
 
 // La franja 50% es el saldo NETO de la jornada normal: puede ser a favor (+) o en contra (−),
 // así que se muestra con signo (como el saldo). El 100% siempre es >= 0.
-function formatExtra50Cell(ms: number): string {
-  return ms === 0 ? '—' : formatSaldoJornada(ms);
+// En el Acumulado, Laboral pidió ocultar solo los valores negativos de 50%/100%.
+function formatExtra50Cell(ms: number, opts?: { hideNegative?: boolean }): string {
+  if (ms === 0) return '—';
+  if (opts?.hideNegative && ms < 0) return '—';
+  return formatSaldoJornada(ms);
 }
 
-function extraSignColorClass(ms: number): string {
+function extraSignColorClass(ms: number, opts?: { hideNegative?: boolean }): string {
+  if (opts?.hideNegative && ms < 0) return 'text-muted-foreground';
   if (ms > 0) return 'text-emerald-600';
   if (ms < 0) return 'text-red-600';
   return 'text-muted-foreground';
 }
 
-function formatExtraPartValue(part: { key: string; ms: number }): string {
-  return part.key === 'e50' ? formatExtra50Cell(part.ms) : formatExtraCell(part.ms);
+function formatExtraPartValue(part: { key: string; ms: number }, opts?: { hideNegative?: boolean }): string {
+  return part.key === 'e50' ? formatExtra50Cell(part.ms, opts) : formatExtraCell(part.ms, opts);
 }
 
-function formatExtraBreakdownText(values: ExtraBreakdown, compact = false): string {
-  const parts = extraBreakdownParts(values);
+function formatExtraBreakdownText(
+  values: ExtraBreakdown,
+  compact = false,
+  opts?: { hideNegative?: boolean },
+): string {
+  const parts = extraBreakdownParts(values).filter(
+    (part) => !(opts?.hideNegative && part.ms < 0),
+  );
   if (parts.length === 0) return '—';
   return parts
-    .map((part) => `${compact ? part.shortLabel : part.label}: ${part.key === 'e50' ? formatSaldoJornada(part.ms) : formatDuracion(part.ms)}`)
+    .map((part) => `${compact ? part.shortLabel : part.label}: ${formatExtraPartValue(part, opts)}`)
     .join(compact ? ' · ' : ' | ');
 }
 
@@ -697,7 +709,7 @@ function monthlyCellExportText(day: MonthlyAttendanceDay): string {
   }
   const saldoBreakdown = extraBreakdownFromMonthlyDay(day);
   if (hasExtraBreakdown(saldoBreakdown)) {
-    lines.push(formatExtraBreakdownText(saldoBreakdown, true));
+    lines.push(formatExtraBreakdownText(saldoBreakdown, true, { hideNegative: true }));
   }
   return lines.join('\n');
 }
@@ -1358,8 +1370,8 @@ export function RrhhPage() {
                 const extraBreakdown = extraBreakdownFromEmployeeRow(row);
                 return [
                   formatSaldoJornada(row.balanceMs),
-                  formatExtra50Cell(extraBreakdown.extra50Ms),
-                  formatExtraCell(extraBreakdown.extra100Ms),
+                  formatExtra50Cell(extraBreakdown.extra50Ms, { hideNegative: true }),
+                  formatExtraCell(extraBreakdown.extra100Ms, { hideNegative: true }),
                 ];
               })()
             : []),
@@ -1396,12 +1408,12 @@ export function RrhhPage() {
           saldoCell.font = { bold: true, color: { argb: row.balanceMs < 0 ? 'FF7F1D1D' : 'FF14532D' }, size: 10 };
           saldoCell.alignment = { vertical: 'middle', horizontal: 'right' };
 
-          // 50% es saldo neto (puede ser negativo → rojo); 100% es extra puro (>= 0 → verde/neutro).
+          // 50%/100%: en acumulado los negativos se muestran como "—" (Laboral); color neutro.
           for (let colNumber = days.length + 5; colNumber <= days.length + 6; colNumber += 1) {
             const cell = dataRow.getCell(colNumber);
             const numericValue = [extraBreakdown.extra50Ms, extraBreakdown.extra100Ms][colNumber - (days.length + 5)];
-            const bg = numericValue > 0 ? 'FFD9EAD3' : numericValue < 0 ? 'FFF4CCCC' : 'FFF9FAFB';
-            const fg = numericValue > 0 ? 'FF14532D' : numericValue < 0 ? 'FF7F1D1D' : 'FF6B7280';
+            const bg = numericValue > 0 ? 'FFD9EAD3' : 'FFF9FAFB';
+            const fg = numericValue > 0 ? 'FF14532D' : 'FF6B7280';
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
             cell.font = { color: { argb: fg }, size: 10 };
             cell.alignment = { vertical: 'middle', horizontal: 'right' };
@@ -2763,8 +2775,8 @@ export function RrhhPage() {
                             <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatDuracion(row.expectedMs)}</td>
                             {monthlyData.planta === 'tucuman' && (
                               <>
-                                <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${extraSignColorClass(saldoBreakdown.extra50Ms)}`}>{formatExtra50Cell(saldoBreakdown.extra50Ms)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra100Ms)}</td>
+                                <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap ${extraSignColorClass(saldoBreakdown.extra50Ms, { hideNegative: true })}`}>{formatExtra50Cell(saldoBreakdown.extra50Ms, { hideNegative: true })}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-muted-foreground">{formatExtraCell(saldoBreakdown.extra100Ms, { hideNegative: true })}</td>
                               </>
                             )}
                             <td className={`px-3 py-2.5 text-right tabular-nums whitespace-nowrap font-medium ${row.balanceMs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -2848,7 +2860,7 @@ export function RrhhPage() {
                                       ) : null}
                                       {monthlyData.planta === 'tucuman' && hasExtraBreakdown(daySaldoBreakdown) ? (
                                         <p className="mt-0.5 text-[10px] font-medium leading-tight opacity-80">
-                                          {formatExtraBreakdownText(daySaldoBreakdown, true)}
+                                          {formatExtraBreakdownText(daySaldoBreakdown, true, { hideNegative: true })}
                                         </p>
                                       ) : null}
                                     </div>
@@ -2862,8 +2874,14 @@ export function RrhhPage() {
                                     {formatSaldoJornada(row.balanceMs)}
                                   </td>
                                   {allExtraBreakdownParts(saldoBreakdown).map((part) => (
-                                    <td key={part.key} className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${saldoBreakdownPillClass(part.ms)}`} title={part.title}>
-                                      {formatExtraPartValue(part)}
+                                    <td
+                                      key={part.key}
+                                      className={`rounded-md border px-3 py-2 text-right tabular-nums font-medium ${
+                                        part.ms < 0 ? 'border-border bg-background text-muted-foreground' : saldoBreakdownPillClass(part.ms)
+                                      }`}
+                                      title={part.title}
+                                    >
+                                      {formatExtraPartValue(part, { hideNegative: true })}
                                     </td>
                                   ))}
                                 </>
