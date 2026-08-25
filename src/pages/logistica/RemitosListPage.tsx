@@ -7,7 +7,7 @@ import { RemitoDetailPanel } from '@/components/logistica/RemitoDetailPanel';
 import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
 import type { RemitoLogistica } from '@/types/logistica.types';
 import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
-import { EMPTY_REMITO_FILTERS } from '@/types/remitos-filters.types';
+import { EMPTY_REMITO_FILTERS, hasRemitoExportFilters } from '@/types/remitos-filters.types';
 
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();
@@ -60,8 +60,8 @@ export function RemitosListPage() {
   const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
 
   const handleExport = async () => {
-    if (!filters.ptoVenta) {
-      toast.error('Elegí un prefijo de numeración antes de exportar');
+    if (!hasRemitoExportFilters(filters)) {
+      toast.error('Aplicá al menos un filtro antes de exportar');
       return;
     }
 

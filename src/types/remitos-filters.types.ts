@@ -32,6 +32,10 @@ export function detectRemitoSortPreset(filters: RemitosFilterValues): RemitoSort
 }
 
 export function hasActiveRemitoFilters(filters: RemitosFilterValues): boolean {
+  return hasRemitoExportFilters(filters);
+}
+
+export function hasRemitoExportFilters(filters: RemitosFilterValues): boolean {
   return Boolean(
     filters.ptoVenta
     || filters.chofer
@@ -39,8 +43,7 @@ export function hasActiveRemitoFilters(filters: RemitosFilterValues): boolean {
     || filters.nroRemito
     || filters.status
     || filters.dateFrom
-    || filters.dateTo
-    || filters.sortBy === 'nroRemito',
+    || filters.dateTo,
   );
 }
 

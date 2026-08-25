@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadDocumentFile, exportRemitos, getOcrStats, getRemitoFilterOptions } from '@/api/ocr';
+import { hasRemitoExportFilters } from '@/types/remitos-filters.types';
 import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -144,8 +145,8 @@ export function OcrDashboardPage() {
   }, [dispatch, filters]);
 
   const handleExport = async () => {
-    if (!filters.ptoVenta) {
-      toast.error('Elegí un prefijo de numeración antes de exportar');
+    if (!hasRemitoExportFilters(filters)) {
+      toast.error('Aplicá al menos un filtro antes de exportar');
       return;
     }
 
