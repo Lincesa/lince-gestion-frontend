@@ -100,6 +100,15 @@ export interface FilterDocumentsParams {
   dateFrom?:         string;
   dateTo?:           string;
   nroRemito?:        string;
+  ptoVenta?:         string;
+  chofer?:           string;
+  sortBy?:           'createdAt' | 'nroRemito';
+  sortOrder?:        'ASC' | 'DESC';
   page?:             number;
   limit?:            number;
+}
+
+export interface RemitoFilterOptions {
+  ptoVentas: string[];
+  choferes:  string[];
 }

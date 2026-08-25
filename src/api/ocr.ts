@@ -6,6 +6,7 @@ import type {
   OcrDocumentStatus,
   OcrStats,
   PaginatedDocuments,
+  RemitoFilterOptions,
   UploadUrlResponse,
 } from '@/types/ocr.types';
 import { DocumentType } from '@/types/ocr.types';
@@ -116,6 +117,11 @@ export async function testExtract(
 export function getOcrStats(params: FilterDocumentsParams = {}): Promise<OcrStats> {
   const qs = buildQs(params);
   return api.get<OcrStats>(`${BASE}/stats${qs}`);
+}
+
+/** ADMIN: prefijos y choferes distintos para filtros de remitos */
+export function getRemitoFilterOptions(): Promise<RemitoFilterOptions> {
+  return api.get(`${BASE}/remitos/filter-options`);
 }
 
 /** ADMIN: cola de documentos pendientes de revisión */
