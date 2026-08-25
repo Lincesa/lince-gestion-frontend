@@ -3,7 +3,7 @@
  * Facturas y retenciones quedan ocultas temporalmente del front.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Camera,
@@ -14,13 +14,13 @@ import {
   Download,
   Loader2,
   RefreshCw,
-  Search,
   Trash2,
   X,
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadDocumentFile, getOcrStats, getRemitoFilterOptions } from '@/api/ocr';
+import { downloadDocumentFile, exportRemitos, getOcrStats, getRemitoFilterOptions } from '@/api/ocr';
+import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   bulkDeleteDocuments,
@@ -30,10 +30,10 @@ import {
   fetchDocuments,
 } from '@/store/ocr/documentsSlice';
 import { GlobalRole } from '@/types/auth.types';
-import type { FilterDocumentsParams, OcrDocument, OcrStats, RemitoFilterOptions } from '@/types/ocr.types';
+import type { FilterDocumentsParams, OcrDocument, OcrStats } from '@/types/ocr.types';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
+import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
 import { DocumentDetailPanel } from './components/DocumentDetailPanel';
-import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
 
@@ -87,20 +87,6 @@ function formatUploadDate(doc: OcrDocument): string {
     + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-type RemitoSortPreset = '' | 'remito-desc' | 'remito-asc';
-
-function applySortPreset(preset: RemitoSortPreset): Pick<FilterDocumentsParams, 'sortBy' | 'sortOrder'> {
-  if (preset === 'remito-desc') return { sortBy: 'nroRemito', sortOrder: 'DESC' };
-  if (preset === 'remito-asc')  return { sortBy: 'nroRemito', sortOrder: 'ASC' };
-  return { sortBy: undefined, sortOrder: undefined };
-}
-
-function detectSortPreset(filters: FilterDocumentsParams): RemitoSortPreset {
-  if (filters.sortBy === 'nroRemito' && filters.sortOrder === 'DESC') return 'remito-desc';
-  if (filters.sortBy === 'nroRemito' && filters.sortOrder === 'ASC')  return 'remito-asc';
-  return '';
-}
-
 function formatEditedAt(doc: OcrDocument): string {
   if (!doc.correctedAt) return 'Sin editar';
   return `Editado ${new Date(doc.correctedAt).toLocaleString('es-AR')}`;
@@ -143,9 +129,9 @@ export function OcrDashboardPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [stats, setStats] = useState<OcrStats | null>(null);
   const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({ ptoVentas: [], choferes: [] });
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     getRemitoFilterOptions().then(setFilterOptions).catch(() => {});
@@ -157,17 +143,27 @@ export function OcrDashboardPage() {
     getOcrStats(filtersWithType).then(setStats).catch(() => {});
   }, [dispatch, filters]);
 
-  const handleNroRemitoChange = (value: string) => {
-    setNroRemitoInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setFilters((f) => ({ ...f, nroRemito: value || undefined, page: 1 }));
-    }, 400);
-  };
+  const handleExport = async () => {
+    if (!filters.ptoVenta) {
+      toast.error('Elegí un prefijo de numeración antes de exportar');
+      return;
+    }
 
-  const handleSortChange = (preset: RemitoSortPreset) => {
-    const sort = applySortPreset(preset);
-    setFilters((f) => ({ ...f, ...sort, page: 1 }));
+    setExporting(true);
+    try {
+      const { blob, filename } = await exportRemitos(filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Listado exportado');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo exportar el listado');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -366,93 +362,25 @@ export function OcrDashboardPage() {
       </div>
 
       {/* ── Filtros ───────────────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            title="Prefijo de numeración"
-            value={filters.ptoVenta ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, ptoVenta: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-w-[140px]"
-          >
-            <option value="">Prefijo (todos)</option>
-            {filterOptions.ptoVentas.map((pv) => (
-              <option key={pv} value={pv}>{pv}</option>
-            ))}
-          </select>
-
-          <select
-            title="Orden por número de remito"
-            value={detectSortPreset(filters)}
-            onChange={(e) => handleSortChange(e.target.value as RemitoSortPreset)}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-w-[180px]"
-          >
-            <option value="">Orden: fecha reciente</option>
-            <option value="remito-desc">N° remito: mayor a menor</option>
-            <option value="remito-asc">N° remito: menor a mayor</option>
-          </select>
-
-          <select
-            title="Transporte"
-            value={filters.uploadedByEmail ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, uploadedByEmail: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-w-[160px]"
-          >
-            <option value="">Transporte (todos)</option>
-            {UPLOADER_CHIPS.map((chip) => (
-              <option key={chip.email} value={chip.email}>{chip.label}</option>
-            ))}
-          </select>
-
-          <select
-            title="Chofer"
-            value={filters.chofer ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, chofer: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring min-w-[160px]"
-          >
-            <option value="">Chofer (todos)</option>
-            {filterOptions.choferes.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Nro. remito…"
-              value={nroRemitoInput}
-              onChange={(e) => handleNroRemitoChange(e.target.value)}
-              className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
-            />
-          </div>
-          <select
-            value={filters.status ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, status: (e.target.value as DocumentStatus) || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">Todos los estados</option>
-            {Object.values(DocumentStatus).map((status) => (
-              <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            title="Desde"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <input
-            type="date"
-            title="Hasta"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-      </div>
+      <RemitosFiltersBar
+        values={filters}
+        onChange={(patch) => setFilters((f) => ({
+          ...f,
+          ...(patch as Partial<FilterDocumentsParams>),
+          type: DocumentType.REMITO,
+        }))}
+        filterOptions={filterOptions}
+        nroRemitoInput={nroRemitoInput}
+        onNroRemitoInputChange={setNroRemitoInput}
+        showStatus
+        statusOptions={Object.values(DocumentStatus).map((status) => ({
+          value: status,
+          label: status.replaceAll('_', ' '),
+        }))}
+        showExport
+        exporting={exporting}
+        onExport={() => void handleExport()}
+      />
 
       {isSuperAdmin && selectedIds.size > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2.5 text-sm">

@@ -124,6 +124,24 @@ export function getRemitoFilterOptions(): Promise<RemitoFilterOptions> {
   return api.get(`${BASE}/remitos/filter-options`);
 }
 
+/** ADMIN: exporta remitos filtrados por prefijo en CSV ordenado */
+export async function exportRemitos(params: FilterDocumentsParams = {}): Promise<{ blob: Blob; filename: string }> {
+  const qs = buildQs({ ...params, type: DocumentType.REMITO });
+  const res = await fetch(`${API_BASE_URL}${BASE}/remitos/export${qs}`, {
+    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Error al exportar' }));
+    const raw = (error as { message?: string | string[] }).message;
+    const message = Array.isArray(raw) ? raw.join(' · ') : (raw ?? `Error ${res.status}`);
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  return { blob, filename: match?.[1] ?? 'remitos.csv' };
+}
+
 /** ADMIN: cola de documentos pendientes de revisión */
 export function getReviewQueue(params: FilterDocumentsParams = {}): Promise<PaginatedDocuments> {
   const qs = buildQs(params);

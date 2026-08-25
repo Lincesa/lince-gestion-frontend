@@ -1,22 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchRemitos, removeRemitoFromList } from '@/store/logistica/remitosSlice';
-import { type ListRemitosParams } from '@/api/logistica';
+import { logisticaApi, type ListRemitosParams } from '@/api/logistica';
 import { RemitoDetailPanel } from '@/components/logistica/RemitoDetailPanel';
-import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
+import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
 import type { RemitoLogistica } from '@/types/logistica.types';
+import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
+import { EMPTY_REMITO_FILTERS } from '@/types/remitos-filters.types';
 
 export function RemitosListPage() {
   const dispatch   = useAppDispatch();
   const { list, loading, error, pagination } = useAppSelector((s) => s.remitosLogistica);
 
-  const [filters, setFilters]       = useState<ListRemitosParams>({ page: 1, limit: 20 });
+  const [filters, setFilters]       = useState<ListRemitosParams>(EMPTY_REMITO_FILTERS);
   const [nroInput, setNroInput]     = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({ ptoVentas: [], choferes: [] });
+  const [exporting, setExporting] = useState(false);
 
   const currentIndex = selectedId ? list.findIndex((r) => r.id === selectedId) : -1;
+
+  useEffect(() => {
+    logisticaApi.getRemitoFilterOptions().then(setFilterOptions).catch(() => {});
+  }, []);
 
   useEffect(() => {
     void dispatch(fetchRemitos(filters));
@@ -50,15 +57,30 @@ export function RemitosListPage() {
     });
   };
 
-  const handleNroChange = (value: string) => {
-    setNroInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setFilters((f) => ({ ...f, nroRemito: value || undefined, page: 1 }));
-    }, 400);
-  };
-
   const setPage = (p: number) => setFilters((f) => ({ ...f, page: p }));
+
+  const handleExport = async () => {
+    if (!filters.ptoVenta) {
+      toast.error('Elegí un prefijo de numeración antes de exportar');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const { blob, filename } = await logisticaApi.exportRemitos(filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Listado exportado');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo exportar el listado');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-4">
@@ -67,59 +89,16 @@ export function RemitosListPage() {
         <span className="text-sm text-muted-foreground">{pagination.total} en total</span>
       </div>
 
-      {/* Filtros */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Nro. remito…"
-              value={nroInput}
-              onChange={(e) => handleNroChange(e.target.value)}
-              className="pl-8 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring w-40"
-            />
-          </div>
-          <input
-            type="date"
-            title="Desde"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <input
-            type="date"
-            title="Hasta"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value || undefined, page: 1 }))}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-
-        {/* Chips de procedencia */}
-        <div className="flex flex-wrap gap-2">
-          {UPLOADER_CHIPS.map((chip) => {
-            const active = filters.uploadedByEmail === chip.email;
-            return (
-              <button
-                key={chip.email}
-                onClick={() => setFilters((f) => ({
-                  ...f,
-                  uploadedByEmail: active ? undefined : chip.email,
-                  page: 1,
-                }))}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  active
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                }`}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <RemitosFiltersBar
+        values={filters}
+        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+        filterOptions={filterOptions}
+        nroRemitoInput={nroInput}
+        onNroRemitoInputChange={setNroInput}
+        showExport
+        exporting={exporting}
+        onExport={() => void handleExport()}
+      />
 
       {error && <div className="text-destructive text-sm">{error}</div>}
 

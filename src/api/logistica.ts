@@ -11,6 +11,10 @@ export interface ListRemitosParams {
   nroRemito?: string;
   status?: string;
   uploadedByEmail?: string;
+  ptoVenta?: string;
+  chofer?: string;
+  sortBy?: 'createdAt' | 'nroRemito';
+  sortOrder?: 'ASC' | 'DESC';
 }
 
 export interface MapaRemitosParams {
@@ -43,8 +47,42 @@ export const logisticaApi = {
     if (params.nroRemito) qs.set('nroRemito', params.nroRemito);
     if (params.status)          qs.set('status',          params.status);
     if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
+    if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
+    if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.sortBy)          qs.set('sortBy',          params.sortBy);
+    if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
     const query = qs.toString();
     return api.get<PaginatedRemitos>(`${BASE}${query ? `?${query}` : ''}`);
+  },
+
+  getRemitoFilterOptions: () =>
+    api.get<{ ptoVentas: string[]; choferes: string[] }>(`${BASE}/filter-options`),
+
+  exportRemitos: async (params: ListRemitosParams = {}): Promise<{ blob: Blob; filename: string }> => {
+    const qs = new URLSearchParams();
+    if (params.dateFrom)        qs.set('dateFrom',        params.dateFrom);
+    if (params.dateTo)          qs.set('dateTo',          params.dateTo);
+    if (params.nroRemito)       qs.set('nroRemito',       params.nroRemito);
+    if (params.status)          qs.set('status',          params.status);
+    if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
+    if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
+    if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.sortBy)          qs.set('sortBy',          params.sortBy);
+    if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
+    const query = qs.toString();
+    const res = await fetch(`${API_BASE_URL}${BASE}/export${query ? `?${query}` : ''}`, {
+      headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: 'Error al exportar' }));
+      const raw = (error as { message?: string | string[] }).message;
+      const message = Array.isArray(raw) ? raw.join(' · ') : (raw ?? `Error ${res.status}`);
+      throw new Error(message);
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    return { blob, filename: match?.[1] ?? 'remitos.csv' };
   },
 
   getMapaRemitos: (params: MapaRemitosParams = {}) => {
