@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { FileSpreadsheet, Loader2, RotateCcw, Search } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { UPLOADER_CHIPS } from '@/constants/uploaderChips';
 import {
   applyRemitoSortPreset,
   detectRemitoSortPreset,
@@ -108,16 +107,13 @@ export function RemitosFiltersBar({
 
         <label className="space-y-1.5 min-w-0">
           <span className="text-xs font-medium text-muted-foreground">Transporte</span>
-          <select
-            value={values.uploadedByEmail ?? ''}
-            onChange={(e) => patch({ uploadedByEmail: e.target.value || undefined })}
-            className={`${fieldClass} w-full`}
-          >
-            <option value="">Todos los transportes</option>
-            {UPLOADER_CHIPS.map((chip) => (
-              <option key={chip.email} value={chip.email}>{chip.label}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={values.uploadedByEmail}
+            options={(filterOptions.uploaders ?? []).map((u) => ({ value: u.email, label: u.label }))}
+            onChange={(v) => patch({ uploadedByEmail: v })}
+            placeholder="Buscar quien subió…"
+            emptyLabel="Todos los transportes"
+          />
         </label>
 
         <label className="space-y-1.5 min-w-0">

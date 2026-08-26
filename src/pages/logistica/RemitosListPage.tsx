@@ -16,7 +16,11 @@ export function RemitosListPage() {
   const [filters, setFilters]       = useState<ListRemitosParams>(EMPTY_REMITO_FILTERS);
   const [nroInput, setNroInput]     = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({ ptoVentas: [], choferes: [] });
+  const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({
+    ptoVentas: [],
+    choferes: [],
+    uploaders: [],
+  });
   const [exporting, setExporting] = useState(false);
 
   const currentIndex = selectedId ? list.findIndex((r) => r.id === selectedId) : -1;

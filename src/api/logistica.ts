@@ -56,7 +56,11 @@ export const logisticaApi = {
   },
 
   getRemitoFilterOptions: () =>
-    api.get<{ ptoVentas: string[]; choferes: string[] }>(`${BASE}/filter-options`),
+    api.get<{
+      ptoVentas: string[];
+      choferes: string[];
+      uploaders: { email: string; label: string }[];
+    }>(`${BASE}/filter-options`),
 
   exportRemitos: async (params: ListRemitosParams = {}): Promise<{ blob: Blob; filename: string }> => {
     const qs = new URLSearchParams();

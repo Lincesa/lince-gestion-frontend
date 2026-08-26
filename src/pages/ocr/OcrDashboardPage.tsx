@@ -129,7 +129,11 @@ export function OcrDashboardPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [stats, setStats] = useState<OcrStats | null>(null);
-  const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({ ptoVentas: [], choferes: [] });
+  const [filterOptions, setFilterOptions] = useState<RemitoFilterOptions>({
+    ptoVentas: [],
+    choferes: [],
+    uploaders: [],
+  });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [exporting, setExporting] = useState(false);

@@ -108,7 +108,13 @@ export interface FilterDocumentsParams {
   limit?:            number;
 }
 
+export interface RemitoUploaderOption {
+  email: string;
+  label: string;
+}
+
 export interface RemitoFilterOptions {
   ptoVentas: string[];
   choferes:  string[];
+  uploaders: RemitoUploaderOption[];
 }

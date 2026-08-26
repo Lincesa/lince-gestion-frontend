@@ -14,9 +14,15 @@ export interface RemitosFilterValues {
   limit?: number;
 }
 
+export interface RemitoUploaderOption {
+  email: string;
+  label: string;
+}
+
 export interface RemitoFilterOptions {
   ptoVentas: string[];
   choferes: string[];
+  uploaders: RemitoUploaderOption[];
 }
 
 export function applyRemitoSortPreset(preset: RemitoSortPreset): Pick<RemitosFilterValues, 'sortBy' | 'sortOrder'> {
