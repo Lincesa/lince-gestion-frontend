@@ -132,6 +132,9 @@ const RemitosListPage = lazy(() =>
 const MapaPage = lazy(() =>
   import('@/pages/logistica/MapaPage').then((m) => ({ default: m.MapaPage })),
 );
+const TransportesPage = lazy(() =>
+  import('@/pages/logistica/TransportesPage').then((m) => ({ default: m.TransportesPage })),
+);
 
 function PageLoader() {
   return (
@@ -523,6 +526,14 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <TagsStatusPage module="logistica" />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'transportes',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <TransportesPage />
                       </Suspense>
                     ),
                   },

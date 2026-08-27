@@ -10,7 +10,10 @@ export function LogisticaLayout() {
   const tabs = [
     { to: '/logistica/remitos', label: 'Remitos' },
     { to: '/logistica/mapa',    label: 'Mapa'    },
-    ...(isSuperAdmin || isLogisticaAdmin ? [{ to: '/logistica/tags', label: 'Tags' }] : []),
+    ...(isSuperAdmin || isLogisticaAdmin ? [
+      { to: '/logistica/tags', label: 'Tags' },
+      { to: '/logistica/transportes', label: 'Transportes' },
+    ] : []),
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { api, API_BASE_URL, getAccessToken } from './client';
-import type { GeoLayer, GeoPoint, PaginatedRemitos, RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
+import type { GeoLayer, GeoPoint, PaginatedRemitos, RemitoDetalle, RemitoLogistica, TransportMemberRole, TransportView } from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
 
@@ -138,4 +138,17 @@ export const logisticaApi = {
     api.patch<GeoPoint>(`/logistica/geo-layers/${id}`, data),
 
   deleteGeoPoint: (id: string) => api.delete<void>(`/logistica/geo-layers/${id}`),
+
+  listTransports: () => api.get<TransportView[]>('/logistica/transports'),
+
+  createTransport: (payload: { name: string; slug?: string; allowedPrefijos?: string[] }) =>
+    api.post<TransportView>('/logistica/transports', payload),
+
+  updateTransport: (id: string, payload: { name?: string; allowedPrefijos?: string[]; active?: boolean }) =>
+    api.patch<TransportView>(`/logistica/transports/${id}`, payload),
+
+  addTransportMember: (
+    transportId: string,
+    payload: { name: string; email: string; password: string; role: TransportMemberRole },
+  ) => api.post<TransportView>(`/logistica/transports/${transportId}/members`, payload),
 };

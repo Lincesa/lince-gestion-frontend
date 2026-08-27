@@ -48,3 +48,23 @@ export interface GeoLayer {
   iconFile: string;
   points: GeoPoint[];
 }
+
+export type TransportMemberRole = 'CHOFER' | 'DUENO';
+
+export interface TransportMemberView {
+  id: string;
+  userId: string;
+  email: string;
+  name: string;
+  role: TransportMemberRole;
+  active: boolean;
+}
+
+export interface TransportView {
+  id: string;
+  name: string;
+  slug: string;
+  allowedPrefijos: string[];
+  active: boolean;
+  members: TransportMemberView[];
+}
