@@ -37,6 +37,16 @@ export function detectRemitoSortPreset(filters: RemitosFilterValues): RemitoSort
   return '';
 }
 
+export function splitRemitoFilterValues(value?: string): string[] {
+  if (!value?.trim()) return [];
+  return [...new Set(value.split(',').map((v) => v.trim()).filter(Boolean))];
+}
+
+export function joinRemitoFilterValues(values: string[]): string | undefined {
+  const unique = [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  return unique.length ? unique.join(',') : undefined;
+}
+
 export function hasActiveRemitoFilters(filters: RemitosFilterValues): boolean {
   return hasRemitoExportFilters(filters);
 }

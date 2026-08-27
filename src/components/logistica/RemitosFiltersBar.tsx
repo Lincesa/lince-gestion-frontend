@@ -1,9 +1,12 @@
 import { useRef } from 'react';
 import { FileSpreadsheet, Loader2, RotateCcw, Search } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SearchableMultiSelect } from '@/components/ui/SearchableMultiSelect';
 import {
   applyRemitoSortPreset,
   detectRemitoSortPreset,
+  joinRemitoFilterValues,
+  splitRemitoFilterValues,
   type RemitoFilterOptions,
   type RemitoSortPreset,
   type RemitosFilterValues,
@@ -96,10 +99,10 @@ export function RemitosFiltersBar({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-1.5 min-w-0">
           <span className="text-xs font-medium text-muted-foreground">Prefijo</span>
-          <SearchableSelect
-            value={values.ptoVenta}
+          <SearchableMultiSelect
+            values={splitRemitoFilterValues(values.ptoVenta)}
             options={filterOptions.ptoVentas.map((pv) => ({ value: pv, label: pv }))}
-            onChange={(v) => patch({ ptoVenta: v })}
+            onChange={(selected) => patch({ ptoVenta: joinRemitoFilterValues(selected) })}
             placeholder="Buscar prefijo…"
             emptyLabel="Todos los prefijos"
           />
@@ -107,10 +110,10 @@ export function RemitosFiltersBar({
 
         <label className="space-y-1.5 min-w-0">
           <span className="text-xs font-medium text-muted-foreground">Transporte</span>
-          <SearchableSelect
-            value={values.uploadedByEmail}
+          <SearchableMultiSelect
+            values={splitRemitoFilterValues(values.uploadedByEmail)}
             options={(filterOptions.uploaders ?? []).map((u) => ({ value: u.email, label: u.label }))}
-            onChange={(v) => patch({ uploadedByEmail: v })}
+            onChange={(selected) => patch({ uploadedByEmail: joinRemitoFilterValues(selected) })}
             placeholder="Buscar quien subió…"
             emptyLabel="Todos los transportes"
           />
@@ -118,10 +121,10 @@ export function RemitosFiltersBar({
 
         <label className="space-y-1.5 min-w-0">
           <span className="text-xs font-medium text-muted-foreground">Chofer</span>
-          <SearchableSelect
-            value={values.chofer}
+          <SearchableMultiSelect
+            values={splitRemitoFilterValues(values.chofer)}
             options={filterOptions.choferes.map((name) => ({ value: name, label: name }))}
-            onChange={(v) => patch({ chofer: v })}
+            onChange={(selected) => patch({ chofer: joinRemitoFilterValues(selected) })}
             placeholder="Buscar chofer…"
             emptyLabel="Todos los choferes"
           />
