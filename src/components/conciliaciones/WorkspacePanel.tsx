@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { ChangeMatchDialog } from './ChangeMatchDialog';
-import { hasCarryoverContext, type UnmatchedSystem, type SystemLine, type ExtractLine, type Match, type PendingItem } from '@/types/conciliaciones.types';
+import { hasCarryoverContext, type UnmatchedSystem, type SystemLine, type ExtractLine, type Match, type OriginalMatchReference, type PendingItem } from '@/types/conciliaciones.types';
 import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface WorkspacePanelProps {
@@ -33,6 +33,16 @@ interface WorkspacePanelProps {
 const AREAS = ['Dirección', 'Tesorería'];
 const TAB_SISTEMA = 'sistema';
 const TAB_EXTRACTO = 'extracto';
+
+const originalMatchFromGroupKey = (groupKey: string | null): OriginalMatchReference | undefined => {
+  if (groupKey?.startsWith('group:')) {
+    return { kind: 'group', id: groupKey.slice('group:'.length) };
+  }
+  if (groupKey?.startsWith('system:')) {
+    return { kind: 'legacy-system', id: groupKey.slice('system:'.length) };
+  }
+  return undefined;
+};
 
 export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, systemLines, extractLines, systemById, extractById, onSave, onFinalize, onChangeMatchSuccess, onJustifySystem, onJustifyExtract, onConvertExtractToPending, runId, pendingAreaBySystemLineId, pendingItems = [] }: WorkspacePanelProps) {
   const [workItems, setWorkItems] = useState<Map<string, { area: string; status: 'OVERDUE' | 'DEFERRED'; note: string }>>(new Map());
@@ -581,6 +591,7 @@ export function WorkspacePanel({ matches, unmatchedSystem, unmatchedExtract, sys
           extractLines={extractLines}
           currentSystemIds={changeMatchSelection.systemIds}
           currentExtractIds={changeMatchSelection.extractIds}
+          originalMatch={originalMatchFromGroupKey(changeMatchSelection.groupKey)}
           blockedSystemIds={blockedSystemIdsForDialog}
           blockedExtractIds={blockedExtractIdsForDialog}
           onSuccess={() => { onChangeMatchSuccess?.(); setChangeMatchSelection(null); }}

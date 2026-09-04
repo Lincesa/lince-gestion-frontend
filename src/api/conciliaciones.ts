@@ -11,6 +11,7 @@ import type {
   Message,
   Issue,
   SystemMapping,
+  OriginalMatchReference,
 } from '@/types/conciliaciones.types';
 
 const BASE = `${API_BASE_URL}/conciliaciones`;
@@ -91,10 +92,15 @@ export const conciliacionesApi = {
       body: JSON.stringify({ concept }),
     }),
 
-  setMatch: (runId: string, systemLineIds: string[], extractLineIds: string[]) =>
+  setMatch: (
+    runId: string,
+    systemLineIds: string[],
+    extractLineIds: string[],
+    originalMatch?: OriginalMatchReference,
+  ) =>
     apiFetch<RunDetail>(`/conciliaciones/reconciliations/${runId}/match`, {
       method: 'POST',
-      body: JSON.stringify({ systemLineIds, extractLineIds }),
+      body: JSON.stringify({ systemLineIds, extractLineIds, originalMatch }),
     }),
 
   exportRun: async (id: string): Promise<Blob> => {

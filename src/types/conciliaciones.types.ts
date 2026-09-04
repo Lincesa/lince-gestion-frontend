@@ -203,6 +203,10 @@ export type Match = {
   matchGroupId?: string | null;
 };
 
+export type OriginalMatchReference =
+  | { kind: 'group'; id: string }
+  | { kind: 'legacy-system'; id: string };
+
 export type UnmatchedExtract = {
   id?: string;
   extractLineId: string;

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { conciliacionesApi } from '@/api/conciliaciones';
-import type { ExtractLine, SystemLine } from '@/types/conciliaciones.types';
+import type { ExtractLine, OriginalMatchReference, SystemLine } from '@/types/conciliaciones.types';
 import { formatCalendarDate } from '@/utils/conciliaciones';
 
 interface ChangeMatchDialogProps {
@@ -14,6 +14,7 @@ interface ChangeMatchDialogProps {
   extractLines: ExtractLine[];
   currentSystemIds: string[];
   currentExtractIds: string[];
+  originalMatch?: OriginalMatchReference;
   blockedSystemIds?: Set<string>;
   blockedExtractIds?: Set<string>;
   onSuccess: () => void;
@@ -27,6 +28,7 @@ export function ChangeMatchDialog({
   extractLines,
   currentSystemIds,
   currentExtractIds,
+  originalMatch,
   blockedSystemIds = new Set(),
   blockedExtractIds = new Set(),
   onSuccess,
@@ -93,7 +95,12 @@ export function ChangeMatchDialog({
     }
     setLoading(true);
     try {
-      await conciliacionesApi.setMatch(runId, Array.from(selectedSystemIds), Array.from(selectedExtractIds));
+      await conciliacionesApi.setMatch(
+        runId,
+        Array.from(selectedSystemIds),
+        Array.from(selectedExtractIds),
+        originalMatch,
+      );
       onSuccess();
       onClose();
     } catch (err: unknown) {
