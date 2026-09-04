@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { clearSelectedRemito, removeRemitoFromList } from '@/store/logistica/remitosSlice';
 import { logisticaApi } from '@/api/logistica';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDIENTE:          'Pendiente',
@@ -30,6 +32,7 @@ function Field({ label, value }: { label: string; value: string | null | undefin
 export function RemitoSidebar() {
   const dispatch        = useAppDispatch();
   const { selected, detailLoading } = useAppSelector((s) => s.remitosLogistica);
+  const { canEdit } = useCanPerform(ModuleKey.LOGISTICA);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting]           = useState(false);
 
@@ -45,8 +48,8 @@ export function RemitoSidebar() {
       dispatch(removeRemitoFromList(selected.id));
       dispatch(clearSelectedRemito());
       toast.success('Remito eliminado');
-    } catch {
-      toast.error('No se pudo eliminar el remito');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo eliminar el remito');
       setDeleting(false);
       setConfirmDelete(false);
     }
@@ -144,7 +147,7 @@ export function RemitoSidebar() {
               <Download className="h-4 w-4" />
               Descargar remito
             </a>
-            {confirmDelete ? (
+            {canEdit && (confirmDelete ? (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-destructive flex-1">¿Eliminar remito y su imagen?</span>
                 <button
@@ -170,7 +173,7 @@ export function RemitoSidebar() {
                 <Trash2 className="h-4 w-4" />
                 Eliminar remito
               </button>
-            )}
+            ))}
           </div>
         )}
       </aside>

@@ -51,7 +51,7 @@ export function RemitoDetailPanel({
   hasPrev,
   hasNext,
 }: Props) {
-  const { canAdmin } = useCanPerform(ModuleKey.LOGISTICA);
+  const { canEdit } = useCanPerform(ModuleKey.LOGISTICA);
   const [remito, setRemito]             = useState<RemitoDetalle | null>(null);
   const [loading, setLoading]           = useState(true);
   const [previewOpen, setPreviewOpen]   = useState(false);
@@ -95,8 +95,8 @@ export function RemitoDetailPanel({
       toast.success('Remito eliminado');
       onDeleted?.(remito.id);
       onClose();
-    } catch {
-      toast.error('No se pudo eliminar el remito');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo eliminar el remito');
       setDeleting(false);
       setConfirmDelete(false);
     }
@@ -228,7 +228,7 @@ export function RemitoDetailPanel({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-border px-5 py-3 shrink-0">
-          {!canAdmin ? (
+          {!canEdit ? (
             <div />
           ) : confirmDelete ? (
             <div className="flex items-center gap-2">

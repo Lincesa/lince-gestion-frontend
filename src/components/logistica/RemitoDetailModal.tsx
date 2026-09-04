@@ -5,6 +5,8 @@ import { logisticaApi } from '@/api/logistica';
 import type { RemitoDetalle } from '@/types/logistica.types';
 import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
 import { uploadToS3 } from '@/api/ocr';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { ModuleKey } from '@/types/auth.types';
 
 const LOGISTICA_PERSIST_API = {
   downloadFile:            (id: string) => logisticaApi.downloadRemitoFile(id),
@@ -33,6 +35,7 @@ const FIELD_LABELS: { key: keyof RemitoDetalle; label: string }[] = [
 ];
 
 export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
+  const { canEdit } = useCanPerform(ModuleKey.LOGISTICA);
   const [remito, setRemito]               = useState<RemitoDetalle | null>(null);
   const [loading, setLoading]             = useState(true);
   const [previewOpen, setPreviewOpen]     = useState(false);
@@ -67,8 +70,8 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
       toast.success('Remito eliminado');
       onDeleted?.(remito.id);
       onClose();
-    } catch {
-      toast.error('No se pudo eliminar el remito');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo eliminar el remito');
       setDeleting(false);
       setConfirmDelete(false);
     }
@@ -166,7 +169,9 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
         </div>
 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {confirmDelete ? (
+          {!canEdit ? (
+            <div />
+          ) : confirmDelete ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">¿Eliminar remito y su imagen?</span>
               <button
