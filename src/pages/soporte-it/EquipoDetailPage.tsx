@@ -285,13 +285,11 @@ export function EquipoDetailPage() {
           <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
             Historial de incidentes
           </h2>
-          {!canManageSoporteIt && (
-            <Link to={`/soporte-it/reportar?equipoId=${equipo.id}`}>
-              <Button size="sm" variant="outline">
-                <AlertCircle className="h-4 w-4 mr-1" /> Reportar incidente
-              </Button>
-            </Link>
-          )}
+          <Link to={`/soporte-it/reportar?equipoId=${equipo.id}`}>
+            <Button size="sm" variant="outline">
+              <AlertCircle className="h-4 w-4 mr-1" /> Reportar incidente
+            </Button>
+          </Link>
         </div>
         {incidentes.length === 0 ? (
           <p className="px-5 py-4 text-sm text-muted-foreground">

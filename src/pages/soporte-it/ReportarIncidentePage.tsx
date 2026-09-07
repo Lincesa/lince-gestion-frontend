@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { fetchMisEquipos } from '@/store/soporte-it/equiposSlice';
+import { fetchEquipos, fetchMisEquipos } from '@/store/soporte-it/equiposSlice';
 import { createIncidente } from '@/store/soporte-it/incidentesSlice';
+import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import type { UrgenciaIncidente, CreateIncidentePayload } from '@/types/soporte-it.types';
 import { formatEquipoLabel } from '@/utils/soporteItEquipo';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +16,8 @@ export function ReportarIncidentePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedId = searchParams.get('equipoId') ?? '';
+  const user = useAppSelector((s) => s.auth.user);
+  const isAdmin = isSoporteItAdmin(user);
 
   const equipos = useAppSelector((s) => s.equipos.items);
   const loadingEquipos = useAppSelector((s) => s.equipos.loading);
@@ -29,8 +32,8 @@ export function ReportarIncidentePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void dispatch(fetchMisEquipos());
-  }, [dispatch]);
+    void dispatch(isAdmin ? fetchEquipos() : fetchMisEquipos());
+  }, [dispatch, isAdmin]);
 
   useEffect(() => {
     if (!preselectedId) return;
@@ -40,10 +43,10 @@ export function ReportarIncidentePage() {
   useEffect(() => {
     if (loadingEquipos || !preselectedId || equipos.length === 0) return;
     if (!equipos.some((e) => e.id === preselectedId)) {
-      toast.error('Ese equipo no está entre los tuyos');
+      toast.error(isAdmin ? 'Equipo no encontrado en el inventario' : 'Ese equipo no está entre los tuyos');
       setForm((f) => ({ ...f, equipoId: '' }));
     }
-  }, [loadingEquipos, preselectedId, equipos]);
+  }, [loadingEquipos, preselectedId, equipos, isAdmin]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,8 +61,12 @@ export function ReportarIncidentePage() {
     setSubmitting(true);
     try {
       await dispatch(createIncidente(form)).unwrap();
-      toast.success('Incidente reportado. El equipo de IT lo revisará pronto.');
-      navigate('/soporte-it/mis-incidentes');
+      toast.success(
+        isAdmin
+          ? 'Incidente registrado sobre el equipo'
+          : 'Incidente reportado. El equipo de IT lo revisará pronto.',
+      );
+      navigate(isAdmin ? '/soporte-it/incidentes' : '/soporte-it/mis-incidentes');
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -70,13 +77,24 @@ export function ReportarIncidentePage() {
   if (!loadingEquipos && equipos.length === 0) {
     return (
       <div className="p-6 max-w-2xl space-y-4">
-        <h1 className="text-xl font-semibold">Reportar un incidente</h1>
+        <h1 className="text-xl font-semibold">
+          {isAdmin ? 'Registrar incidente' : 'Reportar un incidente'}
+        </h1>
         <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground space-y-2">
-          <p>No tenés equipos asignados, así que no podés abrir un ticket todavía.</p>
-          <p className="text-xs">Pedile a IT que te asigne una notebook o celular desde Inventario.</p>
+          {isAdmin ? (
+            <p>No hay equipos en el inventario. Creá uno en stock y volvé a intentar.</p>
+          ) : (
+            <>
+              <p>No tenés equipos asignados, así que no podés abrir un ticket todavía.</p>
+              <p className="text-xs">Pedile a IT que te asigne una notebook o celular desde Inventario.</p>
+            </>
+          )}
         </div>
-        <Button variant="outline" onClick={() => navigate('/soporte-it/mis-equipos')}>
-          Volver a Mis equipos
+        <Button
+          variant="outline"
+          onClick={() => navigate(isAdmin ? '/soporte-it/equipos' : '/soporte-it/mis-equipos')}
+        >
+          {isAdmin ? 'Ir a Inventario' : 'Volver a Mis equipos'}
         </Button>
       </div>
     );
@@ -84,7 +102,15 @@ export function ReportarIncidentePage() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-semibold mb-6">Reportar un incidente</h1>
+      <h1 className="text-xl font-semibold mb-2">
+        {isAdmin ? 'Registrar incidente (IT)' : 'Reportar un incidente'}
+      </h1>
+      {isAdmin && (
+        <p className="text-sm text-muted-foreground mb-6">
+          Podés abrir tickets sobre equipos en stock o asignados. El historial queda en el equipo.
+        </p>
+      )}
+      {!isAdmin && <div className="mb-6" />}
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
         <div>
@@ -98,11 +124,15 @@ export function ReportarIncidentePage() {
             {equipos.map((eq) => (
               <option key={eq.id} value={eq.id}>
                 {formatEquipoLabel(eq)}
+                {isAdmin && !eq.usuarioPlatId ? ' · Stock' : ''}
+                {isAdmin && eq.usuarioPlat?.name ? ` · ${eq.usuarioPlat.name}` : ''}
               </option>
             ))}
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            Solo aparecen los equipos asignados a tu usuario.
+            {isAdmin
+              ? 'Incluye inventario completo (stock y asignados).'
+              : 'Solo aparecen los equipos asignados a tu usuario.'}
           </p>
         </div>
 
@@ -111,23 +141,23 @@ export function ReportarIncidentePage() {
           <textarea
             className="w-full min-h-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
             required
-            placeholder="Describí el problema con el mayor detalle posible: qué pasó, cuándo, qué estabas haciendo..."
+            placeholder="Describí el problema con el mayor detalle posible..."
             value={form.descripcion}
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
           />
         </div>
 
         <div>
-          <Label>Urgencia percibida</Label>
+          <Label>Urgencia</Label>
           <Select
             value={form.urgencia}
             onChange={(e) =>
               setForm((f) => ({ ...f, urgencia: e.target.value as UrgenciaIncidente }))
             }
           >
-            <option value="baja">Baja — No afecta mi trabajo</option>
-            <option value="media">Media — Afecta parcialmente</option>
-            <option value="alta">Alta — No puedo trabajar</option>
+            <option value="baja">Baja</option>
+            <option value="media">Media</option>
+            <option value="alta">Alta</option>
           </Select>
         </div>
 
@@ -145,10 +175,10 @@ export function ReportarIncidentePage() {
         </div>
 
         <div>
-          <Label>¿Ya hiciste algo al respecto? (opcional)</Label>
+          <Label>Acciones previas (opcional)</Label>
           <textarea
             className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
-            placeholder="Ej: Reinicié el equipo, cerré y abrí la aplicación..."
+            placeholder="Qué se intentó antes de abrir el ticket..."
             value={form.accionesPrevias ?? ''}
             onChange={(e) =>
               setForm((f) => ({ ...f, accionesPrevias: e.target.value }))
@@ -161,7 +191,7 @@ export function ReportarIncidentePage() {
             Cancelar
           </Button>
           <Button type="submit" disabled={submitting}>
-            {submitting ? 'Enviando...' : 'Enviar reporte'}
+            {submitting ? 'Enviando...' : isAdmin ? 'Registrar incidente' : 'Enviar reporte'}
           </Button>
         </div>
       </form>
