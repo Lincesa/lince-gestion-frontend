@@ -4,6 +4,7 @@ import { AlertCircle, Plus } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchMisIncidentes } from '@/store/soporte-it/incidentesSlice';
 import type { EstadoIncidente, UrgenciaIncidente } from '@/types/soporte-it.types';
+import { formatEquipoLabel } from '@/utils/soporteItEquipo';
 import { Button } from '@/components/ui/Button';
 
 const URGENCIA_COLORS: Record<UrgenciaIncidente, string> = {
@@ -69,7 +70,9 @@ export function MisIncidentesPage() {
                   onClick={() => navigate(`/soporte-it/mis-incidentes/${inc.id}`)}
                 >
                   <td className="px-4 py-3 text-muted-foreground">{inc.numeroReporte}</td>
-                  <td className="px-4 py-3 font-medium">{inc.equipo?.hostname ?? '—'}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {inc.equipo ? formatEquipoLabel(inc.equipo) : '—'}
+                  </td>
                   <td className="px-4 py-3 max-w-xs truncate">{inc.descripcion}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${URGENCIA_COLORS[inc.urgencia]}`}>

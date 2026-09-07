@@ -9,6 +9,7 @@ import {
 } from '@/store/soporte-it/incidentesSlice';
 import { toast } from 'sonner';
 import type { EstadoIncidente, UrgenciaIncidente } from '@/types/soporte-it.types';
+import { formatEquipoLabel } from '@/utils/soporteItEquipo';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 
@@ -93,7 +94,9 @@ export function IncidentesPage() {
                 onClick={() => navigate(`/soporte-it/incidentes/${inc.id}`)}
               >
                 <td className="px-4 py-3 text-muted-foreground">{inc.numeroReporte}</td>
-                <td className="px-4 py-3 font-medium">{inc.equipo?.hostname ?? '—'}</td>
+                <td className="px-4 py-3 font-medium">
+                  {inc.equipo ? formatEquipoLabel(inc.equipo) : '—'}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {inc.reportadoPor?.name ?? '—'}
                 </td>
