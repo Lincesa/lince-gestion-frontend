@@ -17,11 +17,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import * as ocrApi from '@/api/ocr';
-import { DocumentStatus, DocumentType } from '@/types/ocr.types';
+import { DocumentStatus, DocumentType, type OcrDocument } from '@/types/ocr.types';
 import { StatusBadge } from './components/StatusBadge';
 import { OcrTestModal } from './components/OcrTestModal';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { fetchMyFacturas } from '@/store/ocr/documentsSlice';
 import {
   isPdfBlob,
   normalizeRotation,
@@ -62,9 +60,6 @@ function deleteWindowRemaining(item: QueueItem): string {
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export function OcrRemitosPage() {
-  const dispatch     = useAppDispatch();
-  const { myFacturas } = useAppSelector((s) => s.ocrDocuments);
-
   const [isOnline, setIsOnline]       = useState(navigator.onLine);
   const [step, setStep]               = useState<UploadStep>('idle');
   const [uploadPct, setUploadPct]     = useState(0);
@@ -76,6 +71,9 @@ export function OcrRemitosPage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [rotationDegrees, setRotationDegrees] = useState<RotationDegrees>(0);
+  const [remitoTotal, setRemitoTotal] = useState<number | null>(null);
+  const [remitoScope, setRemitoScope] = useState<'own' | 'transport' | null>(null);
+  const [transportRemitos, setTransportRemitos] = useState<OcrDocument[]>([]);
   // ticker para re-render mientras haya items dentro de la ventana de 5 min
   const [, setTick] = useState(0);
 
@@ -117,10 +115,27 @@ export function OcrRemitosPage() {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, []);
 
-  // Cargar historial de remitos propios
+  // Cargar contador + listado (dueño ve remitos del transporte)
   useEffect(() => {
-    dispatch(fetchMyFacturas({ limit: 5 }));
-  }, [dispatch]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [count, list] = await Promise.all([
+          ocrApi.getMyRemitosCount(),
+          ocrApi.getMyRemitos({ limit: 20 }),
+        ]);
+        if (cancelled) return;
+        setRemitoTotal(count.total);
+        setRemitoScope(count.scope);
+        setTransportRemitos(list.items);
+      } catch {
+        /* silencioso: chofer/tag sin red aún pueden subir */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
 
   // Interval de 1s mientras haya items dentro de la ventana de eliminación
   useEffect(() => {
@@ -389,6 +404,13 @@ export function OcrRemitosPage() {
         <div>
           <h1 className="text-lg font-semibold text-foreground">Terminal de Remitos</h1>
           <p className="text-sm text-muted-foreground">Captura y sincronización de remitos</p>
+          {remitoTotal !== null && (
+            <p className="text-sm text-foreground mt-1">
+              {remitoScope === 'transport'
+                ? `${remitoTotal} remito${remitoTotal === 1 ? '' : 's'} del transporte`
+                : `${remitoTotal} remito${remitoTotal === 1 ? '' : 's'} cargado${remitoTotal === 1 ? '' : 's'}`}
+            </p>
+          )}
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
           isOnline
@@ -612,6 +634,44 @@ export function OcrRemitosPage() {
           <button onClick={resetFlow} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-accent">
             Intentar de nuevo
           </button>
+        </div>
+      )}
+
+      {/* ── Remitos del transporte (dueño) / propios ───────────────── */}
+      {remitoScope === 'transport' && transportRemitos.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-3">Remitos del transporte</h2>
+          <div className="space-y-2">
+            {transportRemitos.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">
+                    {doc.extractedData?.nroRemito || doc.extractedData?.numero || `ID ${doc.id.slice(0, 8)}…`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(doc.createdAt).toLocaleString('es-AR')}
+                    {doc.driverName ? ` · ${doc.driverName}` : ''}
+                  </p>
+                </div>
+                <StatusBadge status={doc.status} />
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    void ocrApi.getDocumentViewUrl(doc.id).then((r) => {
+                      if (r.viewUrl) window.open(r.viewUrl, '_blank');
+                      else toast.error('No hay foto disponible');
+                    }).catch((err: Error) => toast.error(err.message));
+                  }}
+                >
+                  Foto
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

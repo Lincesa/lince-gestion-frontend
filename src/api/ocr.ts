@@ -96,6 +96,21 @@ export function getMyRetenciones(params: FilterDocumentsParams = {}): Promise<Pa
   return api.get<PaginatedDocuments>(`${BASE}/retenciones${qs}`);
 }
 
+export interface MyRemitosResponse extends PaginatedDocuments {
+  scope: 'own' | 'transport';
+  transportId: string | null;
+}
+
+/** Campo / dueño: remitos propios o del transporte */
+export function getMyRemitos(params: FilterDocumentsParams = {}): Promise<MyRemitosResponse> {
+  const qs = buildQs(params);
+  return api.get<MyRemitosResponse>(`${BASE}/my-remitos${qs}`);
+}
+
+export function getMyRemitosCount(): Promise<{ total: number; scope: 'own' | 'transport' }> {
+  return api.get(`${BASE}/my-remitos/count`);
+}
+
 /**
  * Probar extracción OCR directamente sobre un archivo sin subirlo a S3.
  * Solo para testing — no persiste nada en DB.
