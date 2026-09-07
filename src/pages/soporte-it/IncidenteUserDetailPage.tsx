@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchIncidente } from '@/store/soporte-it/incidentesSlice';
 import { fetchRelevamientoByIncidente } from '@/store/soporte-it/relevamientosSlice';
 import type { EstadoIncidente, UrgenciaIncidente } from '@/types/soporte-it.types';
+import { formatEquipoLabel } from '@/utils/soporteItEquipo';
 
 const URGENCIA_COLORS: Record<UrgenciaIncidente, string> = {
   alta: 'bg-red-100 text-red-700',
@@ -72,6 +73,10 @@ export function IncidenteUserDetailPage() {
         <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
           Tu reporte
         </h2>
+        <Row
+          label="Equipo"
+          value={incidente.equipo ? formatEquipoLabel(incidente.equipo) : undefined}
+        />
         <Row label="Descripción" value={incidente.descripcion} />
         <Row label="Fecha" value={new Date(incidente.fechaReporte).toLocaleString('es-AR')} />
         <Row label="Aplicaciones afectadas" value={incidente.aplicacionesAfectadas} />

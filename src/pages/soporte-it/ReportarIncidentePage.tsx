@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchMisEquipos } from '@/store/soporte-it/equiposSlice';
 import { createIncidente } from '@/store/soporte-it/incidentesSlice';
 import type { UrgenciaIncidente, CreateIncidentePayload } from '@/types/soporte-it.types';
+import { formatEquipoLabel } from '@/utils/soporteItEquipo';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
@@ -13,11 +14,13 @@ export function ReportarIncidentePage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const preselectedId = searchParams.get('equipoId') ?? '';
 
   const equipos = useAppSelector((s) => s.equipos.items);
+  const loadingEquipos = useAppSelector((s) => s.equipos.loading);
 
   const [form, setForm] = useState<CreateIncidentePayload>({
-    equipoId: searchParams.get('equipoId') ?? '',
+    equipoId: preselectedId,
     descripcion: '',
     urgencia: 'media',
     aplicacionesAfectadas: '',
@@ -28,6 +31,19 @@ export function ReportarIncidentePage() {
   useEffect(() => {
     void dispatch(fetchMisEquipos());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!preselectedId) return;
+    setForm((f) => (f.equipoId === preselectedId ? f : { ...f, equipoId: preselectedId }));
+  }, [preselectedId]);
+
+  useEffect(() => {
+    if (loadingEquipos || !preselectedId || equipos.length === 0) return;
+    if (!equipos.some((e) => e.id === preselectedId)) {
+      toast.error('Ese equipo no está entre los tuyos');
+      setForm((f) => ({ ...f, equipoId: '' }));
+    }
+  }, [loadingEquipos, preselectedId, equipos]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +67,21 @@ export function ReportarIncidentePage() {
     }
   }
 
+  if (!loadingEquipos && equipos.length === 0) {
+    return (
+      <div className="p-6 max-w-2xl space-y-4">
+        <h1 className="text-xl font-semibold">Reportar un incidente</h1>
+        <div className="rounded-lg border border-border p-6 text-sm text-muted-foreground space-y-2">
+          <p>No tenés equipos asignados, así que no podés abrir un ticket todavía.</p>
+          <p className="text-xs">Pedile a IT que te asigne una notebook o celular desde Inventario.</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/soporte-it/mis-equipos')}>
+          Volver a Mis equipos
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-2xl">
       <h1 className="text-xl font-semibold mb-6">Reportar un incidente</h1>
@@ -66,10 +97,13 @@ export function ReportarIncidentePage() {
             <option value="">Seleccioná un equipo</option>
             {equipos.map((eq) => (
               <option key={eq.id} value={eq.id}>
-                {eq.hostname ?? eq.modelo ?? eq.id}
+                {formatEquipoLabel(eq)}
               </option>
             ))}
           </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Solo aparecen los equipos asignados a tu usuario.
+          </p>
         </div>
 
         <div>
