@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { GlobalRole, ModuleKey } from '@/types';
 import { useAppSelector } from '@/store';
+import { isFieldArea } from '@/auth/fieldArea';
 
 interface RequireModuleProps {
   moduleKey: ModuleKey;
@@ -9,10 +10,8 @@ interface RequireModuleProps {
 export function RequireModule({ moduleKey }: RequireModuleProps) {
   const user = useAppSelector((s) => s.auth.user);
   if (!user) return null;
-  // SUPERADMIN accede a todo (igual que el backend)
   if (user.globalRole === GlobalRole.SUPERADMIN) return <Outlet />;
-  const isTag = user.area?.toUpperCase() === 'TAG';
-  if (isTag) {
+  if (isFieldArea(user.area)) {
     if (moduleKey === ModuleKey.OCR) return <Outlet />;
     return <Navigate to="/ocr/remitos" replace />;
   }

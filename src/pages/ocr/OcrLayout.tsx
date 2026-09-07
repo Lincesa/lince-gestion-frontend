@@ -4,6 +4,7 @@ import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
 import { GlobalRole, ModuleKey } from '@/types';
+import { isFieldArea } from '@/auth/fieldArea';
 
 export function OcrLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -11,7 +12,7 @@ export function OcrLayout() {
   const navigate = useNavigate();
 
   const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
-  const isTag = user?.area?.toUpperCase() === 'TAG';
+  const isField = isFieldArea(user?.area);
   const isOcrAdmin = user?.modules?.[ModuleKey.OCR]?.role === 'ADMIN';
 
   const handleLogout = async () => {
@@ -31,7 +32,7 @@ export function OcrLayout() {
         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
     ].join(' ');
 
-  if (isTag) {
+  if (isField) {
     return (
       <div className="flex flex-col h-full">
         <div className="border-b border-border px-3 sm:px-6 py-2 flex items-center gap-1 overflow-x-auto">

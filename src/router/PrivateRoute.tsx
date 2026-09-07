@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/store';
+import { resolveFieldJailRedirect } from './fieldJail';
 
 export function PrivateRoute() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
@@ -8,15 +9,12 @@ export function PrivateRoute() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  // Force password change before accessing any other route
-  if (user?.mustChangePassword && location.pathname !== '/change-password') {
-    return <Navigate to="/change-password" replace />;
-  }
-
-  const isTag = user?.area?.toUpperCase() === 'TAG';
-  if (isTag && !location.pathname.startsWith('/ocr/remitos') && location.pathname !== '/change-password') {
-    return <Navigate to="/ocr/remitos" replace />;
-  }
+  const redirect = resolveFieldJailRedirect({
+    area: user?.area,
+    pathname: location.pathname,
+    mustChangePassword: user?.mustChangePassword,
+  });
+  if (redirect) return <Navigate to={redirect} replace />;
 
   return <Outlet />;
 }

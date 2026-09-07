@@ -3,6 +3,7 @@ import { Layout } from './Layout';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
+import { isFieldArea } from '@/auth/fieldArea';
 
 export function AppLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -19,8 +20,7 @@ export function AppLayout() {
   };
 
   if (!user) return null;
-  const isTag = user.area?.toUpperCase() === 'TAG';
-  if (isTag) return <Outlet />;
+  if (isFieldArea(user.area)) return <Outlet />;
 
   return (
     <Layout user={user} onLogout={handleLogout}>
