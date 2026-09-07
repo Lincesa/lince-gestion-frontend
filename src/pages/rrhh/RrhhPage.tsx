@@ -1100,6 +1100,7 @@ export function RrhhPage() {
       planta: emp.planta,
       dni: emp.dni ?? '',
       activo: emp.activo,
+      fechaAlta: emp.fechaAlta ?? null,
       fechaBaja: emp.fechaBaja ?? null,
       horasEsperadasDia: emp.horasEsperadasDia,
     });
@@ -4121,6 +4122,7 @@ export function RrhhPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Planta</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">DNI</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-28">Hs/día</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Fecha alta</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Fecha baja</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide w-20">Activo</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Acciones</th>
@@ -4129,11 +4131,11 @@ export function RrhhPage() {
                 <tbody>
                   {empLoading ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">Cargando…</td>
                     </tr>
                   ) : todosEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">Sin empleados</td>
                     </tr>
                   ) : (
                     todosEmpleados.map((emp) => {
@@ -4236,6 +4238,24 @@ export function RrhhPage() {
                                 <span className="text-muted-foreground text-xs" title="Usa el default de la planta">
                                   {DEFAULT_HORAS_POR_PLANTA[emp.planta]} h (default)
                                 </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {isEditing ? (
+                                <input
+                                  type="date"
+                                  value={editEmpDraft.fechaAlta ?? ''}
+                                  onChange={(e) => setEditEmpDraft((d) => ({
+                                    ...d,
+                                    fechaAlta: e.target.value || null,
+                                  }))}
+                                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                  title="Primer día en que debe figurar. Los días anteriores no cuentan como falta."
+                                />
+                              ) : emp.fechaAlta ? (
+                                <span className="tabular-nums text-muted-foreground">{emp.fechaAlta}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
                               )}
                             </td>
                             <td className="px-4 py-2.5">

@@ -10,6 +10,8 @@ export interface EmpleadoAsistencia {
   departamento?: string | null;
   cargo?: string | null;
   activo: boolean;
+  /** Primer día en que debe figurar (YYYY-MM-DD). null = sin alta explícita. */
+  fechaAlta?: string | null;
   /** Primer día en que ya no debe figurar (YYYY-MM-DD). null = sin baja. */
   fechaBaja?: string | null;
   horasEsperadasDia: number | null;

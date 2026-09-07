@@ -35,6 +35,7 @@ export interface CreateEmpleadoPayload {
   planta: Planta;
   dni?: string;
   activo?: boolean;
+  fechaAlta?: string | null;
   fechaBaja?: string | null;
   horasEsperadasDia?: number | null;
 }
@@ -46,6 +47,7 @@ export interface UpdateEmpleadoPayload {
   planta?: Planta;
   dni?: string;
   activo?: boolean;
+  fechaAlta?: string | null;
   fechaBaja?: string | null;
   horasEsperadasDia?: number | null;
 }
