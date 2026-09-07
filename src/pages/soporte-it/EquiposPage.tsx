@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Monitor } from 'lucide-react';
+import { Plus, Pencil, Trash2, Monitor, UserPlus, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -8,6 +8,8 @@ import {
   createEquipo,
   updateEquipo,
   deleteEquipo,
+  assignEquipo,
+  unassignEquipo,
 } from '@/store/soporte-it/equiposSlice';
 import { fetchUsers } from '@/store/admin/usersSlice';
 import type {
@@ -50,6 +52,8 @@ const emptyForm = (): CreateEquipoPayload => ({
   estado: 'disponible',
 });
 
+type AssignTarget = { id: string; label: string } | null;
+
 export function EquiposPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -60,14 +64,26 @@ export function EquiposPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<CreateEquipoPayload>(emptyForm());
   const [filter, setFilter] = useState('');
+  const [filterTipo, setFilterTipo] = useState<'' | TipoEquipo>('');
+  const [filterEstado, setFilterEstado] = useState<'' | EstadoEquipo>('');
+
+  const [assignTarget, setAssignTarget] = useState<AssignTarget>(null);
+  const [assignUserId, setAssignUserId] = useState('');
+  const [assignMotivo, setAssignMotivo] = useState('');
+  const [devolverTarget, setDevolverTarget] = useState<AssignTarget>(null);
+  const [devolverMotivo, setDevolverMotivo] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     void dispatch(fetchEquipos());
-    void dispatch(fetchUsers());
+    void dispatch(fetchUsers({ limit: 200 }));
   }, [dispatch]);
 
   const filtered = equipos.filter((e) => {
-    const q = filter.toLowerCase();
+    if (filterTipo && e.tipo !== filterTipo) return false;
+    if (filterEstado && e.estado !== filterEstado) return false;
+    const q = filter.toLowerCase().trim();
+    if (!q) return true;
     return (
       (e.hostname ?? '').toLowerCase().includes(q) ||
       (e.sector ?? '').toLowerCase().includes(q) ||
@@ -79,6 +95,11 @@ export function EquiposPage() {
       TIPO_LABELS[e.tipo].toLowerCase().includes(q)
     );
   });
+
+  function equipoLabel(e: Equipo) {
+    if (e.tipo === 'celular') return e.imei || e.linea || e.modelo || e.id.slice(0, 8);
+    return e.hostname || e.modelo || e.id.slice(0, 8);
+  }
 
   function openCreate() {
     setEditId(null);
@@ -109,9 +130,19 @@ export function EquiposPage() {
       chip: e.chip ?? '',
       estado: e.estado,
       notas: e.notas ?? '',
-      usuarioPlatId: e.usuarioPlatId ?? null,
     });
     setShowDialog(true);
+  }
+
+  function openAsignar(e: Equipo) {
+    setAssignTarget({ id: e.id, label: equipoLabel(e) });
+    setAssignUserId('');
+    setAssignMotivo('');
+  }
+
+  function openDevolver(e: Equipo) {
+    setDevolverTarget({ id: e.id, label: equipoLabel(e) });
+    setDevolverMotivo('');
   }
 
   async function handleSubmit() {
@@ -121,12 +152,56 @@ export function EquiposPage() {
         toast.success('Equipo actualizado');
       } else {
         await dispatch(createEquipo(form)).unwrap();
-        toast.success('Equipo creado');
+        toast.success('Equipo creado en stock');
       }
       await dispatch(fetchEquipos()).unwrap();
       setShowDialog(false);
     } catch (err) {
       toast.error((err as Error).message);
+    }
+  }
+
+  async function handleAsignar() {
+    if (!assignTarget || !assignUserId) {
+      toast.error('Seleccioná un usuario');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await dispatch(
+        assignEquipo({
+          id: assignTarget.id,
+          usuarioPlatId: assignUserId,
+          motivo: assignMotivo.trim() || undefined,
+        }),
+      ).unwrap();
+      toast.success('Equipo asignado');
+      setAssignTarget(null);
+      await dispatch(fetchEquipos()).unwrap();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDevolver() {
+    if (!devolverTarget) return;
+    setActionLoading(true);
+    try {
+      await dispatch(
+        unassignEquipo({
+          id: devolverTarget.id,
+          motivo: devolverMotivo.trim() || undefined,
+        }),
+      ).unwrap();
+      toast.success('Equipo devuelto a stock');
+      setDevolverTarget(null);
+      await dispatch(fetchEquipos()).unwrap();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -154,23 +229,54 @@ export function EquiposPage() {
   }
 
   const isCelular = form.tipo === 'celular';
+  const canAsignar = (e: Equipo) => e.estado !== 'baja' && !e.usuarioPlatId;
+  const canDevolver = (e: Equipo) => Boolean(e.usuarioPlatId);
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Monitor className="h-5 w-5" /> Inventario
         </h1>
-        <div className="flex items-center gap-3">
+        <Button onClick={openCreate} size="sm">
+          <Plus className="h-4 w-4 mr-1" /> Agregar equipo
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <Label>Tipo</Label>
+          <Select
+            value={filterTipo}
+            onChange={(e) => setFilterTipo(e.target.value as '' | TipoEquipo)}
+            className="w-40"
+          >
+            <option value="">Todos</option>
+            <option value="notebook">Notebook</option>
+            <option value="celular">Celular</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Estado</Label>
+          <Select
+            value={filterEstado}
+            onChange={(e) => setFilterEstado(e.target.value as '' | EstadoEquipo)}
+            className="w-44"
+          >
+            <option value="">Todos</option>
+            <option value="disponible">Disponible</option>
+            <option value="asignado">Asignado</option>
+            <option value="en_reparacion">En reparación</option>
+            <option value="baja">Baja</option>
+          </Select>
+        </div>
+        <div className="flex-1 min-w-[12rem]">
+          <Label>Buscar</Label>
           <Input
-            placeholder="Buscar equipo..."
+            placeholder="Hostname, IMEI, usuario..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="w-56"
           />
-          <Button onClick={openCreate} size="sm">
-            <Plus className="h-4 w-4 mr-1" /> Agregar equipo
-          </Button>
         </div>
       </div>
 
@@ -200,11 +306,7 @@ export function EquiposPage() {
               >
                 <td className="px-4 py-3 text-muted-foreground">{e.numeroActivo ?? '—'}</td>
                 <td className="px-4 py-3">{TIPO_LABELS[e.tipo]}</td>
-                <td className="px-4 py-3 font-medium">
-                  {e.tipo === 'celular'
-                    ? (e.imei || e.linea || e.modelo || '—')
-                    : (e.hostname ?? '—')}
-                </td>
+                <td className="px-4 py-3 font-medium">{equipoLabel(e)}</td>
                 <td className="px-4 py-3">{e.sector ?? '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {[e.fabricante, e.modelo].filter(Boolean).join(' ') || '—'}
@@ -213,7 +315,7 @@ export function EquiposPage() {
                   {e.usuarioPlat ? (
                     <span className="text-primary">{e.usuarioPlat.name}</span>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">Stock</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -225,16 +327,28 @@ export function EquiposPage() {
                   className="px-4 py-3"
                   onClick={(ev) => ev.stopPropagation()}
                 >
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canAsignar(e) && (
+                      <Button size="sm" variant="outline" onClick={() => openAsignar(e)}>
+                        <UserPlus className="h-3.5 w-3.5 mr-1" /> Asignar
+                      </Button>
+                    )}
+                    {canDevolver(e) && (
+                      <Button size="sm" variant="outline" onClick={() => openDevolver(e)}>
+                        <UserMinus className="h-3.5 w-3.5 mr-1" /> Devolver
+                      </Button>
+                    )}
                     <button
                       onClick={() => openEdit(e)}
                       className="text-muted-foreground hover:text-foreground"
+                      title="Editar"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(e.id)}
                       className="text-muted-foreground hover:text-destructive"
+                      title="Eliminar"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -245,7 +359,7 @@ export function EquiposPage() {
             {filtered.length === 0 && !loading && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  No hay equipos registrados
+                  No hay equipos con esos filtros
                 </td>
               </tr>
             )}
@@ -256,9 +370,14 @@ export function EquiposPage() {
       <Dialog
         open={showDialog}
         onClose={() => setShowDialog(false)}
-        title={editId ? 'Editar equipo' : 'Nuevo equipo'}
+        title={editId ? 'Editar equipo' : 'Nuevo equipo (stock)'}
       >
         <div className="space-y-4">
+          {!editId && (
+            <p className="text-sm text-muted-foreground">
+              Se crea sin persona asignada. Después usá <strong>Asignar</strong> desde el listado o el detalle.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Tipo</Label>
@@ -311,25 +430,6 @@ export function EquiposPage() {
               </>
             )}
             <div>
-              <Label>Usuario asignado (plataforma)</Label>
-              <Select
-                value={form.usuarioPlatId ?? ''}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    usuarioPlatId: e.target.value ? e.target.value : null,
-                  }))
-                }
-              >
-                <option value="">Sin asignar (stock)</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.email})
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
               <Label>Estado</Label>
               <Select
                 value={form.estado ?? 'disponible'}
@@ -358,6 +458,73 @@ export function EquiposPage() {
             </Button>
             <Button onClick={() => void handleSubmit()}>
               {editId ? 'Guardar cambios' : 'Crear equipo'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(assignTarget)}
+        onClose={() => setAssignTarget(null)}
+        title={`Asignar: ${assignTarget?.label ?? ''}`}
+      >
+        <div className="space-y-4">
+          <div>
+            <Label>Usuario plataforma</Label>
+            <Select
+              value={assignUserId}
+              onChange={(e) => setAssignUserId(e.target.value)}
+            >
+              <option value="">Seleccionar...</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Motivo (opcional)</Label>
+            <Input
+              value={assignMotivo}
+              onChange={(e) => setAssignMotivo(e.target.value)}
+              placeholder="Ej: entrega a nuevo ingreso"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAssignTarget(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={actionLoading} onClick={() => void handleAsignar()}>
+              Confirmar asignación
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(devolverTarget)}
+        onClose={() => setDevolverTarget(null)}
+        title={`Devolver a stock: ${devolverTarget?.label ?? ''}`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            El equipo queda sin persona y pasa a estado Disponible.
+          </p>
+          <div>
+            <Label>Motivo (opcional)</Label>
+            <Input
+              value={devolverMotivo}
+              onChange={(e) => setDevolverMotivo(e.target.value)}
+              placeholder="Ej: devolución / rotura / baja de usuario"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDevolverTarget(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={actionLoading} onClick={() => void handleDevolver()}>
+              Confirmar devolución
             </Button>
           </div>
         </div>
