@@ -10,6 +10,7 @@ export function SoporteItLayout() {
     ? [
         { to: '/soporte-it/equipos', label: 'Equipos' },
         { to: '/soporte-it/incidentes', label: 'Incidentes' },
+        { to: '/soporte-it/reportar', label: 'Registrar incidente' },
       ]
     : [
         { to: '/soporte-it/mis-equipos', label: 'Mis Equipos' },

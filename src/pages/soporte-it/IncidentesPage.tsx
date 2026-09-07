@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Trash2, Plus } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   deleteIncidente,
@@ -163,9 +163,15 @@ export function IncidentesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-semibold flex items-center gap-2">
-        <AlertCircle className="h-5 w-5" /> Panel de Incidentes
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold flex items-center gap-2">
+          <AlertCircle className="h-5 w-5" /> Panel de Incidentes
+        </h1>
+        <Button size="sm" onClick={() => navigate('/soporte-it/reportar')}>
+          <Plus className="h-4 w-4 mr-1" />
+          Registrar incidente
+        </Button>
+      </div>
 
       {loading && <p className="text-muted-foreground text-sm">Cargando...</p>}
       {error && <p className="text-destructive text-sm">{error}</p>}

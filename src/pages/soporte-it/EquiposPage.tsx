@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Monitor, UserPlus, UserMinus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Monitor, UserPlus, UserMinus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -338,6 +338,14 @@ export function EquiposPage() {
                         <UserMinus className="h-3.5 w-3.5 mr-1" /> Devolver
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/soporte-it/reportar?equipoId=${e.id}`)}
+                      title="Registrar incidente"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    </Button>
                     <button
                       onClick={() => openEdit(e)}
                       className="text-muted-foreground hover:text-foreground"
