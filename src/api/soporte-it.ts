@@ -1,6 +1,7 @@
 import { api } from './client';
 import type {
   Equipo,
+  EquipoAsignacion,
   Incidente,
   Relevamiento,
   CreateEquipoPayload,
@@ -23,6 +24,12 @@ export const soporteItApi = {
   updateEquipo: (id: string, payload: UpdateEquipoPayload) =>
     api.patch<Equipo>(`${BASE}/equipos/${id}`, payload),
   deleteEquipo: (id: string) => api.delete<void>(`${BASE}/equipos/${id}`),
+  getEquipoAsignaciones: (id: string) =>
+    api.get<EquipoAsignacion[]>(`${BASE}/equipos/${id}/asignaciones`),
+  assignEquipo: (id: string, payload: { usuarioPlatId: string; motivo?: string }) =>
+    api.post<Equipo>(`${BASE}/equipos/${id}/assign`, payload),
+  unassignEquipo: (id: string, payload: { motivo?: string } = {}) =>
+    api.post<Equipo>(`${BASE}/equipos/${id}/unassign`, payload),
 
   // Incidentes
   getIncidentes: () => api.get<Incidente[]>(`${BASE}/incidentes`),

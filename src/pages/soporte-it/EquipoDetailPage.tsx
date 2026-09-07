@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,7 +6,13 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { clearSelected, fetchEquipo } from '@/store/soporte-it/equiposSlice';
 import { fetchIncidentesByEquipo } from '@/store/soporte-it/incidentesSlice';
 import { isSoporteItAdmin } from '@/permissions/soporteIt';
-import type { EstadoEquipo, UrgenciaIncidente, EstadoIncidente } from '@/types/soporte-it.types';
+import { soporteItApi } from '@/api/soporte-it';
+import type {
+  EquipoAsignacion,
+  EstadoEquipo,
+  UrgenciaIncidente,
+  EstadoIncidente,
+} from '@/types/soporte-it.types';
 import { Button } from '@/components/ui/Button';
 
 const ESTADO_LABELS: Record<EstadoEquipo, string> = {
@@ -45,6 +51,7 @@ export function EquipoDetailPage() {
   const equipo = useAppSelector((s) => s.equipos.selected);
   const incidentes = useAppSelector((s) => s.incidentes.items);
   const canManageSoporteIt = isSoporteItAdmin(user);
+  const [asignaciones, setAsignaciones] = useState<EquipoAsignacion[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -55,6 +62,14 @@ export function EquipoDetailPage() {
       dispatch(clearSelected());
     };
   }, [dispatch, id]);
+
+  useEffect(() => {
+    if (!id || !canManageSoporteIt) return;
+    void soporteItApi
+      .getEquipoAsignaciones(id)
+      .then(setAsignaciones)
+      .catch((err: Error) => toast.error(err.message));
+  }, [id, canManageSoporteIt, equipo?.usuarioPlatId]);
 
   if (!equipo || equipo.id !== id) {
     return (
@@ -130,6 +145,51 @@ export function EquipoDetailPage() {
           <p className="text-sm text-muted-foreground">Sin usuario asignado</p>
         )}
       </div>
+
+      {/* Historial de asignaciones (admin) */}
+      {canManageSoporteIt && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border bg-muted/30">
+            <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
+              Historial de asignaciones
+            </h2>
+          </div>
+          {asignaciones.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-muted-foreground">Sin asignaciones registradas</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs text-muted-foreground uppercase">
+                <tr>
+                  <th className="px-4 py-2 text-left">Usuario</th>
+                  <th className="px-4 py-2 text-left">Desde</th>
+                  <th className="px-4 py-2 text-left">Hasta</th>
+                  <th className="px-4 py-2 text-left">Motivo</th>
+                  <th className="px-4 py-2 text-left">Asignó</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {asignaciones.map((a) => (
+                  <tr key={a.id}>
+                    <td className="px-4 py-2">
+                      {a.usuarioPlat?.name ?? a.usuarioPlatId ?? '—'}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground text-xs">
+                      {new Date(a.desde).toLocaleString('es-AR')}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground text-xs">
+                      {a.hasta ? new Date(a.hasta).toLocaleString('es-AR') : 'Actual'}
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground text-xs">{a.motivo ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted-foreground text-xs">
+                      {a.asignadoPor?.name ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Historial de incidentes */}
       <div className="rounded-lg border border-border overflow-hidden">

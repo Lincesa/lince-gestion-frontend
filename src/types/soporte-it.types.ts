@@ -119,6 +119,19 @@ export interface CreateEquipoPayload {
 
 export type UpdateEquipoPayload = Partial<CreateEquipoPayload>;
 
+export interface EquipoAsignacion {
+  id: string;
+  equipoId: string;
+  usuarioPlatId: string | null;
+  usuarioPlat: UsuarioPlatResumen | null;
+  asignadoPorId: string | null;
+  asignadoPor: UsuarioPlatResumen | null;
+  desde: string;
+  hasta: string | null;
+  motivo: string | null;
+  createdAt: string;
+}
+
 export interface CreateIncidentePayload {
   equipoId: string;
   descripcion: string;
