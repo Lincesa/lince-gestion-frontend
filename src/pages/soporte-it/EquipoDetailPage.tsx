@@ -10,7 +10,8 @@ import type { EstadoEquipo, UrgenciaIncidente, EstadoIncidente } from '@/types/s
 import { Button } from '@/components/ui/Button';
 
 const ESTADO_LABELS: Record<EstadoEquipo, string> = {
-  activo: 'Activo',
+  disponible: 'Disponible',
+  asignado: 'Asignado',
   en_reparacion: 'En reparación',
   baja: 'Baja',
 };
@@ -83,21 +84,35 @@ export function EquipoDetailPage() {
         <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
           Datos del equipo
         </h2>
+        <Row label="Tipo" value={equipo.tipo === 'celular' ? 'Celular' : 'Notebook'} />
         <Row label="N° Activo" value={equipo.numeroActivo} />
-        <Row label="A cargo de" value={equipo.aCargoDe} />
         <Row label="Sector" value={equipo.sector} />
-        <Row label="Windows User ID" value={equipo.windowsUserId} />
-        <Row label="Fabricante" value={equipo.fabricante} />
-        <Row label="Modelo" value={equipo.modelo} />
-        <Row label="RAM" value={equipo.ramGb ? `${equipo.ramGb} GB` : null} />
-        <Row label="Sistema operativo" value={equipo.sistemaOperativo} />
-        <Row label="Procesador" value={equipo.procesador} />
-        <Row label="Firmware UEFI" value={equipo.firmwareUefi} />
-        <Row label="Gráficos" value={equipo.graficos} />
-        <Row label="Almacenamiento" value={equipo.almacenamiento} />
-        <Row label="Adaptador de red" value={equipo.adaptadorRed} />
-        <Row label="Controlador USB" value={equipo.controladorUsbHost} />
-        <Row label="Fecha instalación SO" value={equipo.fechaInstalacionSO} />
+        {equipo.tipo === 'celular' ? (
+          <>
+            <Row label="IMEI" value={equipo.imei} />
+            <Row label="Línea" value={equipo.linea} />
+            <Row label="Chip" value={equipo.chip} />
+            <Row label="Fabricante" value={equipo.fabricante} />
+            <Row label="Modelo" value={equipo.modelo} />
+            <Row label="RAM" value={equipo.ramGb ? `${equipo.ramGb} GB` : null} />
+          </>
+        ) : (
+          <>
+            <Row label="Hostname" value={equipo.hostname} />
+            <Row label="Windows User ID" value={equipo.windowsUserId} />
+            <Row label="Fabricante" value={equipo.fabricante} />
+            <Row label="Modelo" value={equipo.modelo} />
+            <Row label="RAM" value={equipo.ramGb ? `${equipo.ramGb} GB` : null} />
+            <Row label="Sistema operativo" value={equipo.sistemaOperativo} />
+            <Row label="Procesador" value={equipo.procesador} />
+            <Row label="Firmware UEFI" value={equipo.firmwareUefi} />
+            <Row label="Gráficos" value={equipo.graficos} />
+            <Row label="Almacenamiento" value={equipo.almacenamiento} />
+            <Row label="Adaptador de red" value={equipo.adaptadorRed} />
+            <Row label="Controlador USB" value={equipo.controladorUsbHost} />
+            <Row label="Fecha instalación SO" value={equipo.fechaInstalacionSO} />
+          </>
+        )}
         {equipo.notas && <Row label="Notas" value={equipo.notas} />}
       </div>
 

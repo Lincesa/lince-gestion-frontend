@@ -7,13 +7,15 @@ import { fetchMisEquipos } from '@/store/soporte-it/equiposSlice';
 import type { EstadoEquipo } from '@/types/soporte-it.types';
 
 const ESTADO_LABELS: Record<EstadoEquipo, string> = {
-  activo: 'Activo',
+  disponible: 'Disponible',
+  asignado: 'Asignado',
   en_reparacion: 'En reparación',
   baja: 'Baja',
 };
 
 const ESTADO_COLORS: Record<EstadoEquipo, string> = {
-  activo: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  disponible: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  asignado: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   en_reparacion: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   baja: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };

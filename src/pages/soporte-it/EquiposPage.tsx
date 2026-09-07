@@ -10,33 +10,44 @@ import {
   deleteEquipo,
 } from '@/store/soporte-it/equiposSlice';
 import { fetchUsers } from '@/store/admin/usersSlice';
-import type { Equipo, CreateEquipoPayload, EstadoEquipo } from '@/types/soporte-it.types';
+import type {
+  Equipo,
+  CreateEquipoPayload,
+  EstadoEquipo,
+  TipoEquipo,
+} from '@/types/soporte-it.types';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
-import { Badge } from '@/components/ui/Badge';
 
 const ESTADO_LABELS: Record<EstadoEquipo, string> = {
-  activo: 'Activo',
+  disponible: 'Disponible',
+  asignado: 'Asignado',
   en_reparacion: 'En reparación',
   baja: 'Baja',
 };
 
 const ESTADO_COLORS: Record<EstadoEquipo, string> = {
-  activo: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  disponible: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  asignado: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   en_reparacion: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   baja: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
+const TIPO_LABELS: Record<TipoEquipo, string> = {
+  notebook: 'Notebook',
+  celular: 'Celular',
+};
+
 const emptyForm = (): CreateEquipoPayload => ({
+  tipo: 'notebook',
   hostname: '',
   fabricante: '',
   modelo: '',
-  aCargoDe: '',
   sector: '',
-  estado: 'activo',
+  estado: 'disponible',
 });
 
 export function EquiposPage() {
@@ -59,10 +70,13 @@ export function EquiposPage() {
     const q = filter.toLowerCase();
     return (
       (e.hostname ?? '').toLowerCase().includes(q) ||
-      (e.aCargoDe ?? '').toLowerCase().includes(q) ||
       (e.sector ?? '').toLowerCase().includes(q) ||
       (e.fabricante ?? '').toLowerCase().includes(q) ||
-      (e.modelo ?? '').toLowerCase().includes(q)
+      (e.modelo ?? '').toLowerCase().includes(q) ||
+      (e.imei ?? '').toLowerCase().includes(q) ||
+      (e.linea ?? '').toLowerCase().includes(q) ||
+      (e.usuarioPlat?.name ?? '').toLowerCase().includes(q) ||
+      TIPO_LABELS[e.tipo].toLowerCase().includes(q)
     );
   });
 
@@ -75,8 +89,8 @@ export function EquiposPage() {
   function openEdit(e: Equipo) {
     setEditId(e.id);
     setForm({
+      tipo: e.tipo,
       numeroActivo: e.numeroActivo ?? undefined,
-      aCargoDe: e.aCargoDe ?? '',
       sector: e.sector ?? '',
       hostname: e.hostname ?? '',
       windowsUserId: e.windowsUserId ?? '',
@@ -90,6 +104,9 @@ export function EquiposPage() {
       almacenamiento: e.almacenamiento ?? '',
       adaptadorRed: e.adaptadorRed ?? '',
       controladorUsbHost: e.controladorUsbHost ?? '',
+      imei: e.imei ?? '',
+      linea: e.linea ?? '',
+      chip: e.chip ?? '',
       estado: e.estado,
       notas: e.notas ?? '',
       usuarioPlatId: e.usuarioPlatId ?? null,
@@ -136,11 +153,13 @@ export function EquiposPage() {
     );
   }
 
+  const isCelular = form.tipo === 'celular';
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold flex items-center gap-2">
-          <Monitor className="h-5 w-5" /> Equipos
+          <Monitor className="h-5 w-5" /> Inventario
         </h1>
         <div className="flex items-center gap-3">
           <Input
@@ -163,8 +182,8 @@ export function EquiposPage() {
           <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
             <tr>
               <th className="px-4 py-3 text-left">#</th>
-              <th className="px-4 py-3 text-left">Hostname</th>
-              <th className="px-4 py-3 text-left">A cargo de</th>
+              <th className="px-4 py-3 text-left">Tipo</th>
+              <th className="px-4 py-3 text-left">Identificación</th>
               <th className="px-4 py-3 text-left">Sector</th>
               <th className="px-4 py-3 text-left">Fabricante / Modelo</th>
               <th className="px-4 py-3 text-left">Usuario asignado</th>
@@ -180,8 +199,12 @@ export function EquiposPage() {
                 onClick={() => navigate(`/soporte-it/equipos/${e.id}`)}
               >
                 <td className="px-4 py-3 text-muted-foreground">{e.numeroActivo ?? '—'}</td>
-                <td className="px-4 py-3 font-medium">{e.hostname ?? '—'}</td>
-                <td className="px-4 py-3">{e.aCargoDe ?? '—'}</td>
+                <td className="px-4 py-3">{TIPO_LABELS[e.tipo]}</td>
+                <td className="px-4 py-3 font-medium">
+                  {e.tipo === 'celular'
+                    ? (e.imei || e.linea || e.modelo || '—')
+                    : (e.hostname ?? '—')}
+                </td>
                 <td className="px-4 py-3">{e.sector ?? '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {[e.fabricante, e.modelo].filter(Boolean).join(' ') || '—'}
@@ -238,6 +261,18 @@ export function EquiposPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <Label>Tipo</Label>
+              <Select
+                value={form.tipo}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, tipo: e.target.value as TipoEquipo }))
+                }
+              >
+                <option value="notebook">Notebook</option>
+                <option value="celular">Celular</option>
+              </Select>
+            </div>
+            <div>
               <Label>N° Activo</Label>
               <Input
                 type="number"
@@ -250,21 +285,31 @@ export function EquiposPage() {
                 }
               />
             </div>
-            {field('hostname', 'Hostname')}
-            {field('aCargoDe', 'A cargo de')}
             {field('sector', 'Sector')}
             {field('fabricante', 'Fabricante')}
             {field('modelo', 'Modelo')}
             {field('ramGb', 'RAM (GB)')}
-            {field('sistemaOperativo', 'Sistema operativo')}
-            {field('windowsUserId', 'Windows User ID')}
-            {field('procesador', 'Procesador')}
-            {field('firmwareUefi', 'Firmware UEFI')}
-            {field('graficos', 'Gráficos')}
-            {field('almacenamiento', 'Almacenamiento')}
-            {field('adaptadorRed', 'Adaptador de red')}
-            {field('fechaInstalacionSO', 'Fecha instalación SO')}
-            {field('controladorUsbHost', 'Controlador USB Host')}
+            {!isCelular && (
+              <>
+                {field('hostname', 'Hostname')}
+                {field('sistemaOperativo', 'Sistema operativo')}
+                {field('windowsUserId', 'Windows User ID')}
+                {field('procesador', 'Procesador')}
+                {field('firmwareUefi', 'Firmware UEFI')}
+                {field('graficos', 'Gráficos')}
+                {field('almacenamiento', 'Almacenamiento')}
+                {field('adaptadorRed', 'Adaptador de red')}
+                {field('fechaInstalacionSO', 'Fecha instalación SO')}
+                {field('controladorUsbHost', 'Controlador USB Host')}
+              </>
+            )}
+            {isCelular && (
+              <>
+                {field('imei', 'IMEI')}
+                {field('linea', 'Línea')}
+                {field('chip', 'Chip')}
+              </>
+            )}
             <div>
               <Label>Usuario asignado (plataforma)</Label>
               <Select
@@ -276,7 +321,7 @@ export function EquiposPage() {
                   }))
                 }
               >
-                <option value="">Sin asignar</option>
+                <option value="">Sin asignar (stock)</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.email})
@@ -287,12 +332,13 @@ export function EquiposPage() {
             <div>
               <Label>Estado</Label>
               <Select
-                value={form.estado ?? 'activo'}
+                value={form.estado ?? 'disponible'}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, estado: e.target.value as EstadoEquipo }))
                 }
               >
-                <option value="activo">Activo</option>
+                <option value="disponible">Disponible</option>
+                <option value="asignado">Asignado</option>
                 <option value="en_reparacion">En reparación</option>
                 <option value="baja">Baja</option>
               </Select>

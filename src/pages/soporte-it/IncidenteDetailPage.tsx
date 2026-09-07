@@ -310,7 +310,7 @@ export function IncidenteDetailPage() {
         <Row label="Hostname" value={eq?.hostname} />
         <Row label="Fabricante / Modelo" value={[eq?.fabricante, eq?.modelo].filter(Boolean).join(' ')} />
         <Row label="Sector" value={eq?.sector} />
-        <Row label="A cargo de" value={eq?.aCargoDe} />
+        <Row label="Equipo" value={eq ? ([eq.tipo === 'celular' ? 'Celular' : 'Notebook', eq.hostname || eq.imei || eq.modelo].filter(Boolean).join(' · ') || eq.id) : undefined} />
         <Row label="Estado" value={eq?.estado} />
       </div>
 

@@ -1,4 +1,5 @@
-export type EstadoEquipo = 'activo' | 'en_reparacion' | 'baja';
+export type TipoEquipo = 'notebook' | 'celular';
+export type EstadoEquipo = 'disponible' | 'asignado' | 'en_reparacion' | 'baja';
 export type UrgenciaIncidente = 'baja' | 'media' | 'alta';
 export type EstadoIncidente = 'pending' | 'in_progress' | 'resolved';
 
@@ -10,8 +11,8 @@ export interface UsuarioPlatResumen {
 
 export interface Equipo {
   id: string;
+  tipo: TipoEquipo;
   numeroActivo: number | null;
-  aCargoDe: string | null;
   sector: string | null;
   hostname: string | null;
   windowsUserId: string | null;
@@ -26,6 +27,9 @@ export interface Equipo {
   adaptadorRed: string | null;
   controladorUsbHost: string | null;
   fechaInstalacionSO: string | null;
+  imei: string | null;
+  linea: string | null;
+  chip: string | null;
   estado: EstadoEquipo;
   notas: string | null;
   usuarioPlatId: string | null;
@@ -61,11 +65,12 @@ export interface Relevamiento {
 
 export interface EquipoResumen {
   id: string;
+  tipo: TipoEquipo;
   hostname: string | null;
   fabricante: string | null;
   modelo: string | null;
   sector: string | null;
-  aCargoDe: string | null;
+  imei: string | null;
   estado: EstadoEquipo;
 }
 
@@ -88,8 +93,8 @@ export interface Incidente {
 }
 
 export interface CreateEquipoPayload {
+  tipo: TipoEquipo;
   numeroActivo?: number;
-  aCargoDe?: string;
   sector?: string;
   hostname?: string;
   windowsUserId?: string;
@@ -104,6 +109,9 @@ export interface CreateEquipoPayload {
   adaptadorRed?: string;
   controladorUsbHost?: string;
   fechaInstalacionSO?: string;
+  imei?: string;
+  linea?: string;
+  chip?: string;
   estado?: EstadoEquipo;
   notas?: string;
   usuarioPlatId?: string | null;
