@@ -1,5 +1,17 @@
 import { api, API_BASE_URL, getAccessToken } from './client';
-import type { GeoLayer, GeoPoint, PaginatedRemitos, RemitoDetalle, RemitoLogistica, TransportMemberRole, TransportView } from '@/types/logistica.types';
+import type {
+  FieldUserCreateResult,
+  FieldUserKind,
+  FieldUserResetResult,
+  FieldUserView,
+  GeoLayer,
+  GeoPoint,
+  PaginatedRemitos,
+  RemitoDetalle,
+  RemitoLogistica,
+  TransportMemberRole,
+  TransportView,
+} from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
 
@@ -151,4 +163,31 @@ export const logisticaApi = {
     transportId: string,
     payload: { name: string; email: string; password: string; role: TransportMemberRole },
   ) => api.post<TransportView>(`/logistica/transports/${transportId}/members`, payload),
+
+  listFieldUsers: (kind: FieldUserKind) =>
+    api.get<FieldUserView[]>(`/logistica/field-users?kind=${kind}`),
+
+  createFieldUser: (payload: {
+    kind: FieldUserKind;
+    name: string;
+    email: string;
+    password: string;
+    transportId?: string;
+    memberRole?: TransportMemberRole;
+  }) => api.post<FieldUserCreateResult>('/logistica/field-users', payload),
+
+  updateFieldUser: (
+    userId: string,
+    payload: {
+      name?: string;
+      active?: boolean;
+      transportId?: string;
+      memberRole?: TransportMemberRole;
+    },
+  ) => api.patch<FieldUserView>(`/logistica/field-users/${userId}`, payload),
+
+  resetFieldUserPassword: (userId: string, newPassword: string) =>
+    api.post<FieldUserResetResult>(`/logistica/field-users/${userId}/reset-password`, {
+      newPassword,
+    }),
 };

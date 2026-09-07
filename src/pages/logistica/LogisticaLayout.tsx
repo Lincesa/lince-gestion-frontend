@@ -13,6 +13,7 @@ export function LogisticaLayout() {
     ...(isSuperAdmin || isLogisticaAdmin ? [
       { to: '/logistica/tags', label: 'Tags' },
       { to: '/logistica/transportes', label: 'Transportes' },
+      { to: '/logistica/usuarios-campo', label: 'Usuarios campo' },
     ] : []),
   ];
 

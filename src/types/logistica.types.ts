@@ -68,3 +68,29 @@ export interface TransportView {
   active: boolean;
   members: TransportMemberView[];
 }
+
+export type FieldUserKind = 'TAG' | 'TRANSPORTE';
+
+export interface FieldUserView {
+  id: string;
+  email: string;
+  name: string;
+  area: string;
+  active: boolean;
+  uploadClient: string;
+  mustChangePassword: boolean;
+  transportId: string | null;
+  transportName: string | null;
+  memberRole: TransportMemberRole | null;
+  memberId: string | null;
+}
+
+export interface FieldUserCreateResult extends FieldUserView {
+  temporaryPassword: string;
+}
+
+export interface FieldUserResetResult {
+  id: string;
+  temporaryPassword: string;
+  mustChangePassword: true;
+}

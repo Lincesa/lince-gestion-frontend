@@ -135,6 +135,9 @@ const MapaPage = lazy(() =>
 const TransportesPage = lazy(() =>
   import('@/pages/logistica/TransportesPage').then((m) => ({ default: m.TransportesPage })),
 );
+const FieldUsersPage = lazy(() =>
+  import('@/pages/logistica/FieldUsersPage').then((m) => ({ default: m.FieldUsersPage })),
+);
 
 function PageLoader() {
   return (
@@ -534,6 +537,14 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <TransportesPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'usuarios-campo',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <FieldUsersPage />
                       </Suspense>
                     ),
                   },

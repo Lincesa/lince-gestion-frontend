@@ -77,8 +77,15 @@ export function TransportesPage() {
     if (!name?.trim()) return;
     const email = window.prompt('Email (@lincesa.com.ar):');
     if (!email?.trim()) return;
-    const password = window.prompt('Contraseña inicial (mín. 8 caracteres):');
-    if (!password || password.length < 8) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
+    const passwordInput =
+      window.prompt('Contraseña temporal (mín. 8; vacío = generar):') ?? '';
+    const finalPassword =
+      passwordInput.trim() ||
+      Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => alphabet[b % alphabet.length]).join(
+        '',
+      );
+    if (finalPassword.length < 8) {
       toast.error('La contraseña debe tener al menos 8 caracteres');
       return;
     }
@@ -86,13 +93,20 @@ export function TransportesPage() {
     const role = (roleInput === 'DUENO' ? 'DUENO' : 'CHOFER') as TransportMemberRole;
     setSubmitting(true);
     try {
-      await logisticaApi.addTransportMember(transport.id, {
+      const created = await logisticaApi.createFieldUser({
+        kind: 'TRANSPORTE',
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        password,
-        role,
+        password: finalPassword,
+        transportId: transport.id,
+        memberRole: role,
       });
-      toast.success('Usuario creado');
+      toast.success(`Usuario creado. Contraseña temporal: ${created.temporaryPassword}`);
+      try {
+        await navigator.clipboard.writeText(created.temporaryPassword);
+      } catch {
+        /* ignore */
+      }
       setExpandedId(transport.id);
       await load();
     } catch (err) {
