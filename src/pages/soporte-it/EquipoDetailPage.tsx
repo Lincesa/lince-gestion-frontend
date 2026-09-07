@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, UserPlus, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { clearSelected, fetchEquipo } from '@/store/soporte-it/equiposSlice';
+import {
+  assignEquipo,
+  clearSelected,
+  fetchEquipo,
+  unassignEquipo,
+} from '@/store/soporte-it/equiposSlice';
 import { fetchIncidentesByEquipo } from '@/store/soporte-it/incidentesSlice';
+import { fetchUsers } from '@/store/admin/usersSlice';
 import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import { soporteItApi } from '@/api/soporte-it';
 import type {
@@ -14,6 +20,10 @@ import type {
   EstadoIncidente,
 } from '@/types/soporte-it.types';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
 
 const ESTADO_LABELS: Record<EstadoEquipo, string> = {
   disponible: 'Disponible',
@@ -50,8 +60,15 @@ export function EquipoDetailPage() {
   const user = useAppSelector((s) => s.auth.user);
   const equipo = useAppSelector((s) => s.equipos.selected);
   const incidentes = useAppSelector((s) => s.incidentes.items);
+  const users = useAppSelector((s) => s.users.list);
   const canManageSoporteIt = isSoporteItAdmin(user);
   const [asignaciones, setAsignaciones] = useState<EquipoAsignacion[]>([]);
+  const [showAsignar, setShowAsignar] = useState(false);
+  const [showDevolver, setShowDevolver] = useState(false);
+  const [assignUserId, setAssignUserId] = useState('');
+  const [assignMotivo, setAssignMotivo] = useState('');
+  const [devolverMotivo, setDevolverMotivo] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -64,6 +81,11 @@ export function EquipoDetailPage() {
   }, [dispatch, id]);
 
   useEffect(() => {
+    if (!canManageSoporteIt) return;
+    void dispatch(fetchUsers({ limit: 200 }));
+  }, [dispatch, canManageSoporteIt]);
+
+  useEffect(() => {
     if (!id || !canManageSoporteIt) return;
     void soporteItApi
       .getEquipoAsignaciones(id)
@@ -71,30 +93,99 @@ export function EquipoDetailPage() {
       .catch((err: Error) => toast.error(err.message));
   }, [id, canManageSoporteIt, equipo?.usuarioPlatId]);
 
+  async function reloadAsignaciones() {
+    if (!id || !canManageSoporteIt) return;
+    const rows = await soporteItApi.getEquipoAsignaciones(id);
+    setAsignaciones(rows);
+  }
+
+  async function handleAsignar() {
+    if (!id || !assignUserId) {
+      toast.error('Seleccioná un usuario');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await dispatch(
+        assignEquipo({
+          id,
+          usuarioPlatId: assignUserId,
+          motivo: assignMotivo.trim() || undefined,
+        }),
+      ).unwrap();
+      toast.success('Equipo asignado');
+      setShowAsignar(false);
+      setAssignUserId('');
+      setAssignMotivo('');
+      await reloadAsignaciones();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDevolver() {
+    if (!id) return;
+    setActionLoading(true);
+    try {
+      await dispatch(
+        unassignEquipo({
+          id,
+          motivo: devolverMotivo.trim() || undefined,
+        }),
+      ).unwrap();
+      toast.success('Equipo devuelto a stock');
+      setShowDevolver(false);
+      setDevolverMotivo('');
+      await reloadAsignaciones();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   if (!equipo || equipo.id !== id) {
     return (
       <div className="p-6 text-muted-foreground text-sm">Cargando equipo...</div>
     );
   }
 
+  const titulo =
+    equipo.tipo === 'celular'
+      ? equipo.imei || equipo.linea || equipo.modelo || 'Celular'
+      : equipo.hostname ?? 'Equipo sin nombre';
+  const canAsignar = canManageSoporteIt && equipo.estado !== 'baja' && !equipo.usuarioPlatId;
+  const canDevolver = canManageSoporteIt && Boolean(equipo.usuarioPlatId);
+
   return (
     <div className="p-6 space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => navigate(-1)}
           className="text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-xl font-semibold">
-          {equipo.hostname ?? 'Equipo sin nombre'}
-        </h1>
+        <h1 className="text-xl font-semibold">{titulo}</h1>
         <span className="text-xs font-medium px-2 py-0.5 rounded bg-muted">
           {ESTADO_LABELS[equipo.estado]}
         </span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {canAsignar && (
+            <Button size="sm" onClick={() => setShowAsignar(true)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Asignar
+            </Button>
+          )}
+          {canDevolver && (
+            <Button size="sm" variant="outline" onClick={() => setShowDevolver(true)}>
+              <UserMinus className="h-4 w-4 mr-1" /> Devolver
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Datos técnicos */}
       <div className="rounded-lg border border-border p-5 space-y-3">
         <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
           Datos del equipo
@@ -131,7 +222,6 @@ export function EquipoDetailPage() {
         {equipo.notas && <Row label="Notas" value={equipo.notas} />}
       </div>
 
-      {/* Usuario asignado */}
       <div className="rounded-lg border border-border p-5 space-y-3">
         <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
           Usuario asignado
@@ -142,11 +232,10 @@ export function EquipoDetailPage() {
             <p className="text-sm text-muted-foreground">{equipo.usuarioPlat.email}</p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Sin usuario asignado</p>
+          <p className="text-sm text-muted-foreground">Sin usuario asignado (stock)</p>
         )}
       </div>
 
-      {/* Historial de asignaciones (admin) */}
       {canManageSoporteIt && (
         <div className="rounded-lg border border-border overflow-hidden">
           <div className="px-5 py-3 border-b border-border bg-muted/30">
@@ -191,7 +280,6 @@ export function EquipoDetailPage() {
         </div>
       )}
 
-      {/* Historial de incidentes */}
       <div className="rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
           <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
@@ -253,6 +341,73 @@ export function EquipoDetailPage() {
           </table>
         )}
       </div>
+
+      <Dialog
+        open={showAsignar}
+        onClose={() => setShowAsignar(false)}
+        title={`Asignar: ${titulo}`}
+      >
+        <div className="space-y-4">
+          <div>
+            <Label>Usuario plataforma</Label>
+            <Select
+              value={assignUserId}
+              onChange={(e) => setAssignUserId(e.target.value)}
+            >
+              <option value="">Seleccionar...</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Motivo (opcional)</Label>
+            <Input
+              value={assignMotivo}
+              onChange={(e) => setAssignMotivo(e.target.value)}
+              placeholder="Ej: entrega a nuevo ingreso"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowAsignar(false)}>
+              Cancelar
+            </Button>
+            <Button disabled={actionLoading} onClick={() => void handleAsignar()}>
+              Confirmar asignación
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={showDevolver}
+        onClose={() => setShowDevolver(false)}
+        title={`Devolver a stock: ${titulo}`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            El equipo queda sin persona y pasa a estado Disponible.
+          </p>
+          <div>
+            <Label>Motivo (opcional)</Label>
+            <Input
+              value={devolverMotivo}
+              onChange={(e) => setDevolverMotivo(e.target.value)}
+              placeholder="Ej: devolución / rotura / baja de usuario"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowDevolver(false)}>
+              Cancelar
+            </Button>
+            <Button disabled={actionLoading} onClick={() => void handleDevolver()}>
+              Confirmar devolución
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

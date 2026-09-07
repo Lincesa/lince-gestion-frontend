@@ -47,6 +47,24 @@ export const deleteEquipo = createAsyncThunk('equipos/delete', (id: string) =>
   soporteItApi.deleteEquipo(id).then(() => id),
 );
 
+export const assignEquipo = createAsyncThunk(
+  'equipos/assign',
+  ({ id, usuarioPlatId, motivo }: { id: string; usuarioPlatId: string; motivo?: string }) =>
+    soporteItApi.assignEquipo(id, { usuarioPlatId, motivo }),
+);
+
+export const unassignEquipo = createAsyncThunk(
+  'equipos/unassign',
+  ({ id, motivo }: { id: string; motivo?: string }) =>
+    soporteItApi.unassignEquipo(id, { motivo }),
+);
+
+function upsertEquipo(state: EquiposState, equipo: Equipo) {
+  const idx = state.items.findIndex((e) => e.id === equipo.id);
+  if (idx !== -1) state.items[idx] = equipo;
+  if (state.selected?.id === equipo.id) state.selected = equipo;
+}
+
 const equiposSlice = createSlice({
   name: 'equipos',
   initialState,
@@ -57,7 +75,6 @@ const equiposSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetch all / fetch mine
       .addCase(fetchEquipos.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -83,24 +100,24 @@ const equiposSlice = createSlice({
         state.loading = false;
         state.error = action.error.message ?? 'Error al cargar equipos';
       })
-      // fetch one
       .addCase(fetchEquipo.pending, (state) => {
         state.selected = null;
       })
       .addCase(fetchEquipo.fulfilled, (state, action) => {
         state.selected = action.payload;
       })
-      // create
       .addCase(createEquipo.fulfilled, (state, action) => {
         state.items.push(action.payload);
       })
-      // update
       .addCase(updateEquipo.fulfilled, (state, action) => {
-        const idx = state.items.findIndex((e) => e.id === action.payload.id);
-        if (idx !== -1) state.items[idx] = action.payload;
-        if (state.selected?.id === action.payload.id) state.selected = action.payload;
+        upsertEquipo(state, action.payload);
       })
-      // delete
+      .addCase(assignEquipo.fulfilled, (state, action) => {
+        upsertEquipo(state, action.payload);
+      })
+      .addCase(unassignEquipo.fulfilled, (state, action) => {
+        upsertEquipo(state, action.payload);
+      })
       .addCase(deleteEquipo.fulfilled, (state, action) => {
         state.items = state.items.filter((e) => e.id !== action.payload);
         if (state.selected?.id === action.payload) state.selected = null;
