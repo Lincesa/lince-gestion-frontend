@@ -58,7 +58,7 @@ export function FieldUsersPage() {
     try {
       const [users, transportList] = await Promise.all([
         logisticaApi.listFieldUsers(kind),
-        kind === 'TRANSPORTE' ? logisticaApi.listTransports() : Promise.resolve([]),
+        logisticaApi.listTransports(),
       ]);
       setItems(users);
       setTransports(transportList);
@@ -141,21 +141,34 @@ export function FieldUsersPage() {
 
   const handleEdit = async () => {
     if (!editingUser || !editName.trim()) return;
+    const convertingLegacy =
+      kind === 'TAG' &&
+      editingUser.uploadClient === 'MOBILE' &&
+      Boolean(editTransportId);
     if (kind === 'TRANSPORTE' && !editTransportId) {
       toast.error('Elegí un transporte');
+      return;
+    }
+    if (convertingLegacy && !editTransportId) {
+      toast.error('Elegí un transporte para convertir la cuenta');
       return;
     }
     setSubmitting(true);
     try {
       await logisticaApi.updateFieldUser(editingUser.id, {
         name: editName.trim(),
-        ...(kind === 'TRANSPORTE'
+        ...(kind === 'TRANSPORTE' || convertingLegacy
           ? { transportId: editTransportId, memberRole: editRole }
           : {}),
       });
       setEditingUser(null);
-      toast.success('Usuario actualizado');
-      await load();
+      toast.success(
+        convertingLegacy
+          ? 'Cuenta convertida a transporte — ya aparece en la pestaña Transportes'
+          : 'Usuario actualizado',
+      );
+      if (convertingLegacy) setKind('TRANSPORTE');
+      else await load();
     } catch (err) {
       toast.error((err as Error).message || 'No se pudo actualizar');
     } finally {
@@ -358,7 +371,14 @@ export function FieldUsersPage() {
                         )}
                       </TableCell>
                     )}
-                    <TableCell className="text-sm text-muted-foreground">{user.uploadClient}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {user.uploadClient}
+                      {kind === 'TAG' && user.uploadClient === 'MOBILE' && (
+                        <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
+                          legado app
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {user.active ? (
                         <Badge variant="secondary">Activo</Badge>
@@ -415,8 +435,14 @@ export function FieldUsersPage() {
             <Label htmlFor="edit-field-name">Nombre</Label>
             <Input id="edit-field-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
           </div>
-          {kind === 'TRANSPORTE' && (
+          {(kind === 'TRANSPORTE' || editingUser?.uploadClient === 'MOBILE') && (
             <>
+              {kind === 'TAG' && editingUser?.uploadClient === 'MOBILE' && (
+                <p className="text-sm text-muted-foreground">
+                  Cuenta legada de la app. Asignale un transporte para moverla a la pestaña Transportes
+                  (dueño/chofer) sin perder el historial de remitos.
+                </p>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="edit-field-transport">Transporte</Label>
                 <Select id="edit-field-transport" value={editTransportId} onChange={(event) => setEditTransportId(event.target.value)}>
