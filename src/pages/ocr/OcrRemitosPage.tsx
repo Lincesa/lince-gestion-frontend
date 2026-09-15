@@ -17,7 +17,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import * as ocrApi from '@/api/ocr';
+import { logisticaApi } from '@/api/logistica';
 import { DocumentStatus, DocumentType, type OcrDocument } from '@/types/ocr.types';
+import type { TripView } from '@/types/logistica.types';
+import { useAppSelector } from '@/store';
+import { formatTripDate } from '@/utils/logistica';
 import { StatusBadge } from './components/StatusBadge';
 import { OcrTestModal } from './components/OcrTestModal';
 import {
@@ -60,6 +64,7 @@ function deleteWindowRemaining(item: QueueItem): string {
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export function OcrRemitosPage() {
+  const user = useAppSelector((state) => state.auth.user);
   const [isOnline, setIsOnline]       = useState(navigator.onLine);
   const [step, setStep]               = useState<UploadStep>('idle');
   const [uploadPct, setUploadPct]     = useState(0);
@@ -74,6 +79,8 @@ export function OcrRemitosPage() {
   const [remitoTotal, setRemitoTotal] = useState<number | null>(null);
   const [remitoScope, setRemitoScope] = useState<'own' | 'transport' | null>(null);
   const [transportRemitos, setTransportRemitos] = useState<OcrDocument[]>([]);
+  const [trips, setTrips] = useState<TripView[]>([]);
+  const [tripId, setTripId] = useState('');
   // ticker para re-render mientras haya items dentro de la ventana de 5 min
   const [, setTick] = useState(0);
 
@@ -120,13 +127,10 @@ export function OcrRemitosPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const [count, list] = await Promise.all([
-          ocrApi.getMyRemitosCount(),
-          ocrApi.getMyRemitos({ limit: 20 }),
-        ]);
+        const list = await ocrApi.getMyRemitos({ limit: 20 });
         if (cancelled) return;
-        setRemitoTotal(count.total);
-        setRemitoScope(count.scope);
+        setRemitoTotal(list.total);
+        setRemitoScope(list.scope);
         setTransportRemitos(list.items);
       } catch {
         /* silencioso: chofer/tag sin red aún pueden subir */
@@ -136,6 +140,13 @@ export function OcrRemitosPage() {
       cancelled = true;
     };
   }, [step]);
+
+  useEffect(() => {
+    if (user?.area?.toUpperCase() !== 'TRANSPORTE') return;
+    void logisticaApi.listTrips()
+      .then(setTrips)
+      .catch(() => setTrips([]));
+  }, [user?.area]);
 
   // Interval de 1s mientras haya items dentro de la ventana de eliminación
   useEffect(() => {
@@ -248,6 +259,7 @@ export function OcrRemitosPage() {
       const { uploadUrl, documentId: docId } = await ocrApi.requestUploadUrl(
         DocumentType.REMITO,
         contentType,
+        tripId || undefined,
       );
       documentId = docId;
 
@@ -315,7 +327,7 @@ export function OcrRemitosPage() {
 
       setStep('error');
     }
-  }, [capturedBlob, previewUrl, rotationDegrees]);
+  }, [capturedBlob, previewUrl, rotationDegrees, tripId]);
 
   const pollDocumentStatus = async (docId: string) => {
     for (let i = 0; i < POLL_MAX_RETRIES; i++) {
@@ -432,6 +444,26 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
+          {user?.area?.toUpperCase() === 'TRANSPORTE' && (
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium text-foreground">Viaje</span>
+              <select
+                value={tripId}
+                onChange={(event) => setTripId(event.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Sin viaje</option>
+                {trips.map((trip) => (
+                  <option key={trip.id} value={trip.id}>
+                    {trip.origin} → {trip.destination} · {formatTripDate(trip.scheduledAt)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground">
+                El remito quedará asociado al viaje seleccionado.
+              </span>
+            </label>
+          )}
           {/* Botón principal — abre cámara nativa en mobile, file picker en desktop */}
           <div
             onClick={() => cameraInputRef.current?.click()}

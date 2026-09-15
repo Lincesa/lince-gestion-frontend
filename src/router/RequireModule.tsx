@@ -12,7 +12,7 @@ export function RequireModule({ moduleKey }: RequireModuleProps) {
   if (!user) return null;
   if (user.globalRole === GlobalRole.SUPERADMIN) return <Outlet />;
   if (isFieldArea(user.area)) {
-    if (moduleKey === ModuleKey.OCR) return <Outlet />;
+    if (moduleKey === ModuleKey.OCR || moduleKey === ModuleKey.LOGISTICA) return <Outlet />;
     return <Navigate to="/ocr/remitos" replace />;
   }
   if (moduleKey === ModuleKey.SOPORTE_IT) return <Outlet />;

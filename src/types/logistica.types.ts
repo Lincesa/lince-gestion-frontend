@@ -69,6 +69,52 @@ export interface TransportView {
   members: TransportMemberView[];
 }
 
+export type TripStatus = 'PLANIFICADO' | 'EN_CURSO' | 'CERRADO' | 'CANCELADO';
+
+export interface TripDriverView {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+}
+
+export interface TripView {
+  id: string;
+  transportId: string;
+  transportName: string;
+  origin: string;
+  destination: string;
+  scheduledAt: string;
+  status: TripStatus;
+  notes: string | null;
+  drivers: TripDriverView[];
+  remitosCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateTripPayload {
+  transportId: string;
+  origin: string;
+  destination: string;
+  scheduledAt: string;
+  notes?: string;
+  driverIds?: string[];
+}
+
+export interface UpdateTripPayload {
+  transportId?: string;
+  origin?: string;
+  destination?: string;
+  scheduledAt?: string;
+  notes?: string | null;
+}
+
+export interface MyTransportView extends TransportView {
+  currentMember?: TransportMemberView;
+  memberRole?: TransportMemberRole;
+}
+
 export type FieldUserKind = 'TAG' | 'TRANSPORTE';
 
 export interface FieldUserView {

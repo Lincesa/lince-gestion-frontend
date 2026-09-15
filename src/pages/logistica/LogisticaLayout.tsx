@@ -1,21 +1,26 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAppSelector } from '@/store';
 import { GlobalRole, ModuleKey } from '@/types';
+import { isFieldArea } from '@/auth/fieldArea';
 
 export function LogisticaLayout() {
   const user = useAppSelector((s) => s.auth.user);
   const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
   const isLogisticaAdmin = user?.modules?.[ModuleKey.LOGISTICA]?.role === 'ADMIN';
+  const isField = isFieldArea(user?.area);
 
   const tabs = [
     { to: '/logistica/remitos', label: 'Remitos' },
     { to: '/logistica/mapa',    label: 'Mapa'    },
+    { to: '/logistica/viajes', label: 'Viajes' },
     ...(isSuperAdmin || isLogisticaAdmin ? [
       { to: '/logistica/tags', label: 'Tags' },
       { to: '/logistica/transportes', label: 'Transportes' },
       { to: '/logistica/usuarios-campo', label: 'Usuarios campo' },
     ] : []),
   ];
+
+  if (isField) return <Outlet />;
 
   return (
     <div className="flex flex-col h-full">

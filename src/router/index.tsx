@@ -83,6 +83,9 @@ const SuperAdminPage = lazy(() =>
 const ChangePasswordPage = lazy(() =>
   import('@/pages/ChangePasswordPage').then((m) => ({ default: m.ChangePasswordPage })),
 );
+const ProfilePage = lazy(() =>
+  import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
 
 const OcrLayout = lazy(() =>
   import('@/pages/ocr/OcrLayout').then((m) => ({ default: m.OcrLayout })),
@@ -138,6 +141,15 @@ const TransportesPage = lazy(() =>
 const FieldUsersPage = lazy(() =>
   import('@/pages/logistica/FieldUsersPage').then((m) => ({ default: m.FieldUsersPage })),
 );
+const ViajesPage = lazy(() =>
+  import('@/pages/logistica/ViajesPage').then((m) => ({ default: m.ViajesPage })),
+);
+const ViajeDetailPage = lazy(() =>
+  import('@/pages/logistica/ViajeDetailPage').then((m) => ({ default: m.ViajeDetailPage })),
+);
+const MiTransportePage = lazy(() =>
+  import('@/pages/logistica/MiTransportePage').then((m) => ({ default: m.MiTransportePage })),
+);
 
 function PageLoader() {
   return (
@@ -179,6 +191,14 @@ const router = createBrowserRouter([
             element: (
               <Suspense fallback={<PageLoader />}>
                 <DashboardPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'perfil',
+            element: (
+              <Suspense fallback={<PageLoader />}>
+                <ProfilePage />
               </Suspense>
             ),
           },
@@ -521,6 +541,30 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <MapaPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'viajes',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <ViajesPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'viajes/:id',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <ViajeDetailPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'mi-transporte',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <MiTransportePage />
                       </Suspense>
                     ),
                   },

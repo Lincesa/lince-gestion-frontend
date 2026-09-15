@@ -15,29 +15,43 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
     ).toBe('/ocr/remitos');
   });
 
-  it('jails TRANSPORTE to /ocr/remitos from staff routes', () => {
+  it('envía TRANSPORTE a sus viajes desde rutas de staff', () => {
     expect(
       resolveFieldJailRedirect({
         area: 'TRANSPORTE',
         pathname: '/',
         mustChangePassword: false,
       }),
-    ).toBe('/ocr/remitos');
+    ).toBe('/logistica/viajes');
     expect(
       resolveFieldJailRedirect({
         area: 'transporte',
         pathname: '/crm',
         mustChangePassword: false,
       }),
-    ).toBe('/ocr/remitos');
+    ).toBe('/logistica/viajes');
   });
 
-  it('allows field users on /ocr/remitos and change-password', () => {
+  it('permite viajes, remitos y perfil a choferes', () => {
+    expect(
+      resolveFieldJailRedirect({
+        area: 'TRANSPORTE',
+        logisticsRole: 'CHOFER',
+        pathname: '/logistica/viajes/123',
+      }),
+    ).toBeNull();
     expect(
       resolveFieldJailRedirect({
         area: 'TRANSPORTE',
         pathname: '/ocr/remitos',
         mustChangePassword: false,
+      }),
+    ).toBeNull();
+    expect(
+      resolveFieldJailRedirect({
+        area: 'TRANSPORTE',
+        logisticsRole: 'CHOFER',
+        pathname: '/perfil',
       }),
     ).toBeNull();
     expect(
@@ -52,6 +66,33 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
         area: 'TAG',
         pathname: '/change-password',
         mustChangePassword: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('permite mi transporte a choferes y dueños', () => {
+    expect(
+      resolveFieldJailRedirect({
+        area: 'TRANSPORTE',
+        logisticsRole: 'DUENO',
+        pathname: '/logistica/mi-transporte',
+      }),
+    ).toBeNull();
+    expect(
+      resolveFieldJailRedirect({
+        area: 'TRANSPORTE',
+        logisticsRole: 'CHOFER',
+        pathname: '/logistica/mi-transporte',
+      }),
+    ).toBeNull();
+  });
+
+  it('deja acceso completo al rol ADMIN', () => {
+    expect(
+      resolveFieldJailRedirect({
+        area: 'TRANSPORTE',
+        logisticsRole: 'ADMIN',
+        pathname: '/admin',
       }),
     ).toBeNull();
   });
