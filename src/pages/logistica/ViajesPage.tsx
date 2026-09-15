@@ -114,7 +114,8 @@ export function ViajesPage() {
     (transport) => transport.id === form.transportId,
   );
   const drivers = selectedTransport?.members.filter(
-    (member) => member.role === 'CHOFER' && member.active,
+    (member) =>
+      (member.role === 'CHOFER' || member.role === 'DUENO') && member.active,
   ) ?? [];
 
   return (
@@ -231,7 +232,11 @@ export function ViajesPage() {
             <Label>Choferes</Label>
             <div className="rounded-md border border-input p-3 space-y-2">
               {drivers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay choferes activos.</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedTransport
+                    ? 'Este transporte no tiene integrantes activos. Agregá choferes en Transportes o Usuarios de campo.'
+                    : 'Seleccioná un transporte para ver integrantes.'}
+                </p>
               ) : drivers.map((driver) => (
                 <label key={driver.userId} className="flex items-center gap-2 text-sm">
                   <input
@@ -244,7 +249,10 @@ export function ViajesPage() {
                         : current.driverIds.filter((id) => id !== driver.userId),
                     }))}
                   />
-                  <span>{driver.name || driver.email}</span>
+                  <span>
+                    {driver.name || driver.email}
+                    {driver.role === 'DUENO' ? ' (dueño)' : ''}
+                  </span>
                 </label>
               ))}
             </div>

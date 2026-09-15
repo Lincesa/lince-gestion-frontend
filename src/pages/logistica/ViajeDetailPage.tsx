@@ -83,7 +83,8 @@ export function ViajeDetailPage() {
   const selectedTransport = transports.find((transport) => transport.id === transportId);
   const drivers = useMemo(
     () => selectedTransport?.members.filter(
-      (member) => member.role === 'CHOFER' && member.active,
+      (member) =>
+        (member.role === 'CHOFER' || member.role === 'DUENO') && member.active,
     ) ?? [],
     [selectedTransport],
   );
@@ -199,7 +200,9 @@ export function ViajeDetailPage() {
                 <Label>Choferes asignados</Label>
                 <div className="rounded-md border border-input p-3 space-y-2">
                   {drivers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No hay choferes activos.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Este transporte no tiene integrantes activos. Agregá choferes en Transportes o Usuarios de campo.
+                    </p>
                   ) : drivers.map((driver) => (
                     <label key={driver.userId} className="flex items-center gap-2 text-sm">
                       <input
@@ -209,7 +212,10 @@ export function ViajeDetailPage() {
                           ? [...current, driver.userId]
                           : current.filter((id) => id !== driver.userId))}
                       />
-                      <span>{driver.name || driver.email}</span>
+                      <span>
+                        {driver.name || driver.email}
+                        {driver.role === 'DUENO' ? ' (dueño)' : ''}
+                      </span>
                     </label>
                   ))}
                 </div>
