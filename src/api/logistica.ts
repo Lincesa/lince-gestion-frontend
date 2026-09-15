@@ -1,5 +1,6 @@
 import { api, API_BASE_URL, getAccessToken } from './client';
 import type {
+  CreateTripPayload,
   FieldUserCreateResult,
   FieldUserKind,
   FieldUserResetResult,
@@ -9,11 +10,45 @@ import type {
   PaginatedRemitos,
   RemitoDetalle,
   RemitoLogistica,
+  MyTransportView,
   TransportMemberRole,
   TransportView,
+  TripView,
+  UpdateTripPayload,
 } from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
+
+interface TripApiResponse {
+  id: string;
+  transportId: string;
+  transport?: { id: string; name: string };
+  origin: string;
+  destination: string;
+  scheduledAt: string;
+  status: TripView['status'];
+  notes: string | null;
+  drivers?: Array<{
+    id: string;
+    userId: string;
+    user?: { id: string; name: string; email: string };
+  }>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function normalizeTrip(trip: TripApiResponse): TripView {
+  return {
+    ...trip,
+    transportName: trip.transport?.name ?? '',
+    drivers: (trip.drivers ?? []).map((driver) => ({
+      id: driver.id,
+      userId: driver.userId,
+      name: driver.user?.name ?? '',
+      email: driver.user?.email ?? '',
+    })),
+  };
+}
 
 export interface ListRemitosParams {
   page?: number;
@@ -163,6 +198,46 @@ export const logisticaApi = {
     transportId: string,
     payload: { name: string; email: string; password: string; role: TransportMemberRole },
   ) => api.post<TransportView>(`/logistica/transports/${transportId}/members`, payload),
+
+  updateTransportMember: (
+    transportId: string,
+    memberId: string,
+    payload: { role?: TransportMemberRole; active?: boolean },
+  ) => api.patch<TransportView>(
+    `/logistica/transports/${transportId}/members/${memberId}`,
+    payload,
+  ),
+
+  deleteTransportMember: (transportId: string, memberId: string) =>
+    api.delete<TransportView>(`/logistica/transports/${transportId}/members/${memberId}`),
+
+  getMyTransport: () => api.get<MyTransportView>('/logistica/my-transport'),
+
+  listTrips: () =>
+    api.get<TripApiResponse[]>('/logistica/trips').then((items) => items.map(normalizeTrip)),
+
+  getTrip: (id: string) =>
+    api.get<TripApiResponse>(`/logistica/trips/${id}`).then(normalizeTrip),
+
+  createTrip: async (payload: CreateTripPayload) => {
+    const { driverIds = [], ...tripPayload } = payload;
+    const trip = await api.post<TripApiResponse>('/logistica/trips', tripPayload);
+    if (!driverIds.length) return normalizeTrip(trip);
+    const assigned = await api.put<TripApiResponse>(
+      `/logistica/trips/${trip.id}/assignments`,
+      { userIds: driverIds },
+    );
+    return normalizeTrip(assigned);
+  },
+
+  updateTrip: (id: string, payload: UpdateTripPayload) =>
+    api.patch<TripApiResponse>(`/logistica/trips/${id}`, payload).then(normalizeTrip),
+
+  updateTripStatus: (id: string, status: TripView['status']) =>
+    api.patch<TripApiResponse>(`/logistica/trips/${id}/state`, { status }).then(normalizeTrip),
+
+  setTripAssignments: (id: string, userIds: string[]) =>
+    api.put<TripApiResponse>(`/logistica/trips/${id}/assignments`, { userIds }).then(normalizeTrip),
 
   listFieldUsers: (kind: FieldUserKind) =>
     api.get<FieldUserView[]>(`/logistica/field-users?kind=${kind}`),

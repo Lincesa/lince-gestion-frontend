@@ -10,6 +10,10 @@ import type {
 } from '@/types/logistica.types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Select } from '@/components/ui/Select';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 
 function randomPassword(): string {
@@ -42,6 +46,12 @@ export function FieldUsersPage() {
   const [password, setPassword] = useState('');
   const [transportId, setTransportId] = useState('');
   const [memberRole, setMemberRole] = useState<TransportMemberRole>('CHOFER');
+  const [editingUser, setEditingUser] = useState<FieldUserView | null>(null);
+  const [resetUser, setResetUser] = useState<FieldUserView | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editTransportId, setEditTransportId] = useState('');
+  const [editRole, setEditRole] = useState<TransportMemberRole>('CHOFER');
+  const [resetPassword, setResetPassword] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,36 +132,54 @@ export function FieldUsersPage() {
     }
   };
 
-  const handleRename = async (user: FieldUserView) => {
-    const next = window.prompt('Nombre', user.name);
-    if (next === null || !next.trim() || next.trim() === user.name) return;
+  const openEdit = (user: FieldUserView) => {
+    setEditingUser(user);
+    setEditName(user.name);
+    setEditTransportId(user.transportId ?? '');
+    setEditRole(user.memberRole ?? 'CHOFER');
+  };
+
+  const handleEdit = async () => {
+    if (!editingUser || !editName.trim()) return;
+    if (kind === 'TRANSPORTE' && !editTransportId) {
+      toast.error('Elegí un transporte');
+      return;
+    }
     setSubmitting(true);
     try {
-      await logisticaApi.updateFieldUser(user.id, { name: next.trim() });
-      toast.success('Nombre actualizado');
+      await logisticaApi.updateFieldUser(editingUser.id, {
+        name: editName.trim(),
+        ...(kind === 'TRANSPORTE'
+          ? { transportId: editTransportId, memberRole: editRole }
+          : {}),
+      });
+      setEditingUser(null);
+      toast.success('Usuario actualizado');
       await load();
     } catch (err) {
-      toast.error((err as Error).message || 'No se pudo renombrar');
+      toast.error((err as Error).message || 'No se pudo actualizar');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleResetPassword = async (user: FieldUserView) => {
-    const next = window.prompt(
-      `Nueva contraseña temporal para ${user.email} (mín. 8). Dejá vacío para generar una:`,
-      '',
-    );
-    if (next === null) return;
-    const newPassword = next.trim() || randomPassword();
+  const openResetPassword = (user: FieldUserView) => {
+    setResetUser(user);
+    setResetPassword(randomPassword());
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUser) return;
+    const newPassword = resetPassword.trim();
     if (newPassword.length < 8) {
       toast.error('La contraseña debe tener al menos 8 caracteres');
       return;
     }
     setSubmitting(true);
     try {
-      const result = await logisticaApi.resetFieldUserPassword(user.id, newPassword);
+      const result = await logisticaApi.resetFieldUserPassword(resetUser.id, newPassword);
       setRevealedPassword(result.temporaryPassword);
+      setResetUser(null);
       toast.success('Contraseña reseteada — copiala ahora');
       await load();
     } catch (err) {
@@ -348,7 +376,7 @@ export function FieldUsersPage() {
                         variant="outline"
                         size="sm"
                         disabled={submitting}
-                        onClick={() => void handleRename(user)}
+                        onClick={() => openEdit(user)}
                       >
                         Editar
                       </Button>
@@ -356,7 +384,7 @@ export function FieldUsersPage() {
                         variant="outline"
                         size="sm"
                         disabled={submitting}
-                        onClick={() => void handleResetPassword(user)}
+                        onClick={() => openResetPassword(user)}
                       >
                         Reset pass
                       </Button>
@@ -376,6 +404,64 @@ export function FieldUsersPage() {
           </Table>
         </div>
       )}
+
+      <Dialog
+        open={editingUser !== null}
+        onClose={() => setEditingUser(null)}
+        title="Editar usuario"
+      >
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="edit-field-name">Nombre</Label>
+            <Input id="edit-field-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
+          </div>
+          {kind === 'TRANSPORTE' && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="edit-field-transport">Transporte</Label>
+                <Select id="edit-field-transport" value={editTransportId} onChange={(event) => setEditTransportId(event.target.value)}>
+                  <option value="">Seleccionar</option>
+                  {transportOptions.map((transport) => (
+                    <option key={transport.id} value={transport.id}>{transport.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-field-role">Rol</Label>
+                <Select id="edit-field-role" value={editRole} onChange={(event) => setEditRole(event.target.value as TransportMemberRole)}>
+                  <option value="CHOFER">Chofer</option>
+                  <option value="DUENO">Dueño</option>
+                </Select>
+              </div>
+            </>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEditingUser(null)}>Cancelar</Button>
+            <Button loading={submitting} onClick={() => void handleEdit()}>Guardar</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={resetUser !== null}
+        onClose={() => setResetUser(null)}
+        title="Restablecer contraseña"
+        description={resetUser?.email}
+      >
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="reset-field-password">Contraseña temporal</Label>
+            <div className="flex gap-2">
+              <Input id="reset-field-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
+              <Button variant="outline" onClick={() => setResetPassword(randomPassword())}>Generar</Button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setResetUser(null)}>Cancelar</Button>
+            <Button loading={submitting} onClick={() => void handleResetPassword()}>Restablecer</Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

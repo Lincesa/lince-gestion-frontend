@@ -20,6 +20,6 @@ export const authApi = {
       skipAuth: true,
     }),
 
-  changePassword: (newPassword: string) =>
-    api.post<void>('/auth/change-password', { newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.post<void>('/auth/change-password', { currentPassword, newPassword }),
 };

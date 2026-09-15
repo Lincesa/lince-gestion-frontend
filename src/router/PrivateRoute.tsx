@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/store';
+import { ModuleKey } from '@/types';
 import { resolveFieldJailRedirect } from './fieldJail';
 
 export function PrivateRoute() {
@@ -13,6 +14,7 @@ export function PrivateRoute() {
     area: user?.area,
     pathname: location.pathname,
     mustChangePassword: user?.mustChangePassword,
+    logisticsRole: user?.modules?.[ModuleKey.LOGISTICA]?.role,
   });
   if (redirect) return <Navigate to={redirect} replace />;
 

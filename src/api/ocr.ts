@@ -19,8 +19,13 @@ const BASE = '/ocr/documents';
 export function requestUploadUrl(
   type: DocumentType,
   contentType: string,
+  tripId?: string,
 ): Promise<UploadUrlResponse> {
-  return api.post<UploadUrlResponse>(`${BASE}/upload-url`, { type, contentType });
+  return api.post<UploadUrlResponse>(`${BASE}/upload-url`, {
+    type,
+    contentType,
+    ...(tripId ? { tripId } : {}),
+  });
 }
 
 /**
