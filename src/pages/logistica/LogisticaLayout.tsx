@@ -13,6 +13,7 @@ export function LogisticaLayout() {
     { to: '/logistica/remitos', label: 'Remitos' },
     { to: '/logistica/mapa',    label: 'Mapa'    },
     { to: '/logistica/viajes', label: 'Viajes' },
+    { to: '/logistica/documentacion', label: 'Documentación' },
     ...(isSuperAdmin || isLogisticaAdmin ? [
       { to: '/logistica/tags', label: 'Tags' },
       { to: '/logistica/transportes', label: 'Transportes' },
