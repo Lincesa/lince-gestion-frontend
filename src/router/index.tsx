@@ -150,6 +150,9 @@ const ViajeDetailPage = lazy(() =>
 const MiTransportePage = lazy(() =>
   import('@/pages/logistica/MiTransportePage').then((m) => ({ default: m.MiTransportePage })),
 );
+const DocumentacionPage = lazy(() =>
+  import('@/pages/logistica/DocumentacionPage').then((m) => ({ default: m.DocumentacionPage })),
+);
 
 function PageLoader() {
   return (
@@ -557,6 +560,14 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <ViajeDetailPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'documentacion',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <DocumentacionPage />
                       </Suspense>
                     ),
                   },

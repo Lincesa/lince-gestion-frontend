@@ -140,3 +140,85 @@ export interface FieldUserResetResult {
   temporaryPassword: string;
   mustChangePassword: true;
 }
+
+export type VehicleKind = 'camion' | 'batea' | 'otro';
+export type ComplianceSubject = 'TRANSPORT' | 'PERSON' | 'VEHICLE';
+export type ComplianceCadence = 'once' | 'monthly' | 'annual' | 'custom';
+export type ComplianceStatus = 'missing' | 'ok' | 'expiring' | 'expired';
+export type ComplianceReviewStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface VehicleView {
+  id: string;
+  transportId: string;
+  plate: string;
+  label: string | null;
+  kind: VehicleKind | null;
+  active: boolean;
+}
+
+export interface ComplianceDocTypeView {
+  key: string;
+  label: string;
+  subject: ComplianceSubject;
+  cadence: ComplianceCadence;
+  defaultAlertDays: number;
+  areaHint: string | null;
+  sort: number;
+}
+
+export interface ComplianceFileView {
+  id: string;
+  transportId: string;
+  typeKey: string;
+  subjectUserId: string | null;
+  subjectUserName: string | null;
+  vehicleId: string | null;
+  vehiclePlate: string | null;
+  expiresAt: string | null;
+  contentType: string;
+  originalName: string | null;
+  uploadedBy: string;
+  uploadedByName: string | null;
+  reviewStatus: ComplianceReviewStatus;
+  notes: string | null;
+  confirmedAt: string | null;
+  supersededAt: string | null;
+  createdAt: string;
+  status: Exclude<ComplianceStatus, 'missing'>;
+}
+
+export interface ComplianceSlotView {
+  typeKey: string;
+  label: string;
+  subject: ComplianceSubject;
+  cadence: ComplianceCadence;
+  defaultAlertDays: number;
+  subjectUserId: string | null;
+  vehicleId: string | null;
+  status: ComplianceStatus;
+  expiresAt: string | null;
+  files: ComplianceFileView[];
+}
+
+export interface ComplianceMemberView {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: TransportMemberRole;
+}
+
+export interface ComplianceSummary {
+  transportId: string;
+  types: ComplianceDocTypeView[];
+  vehicles: VehicleView[];
+  members: ComplianceMemberView[];
+  slots: ComplianceSlotView[];
+}
+
+export interface ComplianceUploadUrlResponse {
+  fileId: string;
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}

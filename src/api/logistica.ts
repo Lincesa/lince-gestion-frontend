@@ -15,6 +15,11 @@ import type {
   TransportView,
   TripView,
   UpdateTripPayload,
+  VehicleKind,
+  VehicleView,
+  ComplianceFileView,
+  ComplianceSummary,
+  ComplianceUploadUrlResponse,
 } from '@/types/logistica.types';
 
 const BASE = '/logistica/remitos';
@@ -265,4 +270,53 @@ export const logisticaApi = {
     api.post<FieldUserResetResult>(`/logistica/field-users/${userId}/reset-password`, {
       newPassword,
     }),
+
+  listComplianceTransports: () =>
+    api.get<Array<{ id: string; name: string }>>('/logistica/compliance/transports'),
+
+  listVehicles: (transportId?: string) => {
+    const qs = transportId ? `?transportId=${encodeURIComponent(transportId)}` : '';
+    return api.get<VehicleView[]>(`/logistica/vehicles${qs}`);
+  },
+
+  createVehicle: (payload: {
+    transportId?: string;
+    plate: string;
+    label?: string;
+    kind?: VehicleKind;
+  }) => api.post<VehicleView>('/logistica/vehicles', payload),
+
+  updateVehicle: (
+    id: string,
+    payload: Partial<{ plate: string; label: string | null; kind: VehicleKind | null; active: boolean }>,
+  ) => api.patch<VehicleView>(`/logistica/vehicles/${id}`, payload),
+
+  getComplianceSummary: (transportId: string) =>
+    api.get<ComplianceSummary>(`/logistica/compliance/summary?transportId=${encodeURIComponent(transportId)}`),
+
+  requestComplianceUploadUrl: (payload: {
+    transportId: string;
+    typeKey: string;
+    contentType: string;
+    subjectUserId?: string;
+    vehicleId?: string;
+    originalName?: string;
+    expiresAt?: string;
+    fileId?: string;
+    replaceFileId?: string;
+  }) => api.post<ComplianceUploadUrlResponse>('/logistica/compliance/files/upload-url', payload),
+
+  confirmComplianceUpload: (fileId: string) =>
+    api.post<ComplianceFileView>('/logistica/compliance/files/confirm-upload', { fileId }),
+
+  getComplianceViewUrl: (fileId: string) =>
+    api.get<{ url: string; contentType: string; originalName: string | null }>(
+      `/logistica/compliance/files/${fileId}/view-url`,
+    ),
+
+  updateComplianceFile: (fileId: string, payload: { expiresAt?: string | null; notes?: string | null }) =>
+    api.patch<ComplianceFileView>(`/logistica/compliance/files/${fileId}`, payload),
+
+  deleteComplianceFile: (fileId: string) =>
+    api.delete<{ id: string; supersededAt: string }>(`/logistica/compliance/files/${fileId}`),
 };
