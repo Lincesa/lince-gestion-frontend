@@ -118,8 +118,17 @@ export function DocumentacionPage() {
     };
   }, [summary]);
 
-  const uploadSlot = async (slot: ComplianceSlotView, file: File, replaceFileId?: string) => {
+  const uploadSlot = async (
+    slot: ComplianceSlotView,
+    file: File,
+    replaceFileId?: string,
+    dniSide?: 'front' | 'back',
+  ) => {
     if (!summary) return;
+    if (slot.typeKey === 'dni' && !dniSide) {
+      toast.error('Elegí frente o dorso del DNI');
+      return;
+    }
     const contentType = mimeFromFile(file);
     if (!contentType) {
       toast.error('Solo se aceptan foto (JPG/PNG/WEBP) o PDF');
@@ -129,6 +138,7 @@ export function DocumentacionPage() {
       const url = await logisticaApi.requestComplianceUploadUrl({
         transportId: summary.transportId,
         typeKey: slot.typeKey,
+        ...(dniSide ? { dniSide } : {}),
         contentType,
         originalName: file.name,
         subjectUserId: slot.subjectUserId ?? undefined,
@@ -137,7 +147,7 @@ export function DocumentacionPage() {
       });
       await uploadToS3(url.uploadUrl, file, contentType);
       await logisticaApi.confirmComplianceUpload(url.fileId);
-      toast.success('Archivo cargado');
+      toast.success(slot.typeKey === 'dni' ? `${dniSide === 'front' ? 'Frente' : 'Dorso'} del DNI cargado` : 'Archivo cargado');
       await loadSummary(summary.transportId);
     } catch (err) {
       toast.error((err as Error).message || 'No se pudo subir el archivo');
@@ -453,7 +463,7 @@ function Section({
   );
 }
 
-function SlotList({
+export function SlotList({
   slots,
   onUpload,
   onPreview,
@@ -461,7 +471,7 @@ function SlotList({
   onRemove,
 }: {
   slots: ComplianceSlotView[];
-  onUpload: (slot: ComplianceSlotView, file: File, replaceFileId?: string) => Promise<void>;
+  onUpload: (slot: ComplianceSlotView, file: File, replaceFileId?: string, dniSide?: 'front' | 'back') => Promise<void>;
   onPreview: (file: ComplianceFileView) => void;
   onExpiry: (file: ComplianceFileView) => void;
   onRemove: (file: ComplianceFileView) => void;
@@ -479,57 +489,101 @@ function SlotList({
               <span className="text-sm font-medium">{slot.label}</span>
               <StatusBadge status={slot.status} />
             </div>
-            <label className="inline-flex">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = '';
-                  if (file) void onUpload(slot, file);
-                }}
-              />
-              <span className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-input cursor-pointer hover:bg-accent">
-                <Upload className="h-3.5 w-3.5 mr-1" />
-                Subir
-              </span>
-            </label>
+            {slot.typeKey !== 'dni' && <UploadInput label="Subir" onFile={(file) => void onUpload(slot, file)} />}
           </div>
-          {slot.files.length === 0 ? (
-            <p className="text-xs text-muted-foreground mt-2">Sin archivo.</p>
-          ) : (
-            <ul className="mt-2 space-y-1">
-              {slot.files.map((file) => (
-                <li key={file.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <button type="button" className="text-left hover:underline" onClick={() => onPreview(file)}>
-                    {file.originalName || file.contentType}
-                    {file.expiresAt ? ` · vence ${file.expiresAt.slice(0, 10)}` : ''}
-                  </button>
-                  <span className="flex items-center gap-1">
-                    <Badge variant="outline">{STATUS_LABEL[file.status]}</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => onExpiry(file)}>Vence</Button>
-                    <label className="inline-flex">
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const next = e.target.files?.[0];
-                          e.target.value = '';
-                          if (next) void onUpload(slot, next, file.id);
-                        }}
-                      />
-                      <span className="inline-flex items-center h-8 px-2 text-xs cursor-pointer hover:underline">Reemplazar</span>
-                    </label>
-                    <Button variant="ghost" size="icon" onClick={() => onRemove(file)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </span>
-                </li>
+          {slot.typeKey === 'dni' ? (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">Cargá el frente y el dorso por separado. Podés ver o reemplazar cada lado.</p>
+              {(['front', 'back'] as const).map((side) => (
+                <div key={side} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{side === 'front' ? 'Frente' : 'Dorso'}</span>
+                    {!slot.files.some((file) => file.dniSide === side) && (
+                      <UploadInput label={`Subir ${side === 'front' ? 'frente' : 'dorso'}`} onFile={(file) => void onUpload(slot, file, undefined, side)} />
+                    )}
+                  </div>
+                  <FileRows
+                    files={slot.files.filter((file) => file.dniSide === side)}
+                    onPreview={onPreview}
+                    onExpiry={onExpiry}
+                    onRemove={onRemove}
+                    onReplace={(file, next) => void onUpload(slot, next, file.id, side)}
+                  />
+                </div>
               ))}
-            </ul>
+              {slot.files.some((file) => !file.dniSide) && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Archivos anteriores sin lado identificado. Para completar el DNI, cargá frente y dorso arriba.</p>
+                  <FileRows
+                    files={slot.files.filter((file) => !file.dniSide)}
+                    onPreview={onPreview}
+                    onExpiry={onExpiry}
+                    onRemove={onRemove}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <FileRows
+              files={slot.files}
+              onPreview={onPreview}
+              onExpiry={onExpiry}
+              onRemove={onRemove}
+              onReplace={(file, next) => void onUpload(slot, next, file.id)}
+            />
           )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function UploadInput({ label, onFile }: { label: string; onFile: (file: File) => void }) {
+  return (
+    <label className="inline-flex">
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
+        className="sr-only"
+        aria-label={label}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) onFile(file);
+        }}
+      />
+      <span className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-input cursor-pointer hover:bg-accent">
+        <Upload className="h-3.5 w-3.5 mr-1" />
+        {label}
+      </span>
+    </label>
+  );
+}
+
+function FileRows({ files, onPreview, onExpiry, onRemove, onReplace }: {
+  files: ComplianceFileView[];
+  onPreview: (file: ComplianceFileView) => void;
+  onExpiry: (file: ComplianceFileView) => void;
+  onRemove: (file: ComplianceFileView) => void;
+  onReplace?: (file: ComplianceFileView, next: File) => void;
+}) {
+  if (files.length === 0) return <p className="text-xs text-muted-foreground mt-2">Sin archivo.</p>;
+  return (
+    <ul className="mt-2 space-y-1">
+      {files.map((file) => (
+        <li key={file.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <button type="button" className="text-left hover:underline" onClick={() => onPreview(file)}>
+            {file.originalName || file.contentType}
+            {file.expiresAt ? ` · vence ${file.expiresAt.slice(0, 10)}` : ''}
+          </button>
+          <span className="flex items-center gap-1">
+            <Badge variant="outline">{STATUS_LABEL[file.status]}</Badge>
+            <Button variant="ghost" size="sm" onClick={() => onExpiry(file)}>Vence</Button>
+            {onReplace && <UploadInput label="Reemplazar" onFile={(next) => onReplace(file, next)} />}
+            <Button variant="ghost" size="icon" aria-label="Quitar archivo" onClick={() => onRemove(file)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </span>
         </li>
       ))}
     </ul>

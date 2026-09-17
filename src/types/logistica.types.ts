@@ -170,6 +170,7 @@ export interface ComplianceFileView {
   id: string;
   transportId: string;
   typeKey: string;
+  dniSide?: 'front' | 'back' | null;
   subjectUserId: string | null;
   subjectUserName: string | null;
   vehicleId: string | null;

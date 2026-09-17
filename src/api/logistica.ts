@@ -297,6 +297,7 @@ export const logisticaApi = {
   requestComplianceUploadUrl: (payload: {
     transportId: string;
     typeKey: string;
+    dniSide?: 'front' | 'back';
     contentType: string;
     subjectUserId?: string;
     vehicleId?: string;
