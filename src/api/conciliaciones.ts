@@ -126,7 +126,7 @@ export const conciliacionesApi = {
       body: JSON.stringify({ body }),
     }),
 
-  parseFile: async (
+  parseFile: (
     file: File,
     sheetName?: string,
     headerRow?: number,
@@ -135,22 +135,10 @@ export const conciliacionesApi = {
     form.append('file', file);
     if (sheetName) form.append('sheetName', sheetName);
     if (headerRow != null) form.append('headerRow', String(headerRow));
-    const res = await fetch(`${BASE}/reconciliations/parse`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
-      body: form,
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text) as { message?: string | string[] };
-        const msg = Array.isArray(data.message) ? data.message.join(' ') : (data.message ?? text);
-        throw new Error(msg || 'No se pudo parsear archivo');
-      } catch {
-        throw new Error(text || 'No se pudo parsear archivo');
-      }
-    }
-    return res.json() as Promise<{ sheets: string[]; rows: Record<string, unknown>[] }>;
+    return apiFetch<{ sheets: string[]; rows: Record<string, unknown>[] }>(
+      '/conciliaciones/reconciliations/parse',
+      { method: 'POST', body: form },
+    );
   },
 
   createPending: (runId: string, data: { area: string; systemLineId?: string; extractLineId?: string; note: string }) =>
