@@ -20,3 +20,6 @@ package-lock.json
 coverage
 
 CLAUDE.md
+
+# Codegraph local index
+.codegraph/
