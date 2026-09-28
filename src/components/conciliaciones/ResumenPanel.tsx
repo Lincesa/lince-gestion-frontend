@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -22,9 +22,51 @@ interface ResumenPanelProps {
 export function ResumenPanel({ detail, pendingItems, systemById, extractById, isClosed, canEdit, onResolvePending, onOpenAddPending }: ResumenPanelProps) {
   const activePending = pendingItems.filter((p) => p.status !== 'RESOLVED');
   const [expandedMatchKey, setExpandedMatchKey] = useState<string | null>(null);
+  const signOppositeMatches = detail.signOppositeMatches ?? [];
 
   return (
     <div className="space-y-6">
+      {signOppositeMatches.length > 0 && (
+        <Card className="border-l-4 border-l-amber-500 border-amber-500/30 bg-amber-500/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4" />
+              Matches con signo opuesto — revisión recomendada ({signOppositeMatches.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-amber-700 dark:text-amber-300">
+              Estos matches ya guardados tienen montos de sistema y extracto con signos opuestos. Es solo una
+              advertencia: no se bloquea, edita ni elimina nada automáticamente. Un humano debe revisarlos.
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descripción Sistema</TableHead>
+                  <TableHead>Importe Sistema</TableHead>
+                  <TableHead>Concepto Extracto</TableHead>
+                  <TableHead>Importe Extracto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {signOppositeMatches.map((flag) => {
+                  const sys = systemById.get(flag.systemLineId);
+                  const ext = extractById.get(flag.extractLineId);
+                  return (
+                    <TableRow key={flag.matchId}>
+                      <TableCell>{sys?.description || '-'}</TableCell>
+                      <TableCell>${flag.systemAmount.toFixed(2)}</TableCell>
+                      <TableCell>{ext?.concept || '-'}</TableCell>
+                      <TableCell>${flag.extractAmount.toFixed(2)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4 md:grid-cols-5">
         <Card className="border-l-4 border-l-green-500 border-green-500/30 bg-green-500/10">
           <CardHeader className="pb-3"><CardTitle className="text-sm font-medium text-green-700 dark:text-green-200">Correctos</CardTitle></CardHeader>
