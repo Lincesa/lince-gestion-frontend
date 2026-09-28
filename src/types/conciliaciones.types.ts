@@ -268,6 +268,19 @@ export type Issue = {
   comments: IssueComment[];
 };
 
+/**
+ * Advisory only. A subset of stored matches whose system and extract amounts
+ * have opposite signs — surfaced for human review, never mutated or deleted
+ * automatically.
+ */
+export type SignOppositeMatch = {
+  matchId: string;
+  systemLineId: string;
+  extractLineId: string;
+  systemAmount: number;
+  extractAmount: number;
+};
+
 export type RunDetail = {
   id: string;
   title?: string | null;
@@ -296,4 +309,6 @@ export type RunDetail = {
   }>;
   pendingItems?: PendingItem[];
   issues?: Issue[];
+  /** Advisory only; absent on older payloads. See {@link SignOppositeMatch}. */
+  signOppositeMatches?: SignOppositeMatch[];
 };
