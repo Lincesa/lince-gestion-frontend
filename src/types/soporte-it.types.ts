@@ -30,6 +30,9 @@ export interface Equipo {
   imei: string | null;
   linea: string | null;
   chip: string | null;
+  serialNumber: string | null;
+  chassisUuid: string | null;
+  lastSeenAt: string | null;
   estado: EstadoEquipo;
   notas: string | null;
   usuarioPlatId: string | null;
@@ -112,6 +115,7 @@ export interface CreateEquipoPayload {
   imei?: string;
   linea?: string;
   chip?: string;
+  serialNumber?: string;
   estado?: EstadoEquipo;
   notas?: string;
   usuarioPlatId?: string | null;

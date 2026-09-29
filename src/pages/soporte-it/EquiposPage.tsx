@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Monitor, UserPlus, UserMinus, AlertCircle } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Monitor,
+  UserPlus,
+  UserMinus,
+  AlertCircle,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -18,6 +28,7 @@ import type {
   EstadoEquipo,
   TipoEquipo,
 } from '@/types/soporte-it.types';
+import { compareLastSeen, equipoStaleness, STALENESS_COLORS } from '@/utils/equipoStaleness';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
@@ -72,14 +83,16 @@ export function EquiposPage() {
   const [assignMotivo, setAssignMotivo] = useState('');
   const [devolverTarget, setDevolverTarget] = useState<AssignTarget>(null);
   const [devolverMotivo, setDevolverMotivo] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<AssignTarget>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [sortLastSeen, setSortLastSeen] = useState<'asc' | 'desc' | null>(null);
 
   useEffect(() => {
     void dispatch(fetchEquipos());
     void dispatch(fetchUsers({ limit: 200 }));
   }, [dispatch]);
 
-  const filtered = equipos.filter((e) => {
+  const filteredBase = equipos.filter((e) => {
     if (filterTipo && e.tipo !== filterTipo) return false;
     if (filterEstado && e.estado !== filterEstado) return false;
     const q = filter.toLowerCase().trim();
@@ -91,14 +104,23 @@ export function EquiposPage() {
       (e.modelo ?? '').toLowerCase().includes(q) ||
       (e.imei ?? '').toLowerCase().includes(q) ||
       (e.linea ?? '').toLowerCase().includes(q) ||
+      (e.serialNumber ?? '').toLowerCase().includes(q) ||
       (e.usuarioPlat?.name ?? '').toLowerCase().includes(q) ||
       TIPO_LABELS[e.tipo].toLowerCase().includes(q)
     );
   });
 
+  const filtered = sortLastSeen
+    ? filteredBase.slice().sort((a, b) => compareLastSeen(a.lastSeenAt, b.lastSeenAt, sortLastSeen))
+    : filteredBase;
+
+  function toggleSortLastSeen() {
+    setSortLastSeen((prev) => (prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc'));
+  }
+
   function equipoLabel(e: Equipo) {
     if (e.tipo === 'celular') return e.imei || e.linea || e.modelo || e.id.slice(0, 8);
-    return e.hostname || e.modelo || e.id.slice(0, 8);
+    return e.hostname || e.serialNumber || e.modelo || e.id.slice(0, 8);
   }
 
   function openCreate() {
@@ -205,13 +227,21 @@ export function EquiposPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este equipo?')) return;
+  function openDelete(e: Equipo) {
+    setDeleteTarget({ id: e.id, label: equipoLabel(e) });
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setActionLoading(true);
     try {
-      await dispatch(deleteEquipo(id)).unwrap();
+      await dispatch(deleteEquipo(deleteTarget.id)).unwrap();
       toast.success('Equipo eliminado');
+      setDeleteTarget(null);
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -273,7 +303,7 @@ export function EquiposPage() {
         <div className="flex-1 min-w-[12rem]">
           <Label>Buscar</Label>
           <Input
-            placeholder="Hostname, IMEI, usuario..."
+            placeholder="Hostname, serie, IMEI, usuario..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -294,11 +324,24 @@ export function EquiposPage() {
               <th className="px-4 py-3 text-left">Fabricante / Modelo</th>
               <th className="px-4 py-3 text-left">Usuario asignado</th>
               <th className="px-4 py-3 text-left">Estado</th>
+              <th className="px-4 py-3 text-left">
+                <button
+                  type="button"
+                  onClick={toggleSortLastSeen}
+                  className="flex items-center gap-1 hover:text-foreground"
+                >
+                  Último check
+                  {sortLastSeen === 'asc' && <ChevronUp className="h-3.5 w-3.5" />}
+                  {sortLastSeen === 'desc' && <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+              </th>
               <th className="px-4 py-3 text-left">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {filtered.map((e) => (
+            {filtered.map((e) => {
+              const staleness = equipoStaleness(e.lastSeenAt);
+              return (
               <tr
                 key={e.id}
                 className="hover:bg-muted/30 cursor-pointer"
@@ -306,7 +349,12 @@ export function EquiposPage() {
               >
                 <td className="px-4 py-3 text-muted-foreground">{e.numeroActivo ?? '—'}</td>
                 <td className="px-4 py-3">{TIPO_LABELS[e.tipo]}</td>
-                <td className="px-4 py-3 font-medium">{equipoLabel(e)}</td>
+                <td className="px-4 py-3">
+                  <div className="font-medium">{equipoLabel(e)}</div>
+                  {e.serialNumber && (
+                    <div className="text-xs text-muted-foreground">{e.serialNumber}</div>
+                  )}
+                </td>
                 <td className="px-4 py-3">{e.sector ?? '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {[e.fabricante, e.modelo].filter(Boolean).join(' ') || '—'}
@@ -321,6 +369,14 @@ export function EquiposPage() {
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[e.estado]}`}>
                     {ESTADO_LABELS[e.estado]}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-medium ${STALENESS_COLORS[staleness.level]}`}
+                    title={e.lastSeenAt ? new Date(e.lastSeenAt).toLocaleString('es-AR') : undefined}
+                  >
+                    {staleness.label}
                   </span>
                 </td>
                 <td
@@ -354,7 +410,7 @@ export function EquiposPage() {
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(e.id)}
+                      onClick={() => openDelete(e)}
                       className="text-muted-foreground hover:text-destructive"
                       title="Eliminar"
                     >
@@ -363,10 +419,11 @@ export function EquiposPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {filtered.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                   No hay equipos con esos filtros
                 </td>
               </tr>
@@ -533,6 +590,32 @@ export function EquiposPage() {
             </Button>
             <Button disabled={actionLoading} onClick={() => void handleDevolver()}>
               Confirmar devolución
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Eliminar: ${deleteTarget?.label ?? ''}`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Esta acción elimina el equipo de forma permanente y no se puede deshacer. Si sospechás
+            que se trata de un duplicado, revisá primero con la consulta de auditoría antes de
+            eliminar.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={actionLoading}
+              onClick={() => void handleDelete()}
+            >
+              Eliminar definitivamente
             </Button>
           </div>
         </div>

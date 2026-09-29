@@ -13,6 +13,7 @@ import { fetchIncidentesByEquipo } from '@/store/soporte-it/incidentesSlice';
 import { fetchUsers } from '@/store/admin/usersSlice';
 import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import { soporteItApi } from '@/api/soporte-it';
+import { equipoStaleness } from '@/utils/equipoStaleness';
 import type {
   EquipoAsignacion,
   EstadoEquipo,
@@ -193,6 +194,8 @@ export function EquipoDetailPage() {
         <Row label="Tipo" value={equipo.tipo === 'celular' ? 'Celular' : 'Notebook'} />
         <Row label="N° Activo" value={equipo.numeroActivo} />
         <Row label="Sector" value={equipo.sector} />
+        <Row label="N° de serie" value={equipo.serialNumber} />
+        <Row label="Última sincronización" value={equipoStaleness(equipo.lastSeenAt).label} />
         {equipo.tipo === 'celular' ? (
           <>
             <Row label="IMEI" value={equipo.imei} />
