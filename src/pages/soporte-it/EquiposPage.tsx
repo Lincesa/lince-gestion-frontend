@@ -258,6 +258,52 @@ export function EquiposPage() {
     );
   }
 
+  // Shared by the table rows and the mobile cards so both stay in step. Icon-only
+  // with a title + aria-label: labelled buttons wrapped and broke row rhythm,
+  // and the Editar/Eliminar actions here were already icon-only anyway.
+  function iconAction(
+    key: string,
+    label: string,
+    icon: React.ReactNode,
+    onClick: () => void,
+    danger = false,
+  ) {
+    return (
+      <button
+        key={key}
+        type="button"
+        title={label}
+        aria-label={label}
+        onClick={onClick}
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted ${
+          danger ? 'hover:text-destructive' : 'hover:text-foreground'
+        }`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  function rowActions(e: Equipo, align = '') {
+    return (
+      <div className={`flex flex-nowrap items-center gap-0.5 ${align}`}>
+        {canAsignar(e) &&
+          iconAction('asignar', 'Asignar a un usuario', <UserPlus className="h-4 w-4" />, () =>
+            openAsignar(e),
+          )}
+        {canDevolver(e) &&
+          iconAction('devolver', 'Devolver a stock', <UserMinus className="h-4 w-4" />, () =>
+            openDevolver(e),
+          )}
+        {iconAction('incidente', 'Registrar incidente', <AlertCircle className="h-4 w-4" />, () =>
+          navigate(`/soporte-it/reportar?equipoId=${e.id}`),
+        )}
+        {iconAction('editar', 'Editar', <Pencil className="h-4 w-4" />, () => openEdit(e))}
+        {iconAction('eliminar', 'Eliminar', <Trash2 className="h-4 w-4" />, () => openDelete(e), true)}
+      </div>
+    );
+  }
+
   const isCelular = form.tipo === 'celular';
   const canAsignar = (e: Equipo) => e.estado !== 'baja' && !e.usuarioPlatId;
   const canDevolver = (e: Equipo) => Boolean(e.usuarioPlatId);
@@ -273,25 +319,25 @@ export function EquiposPage() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <div className="min-w-0">
           <Label>Tipo</Label>
           <Select
             value={filterTipo}
             onChange={(e) => setFilterTipo(e.target.value as '' | TipoEquipo)}
-            className="w-40"
+            className="w-full sm:w-40"
           >
             <option value="">Todos</option>
             <option value="notebook">Notebook</option>
             <option value="celular">Celular</option>
           </Select>
         </div>
-        <div>
+        <div className="min-w-0">
           <Label>Estado</Label>
           <Select
             value={filterEstado}
             onChange={(e) => setFilterEstado(e.target.value as '' | EstadoEquipo)}
-            className="w-44"
+            className="w-full sm:w-44"
           >
             <option value="">Todos</option>
             <option value="disponible">Disponible</option>
@@ -300,7 +346,7 @@ export function EquiposPage() {
             <option value="baja">Baja</option>
           </Select>
         </div>
-        <div className="flex-1 min-w-[12rem]">
+        <div className="col-span-2 sm:flex-1 sm:min-w-[14rem]">
           <Label>Buscar</Label>
           <Input
             placeholder="Hostname, serie, IMEI, usuario..."
@@ -310,126 +356,195 @@ export function EquiposPage() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        {filtered.length === equipos.length
+          ? `${equipos.length} equipo${equipos.length === 1 ? '' : 's'}`
+          : `${filtered.length} de ${equipos.length} equipos`}
+      </p>
+
       {loading && <p className="text-muted-foreground text-sm">Cargando...</p>}
       {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <div className="rounded-lg border border-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">#</th>
-              <th className="px-4 py-3 text-left">Tipo</th>
-              <th className="px-4 py-3 text-left">Identificación</th>
-              <th className="px-4 py-3 text-left">Sector</th>
-              <th className="px-4 py-3 text-left">Fabricante / Modelo</th>
-              <th className="px-4 py-3 text-left">Usuario asignado</th>
-              <th className="px-4 py-3 text-left">Estado</th>
-              <th className="px-4 py-3 text-left">
-                <button
-                  type="button"
-                  onClick={toggleSortLastSeen}
-                  className="flex items-center gap-1 hover:text-foreground"
-                >
-                  Último check
-                  {sortLastSeen === 'asc' && <ChevronUp className="h-3.5 w-3.5" />}
-                  {sortLastSeen === 'desc' && <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-left">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.map((e) => {
-              const staleness = equipoStaleness(e.lastSeenAt);
-              return (
-              <tr
-                key={e.id}
-                className="hover:bg-muted/30 cursor-pointer"
-                onClick={() => navigate(`/soporte-it/equipos/${e.id}`)}
-              >
-                <td className="px-4 py-3 text-muted-foreground">{e.numeroActivo ?? '—'}</td>
-                <td className="px-4 py-3">{TIPO_LABELS[e.tipo]}</td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{equipoLabel(e)}</div>
-                  {e.serialNumber && (
-                    <div className="text-xs text-muted-foreground">{e.serialNumber}</div>
-                  )}
-                </td>
-                <td className="px-4 py-3">{e.sector ?? '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {[e.fabricante, e.modelo].filter(Boolean).join(' ') || '—'}
-                </td>
-                <td className="px-4 py-3">
-                  {e.usuarioPlat ? (
-                    <span className="text-primary">{e.usuarioPlat.name}</span>
-                  ) : (
-                    <span className="text-muted-foreground">Stock</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[e.estado]}`}>
-                    {ESTADO_LABELS[e.estado]}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium ${STALENESS_COLORS[staleness.level]}`}
-                    title={e.lastSeenAt ? new Date(e.lastSeenAt).toLocaleString('es-AR') : undefined}
-                  >
-                    {staleness.label}
-                  </span>
-                </td>
-                <td
-                  className="px-4 py-3"
-                  onClick={(ev) => ev.stopPropagation()}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    {canAsignar(e) && (
-                      <Button size="sm" variant="outline" onClick={() => openAsignar(e)}>
-                        <UserPlus className="h-3.5 w-3.5 mr-1" /> Asignar
-                      </Button>
-                    )}
-                    {canDevolver(e) && (
-                      <Button size="sm" variant="outline" onClick={() => openDevolver(e)}>
-                        <UserMinus className="h-3.5 w-3.5 mr-1" /> Devolver
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/soporte-it/reportar?equipoId=${e.id}`)}
-                      title="Registrar incidente"
-                    >
-                      <AlertCircle className="h-3.5 w-3.5" />
-                    </Button>
-                    <button
-                      onClick={() => openEdit(e)}
-                      className="text-muted-foreground hover:text-foreground"
-                      title="Editar"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => openDelete(e)}
-                      className="text-muted-foreground hover:text-destructive"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              );
-            })}
-            {filtered.length === 0 && !loading && (
+      {/* Row actions are icon-only on purpose. With labels they wrapped onto a
+          second line inside the cell, which made every row a different height
+          and was the main reason the table read as ragged. */}
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[42rem]">
+            <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                  No hay equipos con esos filtros
-                </td>
+                <th className="px-3 py-3 text-left whitespace-nowrap hidden xl:table-cell">#</th>
+                <th className="px-3 py-3 text-left whitespace-nowrap hidden lg:table-cell">Tipo</th>
+                <th className="px-3 py-3 text-left">Identificación</th>
+                <th className="px-3 py-3 text-left whitespace-nowrap hidden lg:table-cell">Sector</th>
+                <th className="px-3 py-3 text-left hidden 2xl:table-cell">Fabricante / Modelo</th>
+                <th className="px-3 py-3 text-left">Usuario</th>
+                <th className="px-3 py-3 text-left whitespace-nowrap">Estado</th>
+                <th className="px-3 py-3 text-left whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={toggleSortLastSeen}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
+                    Último check
+                    {sortLastSeen === 'asc' && <ChevronUp className="h-3.5 w-3.5" />}
+                    {sortLastSeen === 'desc' && <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                </th>
+                <th className="px-3 py-3 text-right whitespace-nowrap">Acciones</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map((e) => {
+                const staleness = equipoStaleness(e.lastSeenAt);
+                const marcaModelo = [e.fabricante, e.modelo].filter(Boolean).join(' ');
+                return (
+                  <tr
+                    key={e.id}
+                    className="hover:bg-muted/30 cursor-pointer"
+                    onClick={() => navigate(`/soporte-it/equipos/${e.id}`)}
+                  >
+                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap hidden xl:table-cell">
+                      {e.numeroActivo ?? '—'}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+                      {TIPO_LABELS[e.tipo]}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="max-w-[13rem]">
+                        <div className="font-medium truncate" title={equipoLabel(e)}>
+                          {equipoLabel(e)}
+                        </div>
+                        {e.serialNumber && (
+                          <div
+                            className="text-xs text-muted-foreground truncate"
+                            title={e.serialNumber}
+                          >
+                            {e.serialNumber}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+                      {e.sector ?? '—'}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground hidden 2xl:table-cell">
+                      <div className="max-w-[12rem] truncate" title={marcaModelo || undefined}>
+                        {marcaModelo || '—'}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      {e.usuarioPlat ? (
+                        <div
+                          className="max-w-[10rem] truncate text-primary"
+                          title={e.usuarioPlat.name}
+                        >
+                          {e.usuarioPlat.name}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Stock</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`inline-block whitespace-nowrap px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[e.estado]}`}
+                      >
+                        {ESTADO_LABELS[e.estado]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`inline-block whitespace-nowrap px-2 py-0.5 rounded text-xs font-medium ${STALENESS_COLORS[staleness.level]}`}
+                        title={e.lastSeenAt ? new Date(e.lastSeenAt).toLocaleString('es-AR') : undefined}
+                      >
+                        {staleness.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3" onClick={(ev) => ev.stopPropagation()}>
+                      {rowActions(e, 'justify-end')}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    No hay equipos con esos filtros
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Nine columns cannot be made readable on a phone by shrinking them, so
+          below md the same rows render as cards instead of a scrolling table. */}
+      <div className="md:hidden space-y-2">
+        {filtered.map((e) => {
+          const staleness = equipoStaleness(e.lastSeenAt);
+          const marcaModelo = [e.fabricante, e.modelo].filter(Boolean).join(' ');
+          return (
+            <div
+              key={e.id}
+              onClick={() => navigate(`/soporte-it/equipos/${e.id}`)}
+              className="rounded-lg border border-border p-3 space-y-2 active:bg-muted/40"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{equipoLabel(e)}</p>
+                  {e.serialNumber && (
+                    <p className="text-xs text-muted-foreground truncate">{e.serialNumber}</p>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 whitespace-nowrap px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[e.estado]}`}
+                >
+                  {ESTADO_LABELS[e.estado]}
+                </span>
+              </div>
+
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-muted-foreground">Usuario</dt>
+                  <dd className="truncate">
+                    {e.usuarioPlat ? (
+                      <span className="text-primary">{e.usuarioPlat.name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Stock</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-muted-foreground">Sector</dt>
+                  <dd className="truncate">{e.sector ?? '—'}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-muted-foreground">Tipo</dt>
+                  <dd className="truncate">{TIPO_LABELS[e.tipo]}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-muted-foreground">Equipo</dt>
+                  <dd className="truncate">{marcaModelo || '—'}</dd>
+                </div>
+              </dl>
+
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-border">
+                <span
+                  className={`whitespace-nowrap px-2 py-0.5 rounded text-xs font-medium ${STALENESS_COLORS[staleness.level]}`}
+                >
+                  {staleness.label}
+                </span>
+                <div onClick={(ev) => ev.stopPropagation()}>{rowActions(e)}</div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && !loading && (
+          <p className="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            No hay equipos con esos filtros
+          </p>
+        )}
       </div>
 
       <Dialog
