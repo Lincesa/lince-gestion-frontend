@@ -54,6 +54,30 @@ function Row({ label, value }: { label: string; value: string | number | null | 
   );
 }
 
+const COMPLIANCE_STYLES = {
+  yes: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200',
+  no: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+  unknown: 'bg-muted text-muted-foreground',
+} as const;
+
+/**
+ * A declared "no" and an unanswered question read very differently to whoever
+ * is chasing compliance, so they never share a style: null is rendered as "Sin
+ * datos", not as a missing check.
+ */
+function ComplianceRow({ label, value }: { label: string; value: boolean | null }) {
+  const variant = value === null ? 'unknown' : value ? 'yes' : 'no';
+  const text = value === null ? 'Sin datos' : value ? 'Sí' : 'No';
+  return (
+    <div className="flex gap-2 items-center">
+      <span className="text-muted-foreground text-sm w-48 shrink-0">{label}</span>
+      <span className={`text-xs font-medium px-2 py-0.5 rounded ${COMPLIANCE_STYLES[variant]}`}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
 export function EquipoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
@@ -223,6 +247,18 @@ export function EquipoDetailPage() {
           </>
         )}
         {equipo.notas && <Row label="Notas" value={equipo.notas} />}
+      </div>
+
+      <div className="rounded-lg border border-border p-5 space-y-3">
+        <h2 className="text-sm font-semibold uppercase text-muted-foreground tracking-wide">
+          Software y licencias
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Declarado por quien relevó el equipo, no detectado automáticamente.
+        </p>
+        <ComplianceRow label="Antivirus activo" value={equipo.antivirusActivo} />
+        <ComplianceRow label="TeamViewer gestionado" value={equipo.teamviewerGestionado} />
+        <ComplianceRow label="Office activo" value={equipo.officeActivo} />
       </div>
 
       <div className="rounded-lg border border-border p-5 space-y-3">
