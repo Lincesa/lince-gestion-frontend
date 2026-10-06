@@ -49,6 +49,7 @@ export function FieldUsersPage() {
   const [editingUser, setEditingUser] = useState<FieldUserView | null>(null);
   const [resetUser, setResetUser] = useState<FieldUserView | null>(null);
   const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editTransportId, setEditTransportId] = useState('');
   const [editRole, setEditRole] = useState<TransportMemberRole>('CHOFER');
   const [resetPassword, setResetPassword] = useState('');
@@ -135,12 +136,18 @@ export function FieldUsersPage() {
   const openEdit = (user: FieldUserView) => {
     setEditingUser(user);
     setEditName(user.name);
+    setEditEmail(user.email);
     setEditTransportId(user.transportId ?? '');
     setEditRole(user.memberRole ?? 'CHOFER');
   };
 
   const handleEdit = async () => {
     if (!editingUser || !editName.trim()) return;
+    const normalizedEmail = editEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      toast.error('Completá el email');
+      return;
+    }
     const convertingLegacy =
       kind === 'TAG' &&
       editingUser.uploadClient === 'MOBILE' &&
@@ -157,6 +164,7 @@ export function FieldUsersPage() {
     try {
       await logisticaApi.updateFieldUser(editingUser.id, {
         name: editName.trim(),
+        ...(normalizedEmail !== editingUser.email ? { email: normalizedEmail } : {}),
         ...(kind === 'TRANSPORTE' || convertingLegacy
           ? { transportId: editTransportId, memberRole: editRole }
           : {}),
@@ -434,6 +442,16 @@ export function FieldUsersPage() {
           <div className="space-y-1">
             <Label htmlFor="edit-field-name">Nombre</Label>
             <Input id="edit-field-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="edit-field-email">Email (usuario de ingreso)</Label>
+            <Input
+              id="edit-field-email"
+              type="email"
+              autoComplete="off"
+              value={editEmail}
+              onChange={(event) => setEditEmail(event.target.value)}
+            />
           </div>
           {(kind === 'TRANSPORTE' || editingUser?.uploadClient === 'MOBILE') && (
             <>
