@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, KeyRound, Plus, RefreshCw } from 'lucide-react';
+import { Copy, KeyRound, Pencil, Plus, Power, RefreshCw } from 'lucide-react';
 import { logisticaApi } from '@/api/logistica';
 import type {
   FieldUserKind,
@@ -210,6 +210,55 @@ export function FieldUsersPage() {
     }
   };
 
+  // Icon-only with title + aria-label: labelled buttons wrapped onto a second
+  // line and, on narrower screens, pushed the actions column out of view.
+  function iconAction(label: string, icon: React.ReactNode, onClick: () => void, danger = false) {
+    return (
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        disabled={submitting}
+        onClick={onClick}
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50 ${
+          danger ? 'hover:text-destructive' : 'hover:text-foreground'
+        }`}
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  function rowActions(user: FieldUserView, align = '') {
+    return (
+      <div className={`flex flex-nowrap items-center gap-0.5 ${align}`}>
+        {iconAction('Editar', <Pencil className="h-4 w-4" />, () => openEdit(user))}
+        {iconAction('Resetear contraseña', <KeyRound className="h-4 w-4" />, () => openResetPassword(user))}
+        {iconAction(
+          user.active ? 'Desactivar' : 'Activar',
+          <Power className="h-4 w-4" />,
+          () => void handleToggleActive(user),
+          user.active,
+        )}
+      </div>
+    );
+  }
+
+  function statusBadges(user: FieldUserView) {
+    return (
+      <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
+        {user.active ? (
+          <Badge variant="secondary">Activo</Badge>
+        ) : (
+          <Badge variant="destructive">Inactivo</Badge>
+        )}
+        {user.mustChangePassword && (
+          <span className="text-xs text-amber-700 dark:text-amber-300">debe cambiar pass</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -340,97 +389,97 @@ export function FieldUsersPage() {
           <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
-                {kind === 'TRANSPORTE' && <TableHead>Transporte</TableHead>}
-                {kind === 'TRANSPORTE' && <TableHead>Rol</TableHead>}
-                <TableHead>Cliente</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.length === 0 ? (
+        <>
+          {/* Below md the rows render as cards: seven columns do not fit a phone. */}
+          <div className="space-y-2 md:hidden">
+            {items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay usuarios {kind} todavía.</p>
+            ) : (
+              items.map((user) => (
+                <div key={user.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{user.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                    {rowActions(user)}
+                  </div>
+                  {kind === 'TRANSPORTE' && (
+                    <p className="text-sm">
+                      {user.transportName ?? '—'}
+                      {user.memberRole && (
+                        <Badge variant="secondary" className="ml-2">
+                          {user.memberRole === 'DUENO' ? 'Dueño' : 'Chofer'}
+                        </Badge>
+                      )}
+                    </p>
+                  )}
+                  {statusBadges(user)}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
+            <Table className="min-w-[720px]">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={kind === 'TRANSPORTE' ? 7 : 5} className="text-sm text-muted-foreground">
-                    No hay usuarios {kind} todavía.
-                  </TableCell>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Email</TableHead>
+                  {kind === 'TRANSPORTE' && <TableHead>Transporte</TableHead>}
+                  {kind === 'TRANSPORTE' && <TableHead>Rol</TableHead>}
+                  <TableHead className="hidden xl:table-cell">Cliente</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ) : (
-                items.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    {kind === 'TRANSPORTE' && (
-                      <TableCell>{user.transportName ?? '—'}</TableCell>
-                    )}
-                    {kind === 'TRANSPORTE' && (
-                      <TableCell>
-                        {user.memberRole ? (
-                          <Badge variant="secondary">
-                            {user.memberRole === 'DUENO' ? 'Dueño' : 'Chofer'}
-                          </Badge>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell className="text-sm text-muted-foreground">
-                      {user.uploadClient}
-                      {kind === 'TAG' && user.uploadClient === 'MOBILE' && (
-                        <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
-                          legado app
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {user.active ? (
-                        <Badge variant="secondary">Activo</Badge>
-                      ) : (
-                        <Badge variant="destructive">Inactivo</Badge>
-                      )}
-                      {user.mustChangePassword && (
-                        <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
-                          debe cambiar pass
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={submitting}
-                        onClick={() => openEdit(user)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={submitting}
-                        onClick={() => openResetPassword(user)}
-                      >
-                        Reset pass
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={submitting}
-                        onClick={() => void handleToggleActive(user)}
-                      >
-                        {user.active ? 'Desactivar' : 'Activar'}
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={kind === 'TRANSPORTE' ? 7 : 5} className="text-sm text-muted-foreground">
+                      No hay usuarios {kind} todavía.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ) : (
+                  items.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium max-w-[220px] truncate" title={user.name}>
+                        {user.name}
+                      </TableCell>
+                      <TableCell className="max-w-[240px] truncate" title={user.email}>
+                        {user.email}
+                      </TableCell>
+                      {kind === 'TRANSPORTE' && (
+                        <TableCell className="whitespace-nowrap">{user.transportName ?? '—'}</TableCell>
+                      )}
+                      {kind === 'TRANSPORTE' && (
+                        <TableCell>
+                          {user.memberRole ? (
+                            <Badge variant="secondary">
+                              {user.memberRole === 'DUENO' ? 'Dueño' : 'Chofer'}
+                            </Badge>
+                          ) : (
+                            '—'
+                          )}
+                        </TableCell>
+                      )}
+                      <TableCell className="hidden xl:table-cell whitespace-nowrap text-sm text-muted-foreground">
+                        {user.uploadClient}
+                        {kind === 'TAG' && user.uploadClient === 'MOBILE' && (
+                          <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
+                            legado app
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>{statusBadges(user)}</TableCell>
+                      <TableCell className="w-px">{rowActions(user, 'justify-end')}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
 
       <Dialog
