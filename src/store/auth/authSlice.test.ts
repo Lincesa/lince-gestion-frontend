@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GlobalRole, UserProfile, type AuthUser } from '@/types';
-import reducer, { setAuth, setUser } from './authSlice';
+import reducer, { clearAuth, setAuth, setUser } from './authSlice';
 
 const stored: AuthUser = {
   id: 'u-1',
@@ -27,5 +27,15 @@ describe('authSlice.setUser', () => {
     expect(next.accessToken).toBe('a');
     expect(next.refreshToken).toBe('r');
     expect(next.isAuthenticated).toBe(true);
+  });
+
+  it('ignores a /auth/me response that arrives after logout', () => {
+    const loggedIn = reducer(undefined, setAuth({ user: stored, accessToken: 'a', refreshToken: 'r' }));
+    const loggedOut = reducer(loggedIn, clearAuth());
+
+    const next = reducer(loggedOut, setUser(stored));
+
+    expect(next.user).toBeNull();
+    expect(next.isAuthenticated).toBe(false);
   });
 });

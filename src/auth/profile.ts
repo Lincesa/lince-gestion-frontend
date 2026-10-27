@@ -1,6 +1,6 @@
 import { UserProfile, type AuthUser } from '@/types';
 
-type ProfileSource = Pick<AuthUser, 'profile' | 'area'> | Partial<Pick<AuthUser, 'profile' | 'area'>>;
+type ProfileSource = Partial<Pick<AuthUser, 'profile' | 'area'>>;
 
 /**
  * The user's access profile. Sessions stored before profiles existed have no

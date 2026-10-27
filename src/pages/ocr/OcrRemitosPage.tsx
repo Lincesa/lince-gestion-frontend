@@ -66,6 +66,7 @@ function deleteWindowRemaining(item: QueueItem): string {
 
 export function OcrRemitosPage() {
   const user = useAppSelector((state) => state.auth.user);
+  const isTransport = isTransportUser(user);
   const [isOnline, setIsOnline]       = useState(navigator.onLine);
   const [step, setStep]               = useState<UploadStep>('idle');
   const [uploadPct, setUploadPct]     = useState(0);
@@ -143,11 +144,11 @@ export function OcrRemitosPage() {
   }, [step]);
 
   useEffect(() => {
-    if (!isTransportUser(user)) return;
+    if (!isTransport) return;
     void logisticaApi.listTrips()
       .then(setTrips)
       .catch(() => setTrips([]));
-  }, [user]);
+  }, [isTransport]);
 
   // Interval de 1s mientras haya items dentro de la ventana de eliminación
   useEffect(() => {
@@ -445,7 +446,7 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
-          {isTransportUser(user) && (
+          {isTransport && (
             <label className="block space-y-1.5">
               <span className="text-sm font-medium text-foreground">Viaje</span>
               <select
