@@ -35,6 +35,7 @@ import type { FilterDocumentsParams, OcrDocument, OcrStats } from '@/types/ocr.t
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
 import { DocumentDetailPanel } from './components/DocumentDetailPanel';
+import { formatUploader } from '@/utils/ocrUploader';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
 
@@ -431,7 +432,7 @@ export function OcrDashboardPage() {
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha subida</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Fecha remito</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Número de remito</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Chofer</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Subido por</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Firma</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">Aclaración</th>
                 <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">DNI</th>
@@ -476,7 +477,7 @@ export function OcrDashboardPage() {
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
                     <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{doc.driverName || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap" title={doc.uploadedByEmail ?? undefined}>{formatUploader(doc)}</td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'firma')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'dni')} /></td>
