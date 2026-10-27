@@ -13,6 +13,7 @@
  *  - Sin engine OCR configurado (Document AI/Vision) → estado CON_ERRORES con mensaje claro
  */
 
+import { isTransportUser } from '@/auth/profile';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2, RotateCcw, RotateCw } from 'lucide-react';
@@ -65,6 +66,7 @@ function deleteWindowRemaining(item: QueueItem): string {
 
 export function OcrRemitosPage() {
   const user = useAppSelector((state) => state.auth.user);
+  const isTransport = isTransportUser(user);
   const [isOnline, setIsOnline]       = useState(navigator.onLine);
   const [step, setStep]               = useState<UploadStep>('idle');
   const [uploadPct, setUploadPct]     = useState(0);
@@ -142,11 +144,11 @@ export function OcrRemitosPage() {
   }, [step]);
 
   useEffect(() => {
-    if (user?.area?.toUpperCase() !== 'TRANSPORTE') return;
+    if (!isTransport) return;
     void logisticaApi.listTrips()
       .then(setTrips)
       .catch(() => setTrips([]));
-  }, [user?.area]);
+  }, [isTransport]);
 
   // Interval de 1s mientras haya items dentro de la ventana de eliminación
   useEffect(() => {
@@ -444,7 +446,7 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
-          {user?.area?.toUpperCase() === 'TRANSPORTE' && (
+          {isTransport && (
             <label className="block space-y-1.5">
               <span className="text-sm font-medium text-foreground">Viaje</span>
               <select

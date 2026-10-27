@@ -2,13 +2,13 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Camera, LayoutDashboard, Settings, Tag } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { GlobalRole, ModuleKey } from '@/types';
-import { isFieldArea } from '@/auth/fieldArea';
+import { isFieldUser } from '@/auth/profile';
 
 export function OcrLayout() {
   const user = useAppSelector((s) => s.auth.user);
 
   const isSuperAdmin = user?.globalRole === GlobalRole.SUPERADMIN;
-  const isField = isFieldArea(user?.area);
+  const isField = isFieldUser(user);
   const isOcrAdmin = user?.modules?.[ModuleKey.OCR]?.role === 'ADMIN';
 
   const navClass = ({ isActive }: { isActive: boolean }) =>

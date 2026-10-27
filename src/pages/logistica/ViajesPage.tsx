@@ -18,6 +18,7 @@ import type {
   TripView,
 } from '@/types/logistica.types';
 import { formatTripDate, TRIP_STATUS_LABELS } from '@/utils/logistica';
+import { isTransportUser as isTransportProfile } from '@/auth/profile';
 
 const EMPTY_FORM = {
   transportId: '',
@@ -43,7 +44,7 @@ export function ViajesPage() {
     user?.globalRole === GlobalRole.SUPERADMIN ||
     user?.globalRole === GlobalRole.ADMIN ||
     role === 'ADMIN';
-  const isTransportUser = user?.area?.toUpperCase() === 'TRANSPORTE';
+  const isTransportUser = isTransportProfile(user);
   const canManage = isAdmin || myTransport?.memberRole === 'DUENO';
 
   const load = useCallback(async () => {

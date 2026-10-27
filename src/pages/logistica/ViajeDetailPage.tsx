@@ -19,6 +19,7 @@ import type {
   UpdateTripPayload,
 } from '@/types/logistica.types';
 import { formatTripDate, toLocalDateTimeInput, TRIP_STATUS_LABELS } from '@/utils/logistica';
+import { isTransportUser as isTransportProfile } from '@/auth/profile';
 
 export function ViajeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +43,7 @@ export function ViajeDetailPage() {
     user?.globalRole === GlobalRole.SUPERADMIN ||
     user?.globalRole === GlobalRole.ADMIN ||
     role === 'ADMIN';
-  const isTransportUser = user?.area?.toUpperCase() === 'TRANSPORTE';
+  const isTransportUser = isTransportProfile(user);
   const canManage = isAdmin || myTransport?.memberRole === 'DUENO';
 
   const load = useCallback(async () => {

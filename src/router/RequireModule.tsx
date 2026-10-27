@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { GlobalRole, ModuleKey } from '@/types';
 import { useAppSelector } from '@/store';
-import { isFieldArea } from '@/auth/fieldArea';
+import { isFieldUser } from '@/auth/profile';
 
 interface RequireModuleProps {
   moduleKey: ModuleKey;
@@ -11,7 +11,7 @@ export function RequireModule({ moduleKey }: RequireModuleProps) {
   const user = useAppSelector((s) => s.auth.user);
   if (!user) return null;
   if (user.globalRole === GlobalRole.SUPERADMIN) return <Outlet />;
-  if (isFieldArea(user.area)) {
+  if (isFieldUser(user)) {
     if (moduleKey === ModuleKey.OCR || moduleKey === ModuleKey.LOGISTICA) return <Outlet />;
     return <Navigate to="/ocr/remitos" replace />;
   }

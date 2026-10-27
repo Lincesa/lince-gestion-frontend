@@ -1,9 +1,11 @@
-import { GlobalRole, UserModules } from './auth.types';
+import { GlobalRole, UserModules, UserProfile } from './auth.types';
 
 export interface AreaDto {
   id: string;
   name: string;
   modules: UserModules;
+  /** Users assigned to the area; an area with users cannot be deleted. */
+  userCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,9 +25,15 @@ export interface UserDto {
   email: string;
   name: string;
   globalRole: GlobalRole;
+  profile: UserProfile;
+  /** The user's own modules (extras on top of the area). */
   modules: UserModules;
+  /** What the user can actually access: area modules + extras. */
+  effectiveModules: UserModules;
   active: boolean;
-  area?: string;
+  areaId: string | null;
+  /** Area name, for display. */
+  area: string | null;
   mustChangePassword: boolean;
   createdAt: string;
   updatedAt: string;
@@ -36,14 +44,16 @@ export interface CreateUserPayload {
   name: string;
   password: string;
   globalRole?: GlobalRole;
-  area?: string;
+  profile?: UserProfile;
+  areaId?: string | null;
   modules?: UserModules;
 }
 
 export interface UpdateUserPayload {
   name?: string;
   globalRole?: GlobalRole;
-  area?: string | null;
+  profile?: UserProfile;
+  areaId?: string | null;
   active?: boolean;
 }
 
