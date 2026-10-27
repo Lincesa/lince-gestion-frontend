@@ -38,4 +38,15 @@ describe('authSlice.setUser', () => {
     expect(next.user).toBeNull();
     expect(next.isAuthenticated).toBe(false);
   });
+
+  it('ignores a late /auth/me response that belongs to a previous session of another user', () => {
+    const other: AuthUser = { ...stored, id: 'u-2', email: 'beto@lincesa.com.ar', name: 'Beto' };
+    const first = reducer(undefined, setAuth({ user: stored, accessToken: 'a', refreshToken: 'r' }));
+    const second = reducer(reducer(first, clearAuth()), setAuth({ user: other, accessToken: 'b', refreshToken: 's' }));
+
+    const next = reducer(second, setUser({ ...stored, modules: { crm: { enabled: true, role: 'ADMIN' } } }));
+
+    expect(next.user).toEqual(other);
+    expect(next.accessToken).toBe('b');
+  });
 });

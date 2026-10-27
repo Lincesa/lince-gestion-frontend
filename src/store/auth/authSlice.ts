@@ -65,8 +65,9 @@ const authSlice = createSlice({
     },
     /** Fresh identity from GET /auth/me: permissions change when an admin edits the user or its area. */
     setUser(state, action: PayloadAction<AuthUser>) {
-      // A late /auth/me response must not resurrect a session that was closed meanwhile.
-      if (!state.isAuthenticated) return;
+      // A late /auth/me response must not resurrect a closed session, nor overwrite
+      // the identity of another user who logged in meanwhile.
+      if (!state.isAuthenticated || state.user?.id !== action.payload.id) return;
       state.user = action.payload;
       saveToStorage(state);
     },
