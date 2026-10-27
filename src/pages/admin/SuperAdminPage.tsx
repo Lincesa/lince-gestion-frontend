@@ -455,6 +455,9 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
   const [limit, setLimit] = useState(20);
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Field accounts (TAG / Transporte) are managed from Logística; office staff is the default view.
+  const [profileFilter, setProfileFilter] = useState<UserProfile | ''>(UserProfile.STAFF);
+  const profile = profileFilter || undefined;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -466,11 +469,11 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
   }, [searchInput]);
 
   useEffect(() => {
-    void dispatch(fetchUsers({ page, limit, search: debouncedSearch }));
-  }, [dispatch, page, limit, debouncedSearch]);
+    void dispatch(fetchUsers({ page, limit, search: debouncedSearch, profile }));
+  }, [dispatch, page, limit, debouncedSearch, profile]);
 
   const refetchUsers = async (nextPage = page) => {
-    await dispatch(fetchUsers({ page: nextPage, limit, search: debouncedSearch })).unwrap();
+    await dispatch(fetchUsers({ page: nextPage, limit, search: debouncedSearch, profile })).unwrap();
   };
 
   const handleDelete = async (user: UserDto) => {
@@ -493,14 +496,32 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
   return (
     <>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Label htmlFor="users-search">Buscar usuarios</Label>
-          <Input
-            id="users-search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Nombre, email, área o rol"
-          />
+        <div className="flex w-full flex-col gap-3 sm:flex-row md:max-w-xl">
+          <div className="w-full sm:max-w-sm">
+            <Label htmlFor="users-search">Buscar usuarios</Label>
+            <Input
+              id="users-search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Nombre, email, área o rol"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Label htmlFor="users-profile">Perfil</Label>
+            <Select
+              id="users-profile"
+              value={profileFilter}
+              onChange={(e) => {
+                setPage(1);
+                setProfileFilter(e.target.value as UserProfile | '');
+              }}
+            >
+              {Object.values(UserProfile).map((p) => (
+                <option key={p} value={p}>{PROFILE_LABELS[p]}</option>
+              ))}
+              <option value="">Todos</option>
+            </Select>
+          </div>
         </div>
         <Button onClick={() => setShowCreate(true)}>
           <Plus className="mr-2 h-4 w-4" />Nuevo usuario
@@ -524,7 +545,7 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
             <thead className="border-b bg-muted/40">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Usuario</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Área</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Área / perfil</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rol</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Módulos</th>
@@ -538,7 +559,15 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
                     <p className="font-medium">{user.name}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.area ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {user.profile === UserProfile.STAFF ? (
+                      user.area ?? '—'
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        {PROFILE_LABELS[user.profile]}
+                      </Badge>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge className={
                       user.globalRole === GlobalRole.SUPERADMIN

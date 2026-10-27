@@ -9,6 +9,7 @@ export const usersApi = {
     if (params.page) query.set('page', String(params.page));
     if (params.limit) query.set('limit', String(params.limit));
     if (params.search?.trim()) query.set('search', params.search.trim());
+    if (params.profile) query.set('profile', params.profile);
 
     const qs = query.toString();
     return api.get<PaginatedResponse<UserDto>>(`/users${qs ? `?${qs}` : ''}`);

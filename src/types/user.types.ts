@@ -61,4 +61,6 @@ export interface UsersListParams {
   page?: number;
   limit?: number;
   search?: string;
+  /** Omitted lists every profile. */
+  profile?: UserProfile;
 }
