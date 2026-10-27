@@ -30,6 +30,14 @@ export interface Equipo {
   imei: string | null;
   linea: string | null;
   chip: string | null;
+  serialNumber: string | null;
+  chassisUuid: string | null;
+  lastSeenAt: string | null;
+  // Declared by the operator during the survey. null means "not answered",
+  // which is not the same as a declared false.
+  antivirusActivo: boolean | null;
+  teamviewerGestionado: boolean | null;
+  officeActivo: boolean | null;
   estado: EstadoEquipo;
   notas: string | null;
   usuarioPlatId: string | null;
@@ -112,6 +120,7 @@ export interface CreateEquipoPayload {
   imei?: string;
   linea?: string;
   chip?: string;
+  serialNumber?: string;
   estado?: EstadoEquipo;
   notas?: string;
   usuarioPlatId?: string | null;

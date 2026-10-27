@@ -260,6 +260,7 @@ export const logisticaApi = {
     userId: string,
     payload: {
       name?: string;
+      email?: string;
       active?: boolean;
       transportId?: string;
       memberRole?: TransportMemberRole;

@@ -6,6 +6,33 @@ import { conciliacionesApi } from '@/api/conciliaciones';
 import type { ExtractLine, OriginalMatchReference, SystemLine } from '@/types/conciliaciones.types';
 import { formatCalendarDate } from '@/utils/conciliaciones';
 
+/**
+ * Filters a set of system lines by a case-insensitive, whitespace-trimmed
+ * substring match against `description`. Used to make the Sistema panel
+ * findable without scrolling the full run's row list.
+ */
+export function filterSystemLinesByDescription(lines: SystemLine[], query: string): SystemLine[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return lines;
+  return lines.filter((line) => (line.description ?? '').toLowerCase().includes(normalizedQuery));
+}
+
+/**
+ * Sums `amount` for every id present in `ids`, looked up against the FULL
+ * `lines` set — never against a filtered/visible subset. A selected line
+ * that is hidden by the current search filter must still count toward the
+ * running sum and the match difference.
+ */
+export function sumAmountsByIds(lines: Array<{ id: string; amount: number }>, ids: Set<string>): number {
+  const byId = new Map(lines.map((line) => [line.id, line.amount]));
+  let sum = 0;
+  ids.forEach((id) => {
+    const amount = byId.get(id);
+    if (amount !== undefined) sum += amount;
+  });
+  return sum;
+}
+
 interface ChangeMatchDialogProps {
   open: boolean;
   onClose: () => void;
@@ -36,11 +63,13 @@ export function ChangeMatchDialog({
   const [selectedSystemIds, setSelectedSystemIds] = useState<Set<string>>(new Set(currentSystemIds));
   const [selectedExtractIds, setSelectedExtractIds] = useState<Set<string>>(new Set(currentExtractIds));
   const [loading, setLoading] = useState(false);
+  const [systemQuery, setSystemQuery] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setSelectedSystemIds(new Set(currentSystemIds));
     setSelectedExtractIds(new Set(currentExtractIds));
+    setSystemQuery('');
   }, [open, currentSystemIds, currentExtractIds]);
 
   const availableSystems = useMemo(() => {
@@ -53,23 +82,23 @@ export function ChangeMatchDialog({
     return extractLines.filter((line) => current.has(line.id) || !blockedExtractIds.has(line.id));
   }, [extractLines, currentExtractIds, blockedExtractIds]);
 
-  const systemSum = useMemo(() => {
-    let sum = 0;
-    selectedSystemIds.forEach((id) => {
-      const line = availableSystems.find((system) => system.id === id);
-      if (line) sum += line.amount;
-    });
-    return sum;
-  }, [selectedSystemIds, availableSystems]);
+  // Display-only filter: narrows what is rendered, never what is selectable
+  // or summed. A row the operator already selected must keep counting toward
+  // systemSum/difference even after it scrolls out of the filtered view.
+  const visibleSystems = useMemo(
+    () => filterSystemLinesByDescription(availableSystems, systemQuery),
+    [availableSystems, systemQuery],
+  );
 
-  const extractSum = useMemo(() => {
-    let sum = 0;
-    selectedExtractIds.forEach((id) => {
-      const line = availableExtracts.find((extract) => extract.id === id);
-      if (line) sum += line.amount;
-    });
-    return sum;
-  }, [selectedExtractIds, availableExtracts]);
+  const systemSum = useMemo(
+    () => sumAmountsByIds(availableSystems, selectedSystemIds),
+    [selectedSystemIds, availableSystems],
+  );
+
+  const extractSum = useMemo(
+    () => sumAmountsByIds(availableExtracts, selectedExtractIds),
+    [selectedExtractIds, availableExtracts],
+  );
 
   const difference = extractSum - systemSum;
   const isValid = selectedSystemIds.size > 0 && selectedExtractIds.size > 0 && Math.abs(difference) <= 0.01;
@@ -123,17 +152,25 @@ export function ChangeMatchDialog({
               <h4 className="text-sm font-medium">Sistema</h4>
               <span className="text-xs text-muted-foreground">${systemSum.toFixed(2)}</span>
             </div>
+            <input
+              type="text"
+              value={systemQuery}
+              onChange={(event) => setSystemQuery(event.target.value)}
+              placeholder="Buscar por descripción..."
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
+            />
             <div className="max-h-[58vh] overflow-auto rounded-md border">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="w-10 p-2"></th>
+                    <th className="w-28 p-2 text-left">Fecha</th>
                     <th className="p-2 text-left">Descripción</th>
-                    <th className="w-36 p-2 text-right">Importe</th>
+                    <th className="min-w-[160px] p-2 text-right">Importe</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {availableSystems.map((system) => (
+                  {visibleSystems.map((system) => (
                     <tr key={system.id} className="cursor-pointer border-b last:border-0 hover:bg-muted/30" onClick={() => toggleSystem(system.id)}>
                       <td className="p-2">
                         <input
@@ -144,10 +181,18 @@ export function ChangeMatchDialog({
                           className="h-4 w-4 rounded border-input"
                         />
                       </td>
+                      <td className="whitespace-nowrap p-2">{formatCalendarDate(system.issueDate ?? system.dueDate)}</td>
                       <td className="p-2">{system.description || '-'}</td>
-                      <td className="whitespace-nowrap p-2 text-right">${system.amount.toFixed(2)}</td>
+                      <td className="whitespace-nowrap p-2 text-right tabular-nums">${system.amount.toFixed(2)}</td>
                     </tr>
                   ))}
+                  {visibleSystems.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                        Sin resultados para la búsqueda
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
