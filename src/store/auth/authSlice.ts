@@ -63,6 +63,11 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       saveToStorage(state);
     },
+    /** Fresh identity from GET /auth/me: permissions change when an admin edits the user or its area. */
+    setUser(state, action: PayloadAction<AuthUser>) {
+      state.user = action.payload;
+      saveToStorage(state);
+    },
     setAccessToken(state, action: PayloadAction<string>) {
       state.accessToken = action.payload;
     },
@@ -88,6 +93,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuth, setAccessToken, setTokens, clearAuth, clearMustChangePassword } =
+export const { setAuth, setUser, setAccessToken, setTokens, clearAuth, clearMustChangePassword } =
   authSlice.actions;
 export default authSlice.reducer;

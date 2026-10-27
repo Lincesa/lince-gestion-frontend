@@ -8,7 +8,7 @@ import {
 import {
   fetchAreas, createArea, updateArea, deleteArea,
 } from '@/store/admin/areasSlice';
-import { GlobalRole, ModuleKey } from '@/types';
+import { GlobalRole, ModuleKey, UserProfile } from '@/types';
 import type { UserModules } from '@/types';
 import type { UserDto, CreateUserPayload, UpdateUserPayload, AreaDto, CreateAreaPayload } from '@/types/user.types';
 import { Button } from '@/components/ui/Button';
@@ -22,6 +22,12 @@ const GLOBAL_ROLE_LABELS: Record<GlobalRole, string> = {
   [GlobalRole.SUPERADMIN]: 'Super Admin',
   [GlobalRole.ADMIN]: 'Admin',
   [GlobalRole.USER]: 'Usuario',
+};
+
+const PROFILE_LABELS: Record<UserProfile, string> = {
+  [UserProfile.STAFF]: 'Personal',
+  [UserProfile.TAG]: 'TAG (subida automática)',
+  [UserProfile.TRANSPORTE]: 'Transporte',
 };
 
 const MODULE_LABELS: Record<ModuleKey, string> = {
@@ -42,7 +48,16 @@ const getModuleRoles = (key: ModuleKey) => MODULE_ROLES[key] ?? DEFAULT_MODULE_R
 
 // ── Módulos editor (reutilizable) ────────────────────────────────────────────
 
-function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: UserModules) => void }) {
+function ModulesEditor({
+  value,
+  onChange,
+  inherited = {},
+}: {
+  value: UserModules;
+  onChange: (m: UserModules) => void;
+  /** Modules granted by the user's area; shown read-only next to each module. */
+  inherited?: UserModules;
+}) {
   const toggleModule = (key: ModuleKey) => {
     const current = value[key];
     if (current?.enabled) {
@@ -71,6 +86,9 @@ function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: 
               className="h-4 w-4 shrink-0"
             />
             <Label htmlFor={`mod-${key}`} className="w-32 font-medium">{MODULE_LABELS[key]}</Label>
+            {inherited[key]?.enabled && (
+              <Badge variant="secondary" className="shrink-0">Área: {inherited[key]?.role}</Badge>
+            )}
             {enabled ? (
               <Select
                 value={perm?.role ?? getModuleRoles(key)[0]}
@@ -80,7 +98,9 @@ function ModulesEditor({ value, onChange }: { value: UserModules; onChange: (m: 
                 {getModuleRoles(key).map((r) => <option key={r} value={r}>{r}</option>)}
               </Select>
             ) : (
-              <span className="text-sm text-muted-foreground">Deshabilitado</span>
+              <span className="text-sm text-muted-foreground">
+                {inherited[key]?.enabled ? 'Solo lo del área' : 'Deshabilitado'}
+              </span>
             )}
           </div>
         );
@@ -105,7 +125,8 @@ function EditUserModal({
   const dispatch = useAppDispatch();
   const [name, setName] = useState(user.name);
   const [globalRole, setGlobalRole] = useState<GlobalRole>(user.globalRole);
-  const [area, setArea] = useState(user.area ?? '');
+  const [areaId, setAreaId] = useState(user.areaId ?? '');
+  const [profile, setProfile] = useState<UserProfile>(user.profile);
   const [active, setActive] = useState(user.active);
   const [saving, setSaving] = useState(false);
 
@@ -113,7 +134,7 @@ function EditUserModal({
     e.preventDefault();
     setSaving(true);
     try {
-      const payload: UpdateUserPayload = { name, globalRole, active, area: area || null };
+      const payload: UpdateUserPayload = { name, globalRole, profile, active, areaId: areaId || null };
       await dispatch(updateUser({ id: user.id, payload })).unwrap();
       toast.success('Usuario actualizado');
       await onSaved?.();
@@ -134,9 +155,18 @@ function EditUserModal({
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-area">Área</Label>
-          <Select id="edit-area" value={area} onChange={(e) => setArea(e.target.value)}>
+          <Select id="edit-area" value={areaId} onChange={(e) => setAreaId(e.target.value)}>
             <option value="">Sin área</option>
-            {areas.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+            {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+          <p className="text-xs text-muted-foreground">El usuario recibe los módulos del área, más sus módulos extra.</p>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="edit-profile">Perfil de acceso</Label>
+          <Select id="edit-profile" value={profile} onChange={(e) => setProfile(e.target.value as UserProfile)}>
+            {Object.values(UserProfile).map((p) => (
+              <option key={p} value={p}>{PROFILE_LABELS[p]}</option>
+            ))}
           </Select>
         </div>
         <div className="space-y-1">
@@ -164,16 +194,19 @@ function EditUserModal({
 
 function ModulesModal({
   user,
+  areas,
   onClose,
   onSaved,
 }: {
   user: UserDto;
+  areas: AreaDto[];
   onClose: () => void;
   onSaved?: () => void | Promise<void>;
 }) {
   const dispatch = useAppDispatch();
   const [modules, setModules] = useState<UserModules>({ ...user.modules });
   const [saving, setSaving] = useState(false);
+  const area = areas.find((a) => a.id === user.areaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +226,12 @@ function ModulesModal({
   return (
     <Dialog open onClose={onClose} title={`Módulos: ${user.name}`}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <ModulesEditor value={modules} onChange={setModules} />
+        <p className="text-xs text-muted-foreground">
+          {area
+            ? `Los módulos del área "${area.name}" se aplican siempre. Acá configurás solo los extra de este usuario; si un módulo está en ambos, gana el rol más alto.`
+            : 'El usuario no tiene área: solo tiene los módulos que configures acá.'}
+        </p>
+        <ModulesEditor value={modules} onChange={setModules} inherited={area?.modules} />
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
           <Button type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar permisos'}</Button>
@@ -219,28 +257,18 @@ function CreateUserModal({
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [globalRole, setGlobalRole] = useState<GlobalRole>(GlobalRole.USER);
-  const [selectedArea, setSelectedArea] = useState('');
+  const [areaId, setAreaId] = useState('');
+  const [profile, setProfile] = useState<UserProfile>(UserProfile.STAFF);
   const [modules, setModules] = useState<UserModules>({});
   const [saving, setSaving] = useState(false);
-
-  const handleAreaChange = (areaName: string) => {
-    setSelectedArea(areaName);
-    if (areaName) {
-      const found = areas.find((a) => a.name === areaName);
-      if (found && Object.keys(found.modules).length > 0) {
-        setModules({ ...found.modules });
-      }
-    } else {
-      setModules({});
-    }
-  };
+  const selectedArea = areas.find((a) => a.id === areaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload: CreateUserPayload = { email, name, password, globalRole, modules };
-      if (selectedArea) payload.area = selectedArea;
+      const payload: CreateUserPayload = { email, name, password, globalRole, profile, modules };
+      if (areaId) payload.areaId = areaId;
       await dispatch(createUser(payload)).unwrap();
       toast.success('Usuario creado');
       await onSaved?.();
@@ -272,9 +300,9 @@ function CreateUserModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="new-area">Área</Label>
-            <Select id="new-area" value={selectedArea} onChange={(e) => handleAreaChange(e.target.value)}>
+            <Select id="new-area" value={areaId} onChange={(e) => setAreaId(e.target.value)}>
               <option value="">Sin área</option>
-              {areas.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+              {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </Select>
           </div>
           <div className="space-y-1">
@@ -286,12 +314,22 @@ function CreateUserModal({
             </Select>
           </div>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="new-profile">Perfil de acceso</Label>
+          <Select id="new-profile" value={profile} onChange={(e) => setProfile(e.target.value as UserProfile)}>
+            {Object.values(UserProfile).map((p) => (
+              <option key={p} value={p}>{PROFILE_LABELS[p]}</option>
+            ))}
+          </Select>
+        </div>
         <div>
-          <Label className="mb-2 block">Módulos habilitados</Label>
+          <Label className="mb-2 block">Módulos extra</Label>
           <p className="text-xs text-muted-foreground mb-2">
-            {selectedArea ? `Pre-cargado desde el área "${selectedArea}". Podés ajustar.` : 'Seleccioná un área para pre-cargar los módulos, o configurá manualmente.'}
+            {selectedArea
+              ? `Recibe siempre los módulos del área "${selectedArea.name}". Marcá solo lo que necesite además.`
+              : 'Sin área: el usuario tendrá solo los módulos que marques acá.'}
           </p>
-          <ModulesEditor value={modules} onChange={setModules} />
+          <ModulesEditor value={modules} onChange={setModules} inherited={selectedArea?.modules} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
@@ -339,8 +377,10 @@ function AreaModal({ area, onClose }: { area: AreaDto | null; onClose: () => voi
           <Input id="area-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Ej: Tesorería" />
         </div>
         <div>
-          <Label className="mb-2 block">Módulos por defecto</Label>
-          <p className="text-xs text-muted-foreground mb-2">Los usuarios nuevos de esta área heredarán estos permisos.</p>
+          <Label className="mb-2 block">Módulos del área</Label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Todos los usuarios del área tienen estos permisos{area ? ` (${area.userCount} hoy)` : ''}. Los cambios aplican de inmediato.
+          </p>
           <ModulesEditor value={modules} onChange={setModules} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
@@ -531,15 +571,20 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {Object.values(ModuleKey).map((key) => {
-                        const perm = user.modules[key];
+                        const perm = user.effectiveModules[key];
                         if (!perm?.enabled) return null;
+                        const isExtra = user.modules[key]?.enabled === true;
                         return (
-                          <span key={key} className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          <span
+                            key={key}
+                            title={isExtra ? 'Módulo extra del usuario' : 'Heredado del área'}
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${isExtra ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                          >
                             {MODULE_LABELS[key]} · {perm.role}
                           </span>
                         );
                       })}
-                      {!Object.values(user.modules).some((m) => m?.enabled) && (
+                      {!Object.values(user.effectiveModules).some((m) => m?.enabled) && (
                         <span className="text-xs text-muted-foreground">Sin módulos</span>
                       )}
                     </div>
@@ -626,7 +671,7 @@ function UsersTab({ areas }: { areas: AreaDto[] }) {
         />
       )}
       {editUser && <EditUserModal user={editUser} areas={areas} onClose={() => setEditUser(null)} onSaved={() => refetchUsers()} />}
-      {modulesUser && <ModulesModal user={modulesUser} onClose={() => setModulesUser(null)} onSaved={() => refetchUsers()} />}
+      {modulesUser && <ModulesModal user={modulesUser} areas={areas} onClose={() => setModulesUser(null)} onSaved={() => refetchUsers()} />}
       {resetUser && <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} />}
     </>
   );
@@ -669,7 +714,8 @@ function AreasTab() {
             <thead className="border-b bg-muted/40">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Área</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Módulos por defecto</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Módulos del área</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Usuarios</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Acciones</th>
               </tr>
             </thead>
@@ -693,12 +739,20 @@ function AreasTab() {
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-muted-foreground">{area.userCount}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" title="Editar" onClick={() => setEditArea(area)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" title="Eliminar" onClick={() => void handleDelete(area)} className="text-destructive hover:text-destructive">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={area.userCount > 0 ? 'Reasigná sus usuarios antes de eliminarla' : 'Eliminar'}
+                        disabled={area.userCount > 0}
+                        onClick={() => void handleDelete(area)}
+                        className="text-destructive hover:text-destructive"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -707,7 +761,7 @@ function AreasTab() {
               ))}
               {areas.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
                     No hay áreas configuradas. Creá las áreas de tu empresa para organizar los usuarios.
                   </td>
                 </tr>

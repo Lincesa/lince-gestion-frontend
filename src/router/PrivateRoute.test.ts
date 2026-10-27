@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { UserProfile } from '@/types';
 import { resolveFieldJailRedirect } from './fieldJail';
 
 describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('jails TAG to /ocr/remitos from staff routes', () => {
     expect(
-      resolveFieldJailRedirect({ area: 'TAG', pathname: '/', mustChangePassword: false }),
+      resolveFieldJailRedirect({ profile: UserProfile.TAG, pathname: '/', mustChangePassword: false }),
     ).toBe('/ocr/remitos');
     expect(
       resolveFieldJailRedirect({
-        area: 'TAG',
+        profile: UserProfile.TAG,
         pathname: '/logistica/remitos',
         mustChangePassword: false,
       }),
@@ -18,14 +19,14 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('envía TRANSPORTE a sus viajes desde rutas de staff', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         pathname: '/',
         mustChangePassword: false,
       }),
     ).toBe('/logistica/viajes');
     expect(
       resolveFieldJailRedirect({
-        area: 'transporte',
+        profile: UserProfile.TRANSPORTE,
         pathname: '/crm',
         mustChangePassword: false,
       }),
@@ -35,35 +36,35 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('permite viajes, remitos y perfil a choferes', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         logisticsRole: 'CHOFER',
         pathname: '/logistica/viajes/123',
       }),
     ).toBeNull();
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         pathname: '/ocr/remitos',
         mustChangePassword: false,
       }),
     ).toBeNull();
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         logisticsRole: 'CHOFER',
         pathname: '/perfil',
       }),
     ).toBeNull();
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         pathname: '/ocr/remitos/nuevo',
         mustChangePassword: false,
       }),
     ).toBeNull();
     expect(
       resolveFieldJailRedirect({
-        area: 'TAG',
+        profile: UserProfile.TAG,
         pathname: '/change-password',
         mustChangePassword: true,
       }),
@@ -73,14 +74,14 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('permite mi transporte a choferes y dueños', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         logisticsRole: 'DUENO',
         pathname: '/logistica/mi-transporte',
       }),
     ).toBeNull();
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         logisticsRole: 'CHOFER',
         pathname: '/logistica/mi-transporte',
       }),
@@ -90,7 +91,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('deja acceso completo al rol ADMIN', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         logisticsRole: 'ADMIN',
         pathname: '/admin',
       }),
@@ -100,7 +101,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('forces password change before jail', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'TRANSPORTE',
+        profile: UserProfile.TRANSPORTE,
         pathname: '/ocr/remitos',
         mustChangePassword: true,
       }),
@@ -110,7 +111,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('does not jail staff', () => {
     expect(
       resolveFieldJailRedirect({
-        area: 'OPERACIONES',
+        profile: UserProfile.STAFF,
         pathname: '/',
         mustChangePassword: false,
       }),

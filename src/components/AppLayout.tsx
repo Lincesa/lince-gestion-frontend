@@ -4,7 +4,7 @@ import { Layout } from './Layout';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
-import { isFieldArea } from '@/auth/fieldArea';
+import { isFieldUser, isTransportUser as isTransportProfile } from '@/auth/profile';
 
 export function AppLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -21,8 +21,8 @@ export function AppLayout() {
   };
 
   if (!user) return null;
-  if (isFieldArea(user.area)) {
-    const isTransportUser = user.area?.toUpperCase() === 'TRANSPORTE';
+  if (isFieldUser(user)) {
+    const isTransportUser = isTransportProfile(user);
     const links = [
       ...(isTransportUser
         ? [{ to: '/logistica/mi-transporte', label: 'Mi transporte', Icon: Truck }]

@@ -13,6 +13,7 @@
  *  - Sin engine OCR configurado (Document AI/Vision) → estado CON_ERRORES con mensaje claro
  */
 
+import { isTransportUser } from '@/auth/profile';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Camera, Upload, Wifi, WifiOff, CheckCircle, Clock, AlertTriangle, X, RefreshCw, Trash2, FlaskConical, Loader2, RotateCcw, RotateCw } from 'lucide-react';
@@ -142,11 +143,11 @@ export function OcrRemitosPage() {
   }, [step]);
 
   useEffect(() => {
-    if (user?.area?.toUpperCase() !== 'TRANSPORTE') return;
+    if (!isTransportUser(user)) return;
     void logisticaApi.listTrips()
       .then(setTrips)
       .catch(() => setTrips([]));
-  }, [user?.area]);
+  }, [user]);
 
   // Interval de 1s mientras haya items dentro de la ventana de eliminación
   useEffect(() => {
@@ -444,7 +445,7 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
-          {user?.area?.toUpperCase() === 'TRANSPORTE' && (
+          {isTransportUser(user) && (
             <label className="block space-y-1.5">
               <span className="text-sm font-medium text-foreground">Viaje</span>
               <select

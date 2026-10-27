@@ -6,17 +6,18 @@ import { Badge } from '@/components/ui/Badge';
 import { logisticaApi } from '@/api/logistica';
 import { useAppSelector } from '@/store';
 import type { MyTransportView } from '@/types/logistica.types';
+import { isTransportUser } from '@/auth/profile';
 
 export function ProfilePage() {
   const user = useAppSelector((state) => state.auth.user);
   const [transport, setTransport] = useState<MyTransportView | null>(null);
 
   useEffect(() => {
-    if (user?.area?.toUpperCase() !== 'TRANSPORTE') return;
+    if (!isTransportUser(user)) return;
     void logisticaApi.getMyTransport()
       .then(setTransport)
       .catch((err: Error) => toast.error(err.message || 'No se pudo cargar el transporte'));
-  }, [user?.area]);
+  }, [user]);
 
   if (!user) return null;
 
