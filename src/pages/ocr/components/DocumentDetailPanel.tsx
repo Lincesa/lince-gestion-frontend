@@ -18,7 +18,7 @@ import { RemitoAnnulSection } from '@/components/logistica/RemitoAnnulSection';
 import { RemitoCommentsSection } from '@/components/logistica/RemitoCommentsSection';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { deleteDocument, fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { annulmentChanged, deleteDocument, fetchDocument, updateDocumentFields, type AnnulmentPatch } from '@/store/ocr/documentsSlice';
 import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { canManageOcrAnnul } from '@/utils/remitoAnnul';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -171,11 +171,14 @@ export function DocumentDetailPanel({
     return () => { cancelled = true; };
   }, [documentId, current?.id, current?.viewUrl]);
 
+  // Reset the form only when another remito or new OCR data arrives: a void /
+  // unvoid patches other fields and must not wipe unsaved edits.
   useEffect(() => {
     if (!doc) return;
     setForm(buildInitialForm(doc.extractedData));
     setExtraFields(buildExtraFields(doc.extractedData));
-  }, [doc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id, doc?.extractedData]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
@@ -206,8 +209,19 @@ export function DocumentDetailPanel({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, previewOpen, photoPreviewOpen, annulDialogOpen]);
 
-  const handleAnnulChanged = () => {
-    void dispatch(fetchDocument(documentId));
+  const handleAnnulChanged = (updated: unknown) => {
+    const u = updated as Partial<AnnulmentPatch> | null;
+    if (u && u.id === documentId && 'annulledAt' in u) {
+      dispatch(annulmentChanged({
+        id:             documentId,
+        annulledAt:     u.annulledAt ?? null,
+        annulledBy:     u.annulledBy ?? null,
+        annulledByName: u.annulledByName ?? null,
+        annulReason:    u.annulReason ?? null,
+      }));
+    } else {
+      void dispatch(fetchDocument(documentId));
+    }
     onAnnulChanged?.();
   };
 

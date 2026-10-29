@@ -10,8 +10,8 @@ interface Props {
   /** OCR or logistica endpoint depending on the host view. */
   annul:      (id: string, reason: string) => Promise<unknown>;
   unannul:    (id: string) => Promise<unknown>;
-  /** Called after a successful void / unvoid so the host refreshes its detail and list. */
-  onChanged:  () => void;
+  /** Called after a successful void / unvoid with the server's updated remito. */
+  onChanged:  (updated: unknown) => void;
   /** Lets the host skip its own Escape handling while the dialog is open. */
   onDialogOpenChange?: (open: boolean) => void;
 }
@@ -47,15 +47,16 @@ export function RemitoAnnulSection({
     if (!mode) return;
     setBusy(true);
     try {
+      let updated: unknown;
       if (mode === 'annul') {
-        await annul(remito.id, reason);
+        updated = await annul(remito.id, reason);
         toast.success('Remito anulado');
       } else {
-        await unannul(remito.id);
+        updated = await unannul(remito.id);
         toast.success('Remito desanulado');
       }
       setMode(null);
-      onChanged();
+      onChanged(updated);
     } catch (err) {
       toast.error((err as Error)?.message || 'No se pudo completar la acción');
     } finally {

@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import * as ocrApi from '@/api/ocr';
 import type {
   FilterDocumentsParams,
@@ -21,6 +21,14 @@ interface DocumentsState {
   loading:        boolean;
   submitting:     boolean;
   error:          string | null;
+}
+
+export interface AnnulmentPatch {
+  id:             string;
+  annulledAt:     string | null;
+  annulledBy:     string | null;
+  annulledByName: string | null;
+  annulReason:    string | null;
 }
 
 const initialState: DocumentsState = {
@@ -106,6 +114,16 @@ const documentsSlice = createSlice({
   reducers: {
     clearCurrent: (state) => { state.current = null; },
     clearError:   (state) => { state.error = null; },
+    /**
+     * Void / unvoid result from the server. Patches only the void fields so the
+     * detail form (keyed on extractedData) keeps unsaved edits and the row updates in place.
+     */
+    annulmentChanged: (state, action: PayloadAction<AnnulmentPatch>) => {
+      const { id, ...fields } = action.payload;
+      if (state.current?.id === id) Object.assign(state.current, fields);
+      const row = state.all?.items.find((d) => d.id === id);
+      if (row) Object.assign(row, fields);
+    },
   },
   extraReducers: (builder) => {
     // fetchDocuments
@@ -261,5 +279,5 @@ const documentsSlice = createSlice({
   },
 });
 
-export const { clearCurrent, clearError } = documentsSlice.actions;
+export const { clearCurrent, clearError, annulmentChanged } = documentsSlice.actions;
 export default documentsSlice.reducer;

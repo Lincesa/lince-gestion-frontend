@@ -577,7 +577,10 @@ export function OcrDashboardPage() {
             onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
             onAnnulChanged={() => {
               const filtersWithType = { ...filters, type: DocumentType.REMITO };
-              void dispatch(fetchDocuments(filtersWithType));
+              // The row is patched in place; a reload is needed only when the
+              // Anulados filter may now include or drop it.
+              if (filters.annulled) void dispatch(fetchDocuments(filtersWithType));
+              getOcrStats(filtersWithType).then(setStats).catch(() => {});
             }}
             onDeleted={() => {
               if (nextAfterDelete) {
