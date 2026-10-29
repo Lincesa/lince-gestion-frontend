@@ -56,6 +56,22 @@ export function joinRemitoFilterValues(values: string[]): string | undefined {
   return unique.length ? unique.join(',') : undefined;
 }
 
+/** Applied filters, for the collapsed bar's badge. Field + state count as one presence filter. */
+export function countActiveRemitoFilters(filters: RemitosFilterValues): number {
+  return [
+    filters.ptoVenta,
+    filters.chofer,
+    filters.uploadedByEmail,
+    filters.nroRemito,
+    filters.status,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.presenceState,
+    filters.remitoDateFrom,
+    filters.remitoDateTo,
+  ].filter(Boolean).length;
+}
+
 export function hasActiveRemitoFilters(filters: RemitosFilterValues): boolean {
   return hasRemitoExportFilters(filters);
 }

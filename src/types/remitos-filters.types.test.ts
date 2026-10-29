@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasRemitoExportFilters } from './remitos-filters.types';
+import { countActiveRemitoFilters, hasRemitoExportFilters } from './remitos-filters.types';
 
 describe('hasRemitoExportFilters', () => {
   it('keeps treating the existing filters as active', () => {
@@ -15,5 +15,17 @@ describe('hasRemitoExportFilters', () => {
 
   it('ignores a presence field picked without a state', () => {
     expect(hasRemitoExportFilters({ presenceField: 'firma' })).toBe(false);
+  });
+});
+
+describe('countActiveRemitoFilters', () => {
+  it('counts each applied filter, ignoring paging and sort', () => {
+    expect(countActiveRemitoFilters({ page: 3, limit: 20, sortBy: 'nroRemito', sortOrder: 'ASC' })).toBe(0);
+    expect(countActiveRemitoFilters({
+      ptoVenta: '0008,0009',
+      presenceField: 'firma',
+      presenceState: 'duda',
+      remitoDateFrom: '2026-03-01',
+    })).toBe(3);
   });
 });
