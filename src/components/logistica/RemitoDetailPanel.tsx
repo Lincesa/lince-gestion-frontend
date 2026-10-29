@@ -7,6 +7,7 @@ import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
 import { uploadToS3 } from '@/api/ocr';
 import { useCanPerform } from '@/hooks/useCanPerform';
 import { ModuleKey } from '@/types/auth.types';
+import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 
 const LOGISTICA_PERSIST_API = {
@@ -225,6 +226,8 @@ export function RemitoDetailPanel({
               <p className="text-sm text-foreground">{remito.uploadedByName}</p>
               <p className="text-xs text-muted-foreground">{remito.uploadedByEmail}</p>
             </div>
+
+            <PhotoLocationSection lat={remito.latitude} lng={remito.longitude} />
 
             <SupportingPhotosSection
               id={remito.id}

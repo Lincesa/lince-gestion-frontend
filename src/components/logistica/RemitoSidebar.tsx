@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { clearSelectedRemito, removeRemitoFromList } from '@/store/logistica/remitosSlice';
 import { logisticaApi } from '@/api/logistica';
 import { useCanPerform } from '@/hooks/useCanPerform';
+import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
 import { ModuleKey } from '@/types/auth.types';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -124,15 +125,8 @@ export function RemitoSidebar() {
                 <dd className="text-sm font-medium mt-0.5">{selected.uploadedByName}</dd>
                 <dd className="text-xs text-muted-foreground">{selected.uploadedByEmail}</dd>
               </div>
-              {selected.latitude !== null && selected.longitude !== null && (
-                <div>
-                  <dt className="text-xs text-muted-foreground">Coordenadas</dt>
-                  <dd className="text-sm font-mono mt-0.5">
-                    {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}
-                  </dd>
-                </div>
-              )}
             </dl>
+            <PhotoLocationSection lat={selected.latitude} lng={selected.longitude} showMap={false} />
           </div>
         )}
 

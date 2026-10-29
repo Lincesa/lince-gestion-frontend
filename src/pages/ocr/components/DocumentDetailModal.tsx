@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDocumentAttachments, getDocumentViewUrl } from '@/api/ocr';
+import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
@@ -341,6 +342,10 @@ export function DocumentDetailModal({
                 </div>
               )}
             </div>
+
+            {doc.type === DocumentType.REMITO && (
+              <PhotoLocationSection lat={doc.latitude} lng={doc.longitude} />
+            )}
 
             {doc.type === DocumentType.REMITO && (
               <SupportingPhotosSection

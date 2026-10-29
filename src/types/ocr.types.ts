@@ -35,6 +35,9 @@ export interface OcrDocument {
   /** Account that uploaded the document (sent by the list endpoints). */
   uploadedByName?:  string | null;
   uploadedByEmail?: string | null;
+  /** GPS where the app took the photo; null for PC (TAG) uploads or no signal. */
+  latitude?:        number | null;
+  longitude?:       number | null;
   s3Key:            string;
   s3ThumbnailKey:   string | null;
   extractedData:    Record<string, string> | null;

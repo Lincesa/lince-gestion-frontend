@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMapEvents } from 'react-leaflet';
 import { icon as leafletIcon, Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ChevronDown, ChevronUp, Layers, MapPin, Plus, Search } from 'lucide-react';
@@ -46,6 +46,13 @@ function buildGeoIcon(iconFile: string) {
 
 const DEFAULT_CENTER: [number, number] = [-34.6, -64.0];
 const DEFAULT_ZOOM = 5;
+/** Pin names stay on screen only this close in; further out they overlap and show on hover. */
+const LABELS_ZOOM = 13;
+
+function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
+  useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
+  return null;
+}
 
 function getMapCenter(items: RemitoLogistica[]): [number, number] {
   if (!items.length) return DEFAULT_CENTER;
@@ -374,6 +381,8 @@ export function MapaPage() {
   const { layers, visibility, geoSearch } = useAppSelector((s) => s.geoLayers);
 
   const [mapaFilters, setMapaFilters] = useState<MapaRemitosParams>({});
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const showPinLabels = zoom >= LABELS_ZOOM;
   const mapRef = useRef<LeafletMap | null>(null);
 
   const flyToPoint = (lat: number, lng: number) => {
@@ -434,6 +443,7 @@ export function MapaPage() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <ZoomWatcher onZoom={setZoom} />
 
         {mapaItems.map((remito) => (
           <Marker
@@ -442,7 +452,8 @@ export function MapaPage() {
             icon={DEFAULT_ICON}
             eventHandlers={{ click: () => { dispatch(fetchRemitoDetalle(remito.id)); flyToPoint(remito.latitude!, remito.longitude!); } }}
           >
-            <Tooltip permanent direction="top" offset={[0, -41]}>
+            {/* Leaflet reads `permanent` once, so the key remounts the tooltip when it flips. */}
+            <Tooltip key={String(showPinLabels)} permanent={showPinLabels} direction="top" offset={[0, -41]}>
               <span className="text-xs font-medium">{remito.uploadedByName}</span>
             </Tooltip>
           </Marker>
