@@ -21,6 +21,8 @@ export interface RemitosFilterValues {
   /** The remito's own date (OCR "fecha"), not the upload date. */
   remitoDateFrom?: string;
   remitoDateTo?: string;
+  /** Voided remitos: 'only' or 'exclude'; absent means all. */
+  annulled?: 'only' | 'exclude';
   page?: number;
   limit?: number;
 }
@@ -72,6 +74,7 @@ export function countActiveRemitoFilters(filters: RemitosFilterValues): number {
     filters.presenceState,
     filters.remitoDateFrom,
     filters.remitoDateTo,
+    filters.annulled,
   ].filter(Boolean).length;
 }
 
@@ -91,7 +94,8 @@ export function hasRemitoExportFilters(filters: RemitosFilterValues): boolean {
     || filters.dateTo
     || filters.presenceState
     || filters.remitoDateFrom
-    || filters.remitoDateTo,
+    || filters.remitoDateTo
+    || filters.annulled,
   );
 }
 

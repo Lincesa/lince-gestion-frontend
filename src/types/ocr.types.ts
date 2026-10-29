@@ -49,6 +49,11 @@ export interface OcrDocument {
   approvedAt:       string | null;
   rejectReason:     string | null;
   observaciones:    string | null;
+  /** Business void flag ("anulado"), independent of the OCR status. */
+  annulledAt?:      string | null;
+  annulledBy?:      string | null;
+  annulledByName?:  string | null;
+  annulReason?:     string | null;
   createdAt:        string;
   updatedAt:        string;
   /** Presigned GET URL incluida en findOne() — expira en 1h */
@@ -66,6 +71,19 @@ export interface OcrAttachment {
   /** Presigned URL — expires; refetch the list instead of caching it. */
   viewUrl:     string;
 }
+
+/** Comment on a remito, immutable. Mirrors the backend CommentDto. */
+export interface RemitoComment {
+  id:         string;
+  documentId: string;
+  body:       string;
+  authorId:   string;
+  authorName: string;
+  createdAt:  string;
+}
+
+/** List filter for voided remitos; absent means all. */
+export type AnnulledFilter = 'only' | 'exclude';
 
 export interface OcrDocumentStatus {
   id:               string;
@@ -125,6 +143,7 @@ export interface FilterDocumentsParams {
   presenceState?:    'si' | 'duda' | 'no';
   remitoDateFrom?:   string;
   remitoDateTo?:     string;
+  annulled?:         AnnulledFilter;
   sortBy?:           'createdAt' | 'nroRemito';
   sortOrder?:        'ASC' | 'DESC';
   page?:             number;

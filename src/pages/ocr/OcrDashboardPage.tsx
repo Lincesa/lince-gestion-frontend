@@ -36,6 +36,8 @@ import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
 import { DocumentDetailPanel } from './components/DocumentDetailPanel';
 import { formatUploader } from '@/utils/ocrUploader';
+import { annulledRowClass, isRemitoAnnulled } from '@/utils/remitoAnnul';
+import { RemitoAnnulledBadge } from '@/components/logistica/RemitoAnnulledBadge';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
 
@@ -462,7 +464,7 @@ export function OcrDashboardPage() {
                     key={doc.id}
                     data-doc-id={doc.id}
                     onClick={() => void openDetail(doc)}
-                    className={`cursor-pointer hover:bg-accent/60 ${detailDoc?.id === doc.id ? 'bg-primary/[0.08] ring-1 ring-inset ring-primary/20' : ''}`}
+                    className={`cursor-pointer ${annulledRowClass(doc, detailDoc?.id === doc.id)}`}
                   >
                     {isSuperAdmin && (
                       <td className="w-9 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
@@ -476,7 +478,12 @@ export function OcrDashboardPage() {
                     )}
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatUploadDate(doc)}</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{formatDocumentDate(doc)}</td>
-                    <td className="px-4 py-2.5 font-mono text-sm text-foreground">{formatRemitoNumber(doc)}</td>
+                    <td className="px-4 py-2.5 font-mono text-sm text-foreground">
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
+                        {formatRemitoNumber(doc)}
+                        {isRemitoAnnulled(doc) && <RemitoAnnulledBadge remito={doc} />}
+                      </span>
+                    </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap" title={doc.uploadedByEmail ?? undefined}>{formatUploader(doc)}</td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'firma')} /></td>
                     <td className="px-4 py-2.5 text-center"><PresenceBadge status={getPresence(doc, 'aclaracion')} /></td>
@@ -568,6 +575,10 @@ export function OcrDashboardPage() {
           <DocumentDetailPanel
             documentId={detailDoc.id}
             onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
+            onAnnulChanged={() => {
+              const filtersWithType = { ...filters, type: DocumentType.REMITO };
+              void dispatch(fetchDocuments(filtersWithType));
+            }}
             onDeleted={() => {
               if (nextAfterDelete) {
                 void openDetail(nextAfterDelete);

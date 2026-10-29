@@ -75,6 +75,7 @@ export function RemitosFiltersBar({
       presenceState: undefined,
       remitoDateFrom: undefined,
       remitoDateTo: undefined,
+      annulled: undefined,
     });
     onNroRemitoInputChange('');
     if (clienteDebounceRef.current) clearTimeout(clienteDebounceRef.current);
@@ -298,6 +299,21 @@ export function RemitosFiltersBar({
                 onChange={(e) => patch({ remitoDateTo: e.target.value || undefined })}
                 className={`${fieldClass} w-full`}
               />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <label className="space-y-1.5 min-w-0">
+              <span className="text-xs font-medium text-muted-foreground">Anulados</span>
+              <select
+                value={values.annulled ?? ''}
+                onChange={(e) => patch({ annulled: (e.target.value || undefined) as RemitosFilterValues['annulled'] })}
+                className={`${fieldClass} w-full`}
+              >
+                <option value="">Todos</option>
+                <option value="only">Solo anulados</option>
+                <option value="exclude">Excluir anulados</option>
+              </select>
             </label>
           </div>
         </div>

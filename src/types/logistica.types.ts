@@ -11,6 +11,11 @@ export interface RemitoLogistica {
   nroRemito: string | null;
   fecha: string | null;
   cliente: string | null;
+  /** Business void flag ("anulado"), independent of the OCR status. */
+  annulledAt?: string | null;
+  annulledBy?: string | null;
+  annulledByName?: string | null;
+  annulReason?: string | null;
 }
 
 export interface RemitoDetalle extends RemitoLogistica {

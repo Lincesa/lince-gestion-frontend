@@ -21,7 +21,7 @@ import type {
   ComplianceSummary,
   ComplianceUploadUrlResponse,
 } from '@/types/logistica.types';
-import type { OcrAttachment } from '@/types/ocr.types';
+import type { AnnulledFilter, OcrAttachment, RemitoComment } from '@/types/ocr.types';
 
 const BASE = '/logistica/remitos';
 
@@ -71,6 +71,7 @@ export interface ListRemitosParams {
   presenceState?: 'si' | 'duda' | 'no';
   remitoDateFrom?: string;
   remitoDateTo?: string;
+  annulled?: AnnulledFilter;
   sortBy?: 'createdAt' | 'nroRemito';
   sortOrder?: 'ASC' | 'DESC';
 }
@@ -112,6 +113,7 @@ export const logisticaApi = {
     if (params.presenceState)   qs.set('presenceState',   params.presenceState);
     if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
     if (params.remitoDateTo)    qs.set('remitoDateTo',    params.remitoDateTo);
+    if (params.annulled)        qs.set('annulled',        params.annulled);
     if (params.sortBy)          qs.set('sortBy',          params.sortBy);
     if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
     const query = qs.toString();
@@ -139,6 +141,7 @@ export const logisticaApi = {
     if (params.presenceState)   qs.set('presenceState',   params.presenceState);
     if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
     if (params.remitoDateTo)    qs.set('remitoDateTo',    params.remitoDateTo);
+    if (params.annulled)        qs.set('annulled',        params.annulled);
     if (params.sortBy)          qs.set('sortBy',          params.sortBy);
     if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
     const query = qs.toString();
@@ -199,6 +202,20 @@ export const logisticaApi = {
     api.post<ConfirmReplaceResponse>(`${BASE}/${id}/confirm-replace`, {}),
 
   deleteRemito: (id: string) => api.delete<{ deleted: boolean }>(`${BASE}/${id}`),
+
+  /** EDITOR: anular un remito con motivo obligatorio */
+  annulRemito: (id: string, reason: string) =>
+    api.post<RemitoDetalle>(`${BASE}/${id}/annul`, { reason }),
+
+  /** EDITOR: deshacer la anulación */
+  unannulRemito: (id: string) => api.delete<RemitoDetalle>(`${BASE}/${id}/annul`),
+
+  /** Hilo de comentarios del remito (cualquier usuario de logística puede leerlo) */
+  getRemitoComments: (id: string) => api.get<RemitoComment[]>(`${BASE}/${id}/comments`),
+
+  /** EDITOR: agregar un comentario */
+  addRemitoComment: (id: string, body: string) =>
+    api.post<RemitoComment>(`${BASE}/${id}/comments`, { body }),
 
   getGeoLayers: () => api.get<GeoLayer[]>('/logistica/geo-layers'),
 

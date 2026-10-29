@@ -9,6 +9,8 @@ import { useCanPerform } from '@/hooks/useCanPerform';
 import { ModuleKey } from '@/types/auth.types';
 import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
+import { RemitoAnnulSection } from '@/components/logistica/RemitoAnnulSection';
+import { RemitoCommentsSection } from '@/components/logistica/RemitoCommentsSection';
 
 const LOGISTICA_PERSIST_API = {
   downloadFile:            (id: string) => logisticaApi.downloadRemitoFile(id),
@@ -22,6 +24,8 @@ interface Props {
   remitoId: string;
   onClose:   () => void;
   onDeleted?: (id: string) => void;
+  /** Called with the refreshed remito after it was voided or unvoided. */
+  onAnnulChanged?: (remito: RemitoDetalle) => void;
   index:    number;
   total:    number;
   onPrev:   () => void;
@@ -46,6 +50,7 @@ export function RemitoDetailPanel({
   remitoId,
   onClose,
   onDeleted,
+  onAnnulChanged,
   index,
   total,
   onPrev,
@@ -58,6 +63,7 @@ export function RemitoDetailPanel({
   const [loading, setLoading]           = useState(true);
   const [previewOpen, setPreviewOpen]   = useState(false);
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
+  const [annulDialogOpen, setAnnulDialogOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting]         = useState(false);
 
@@ -81,14 +87,25 @@ export function RemitoDetailPanel({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewOpen || photoPreviewOpen) return;
+        if (previewOpen || photoPreviewOpen || annulDialogOpen) return;
         if (confirmDelete) { setConfirmDelete(false); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen, photoPreviewOpen, confirmDelete]);
+  }, [onClose, previewOpen, photoPreviewOpen, annulDialogOpen, confirmDelete]);
+
+  // Refresh in place (no loading state) so the panel does not flicker after a void / unvoid.
+  const handleAnnulChanged = () => {
+    const id = remitoId;
+    logisticaApi.getRemito(id)
+      .then((fresh) => {
+        setRemito((prev) => (prev?.id === id ? fresh : prev));
+        onAnnulChanged?.(fresh);
+      })
+      .catch(() => toast.error('No se pudo actualizar el remito'));
+  };
 
   async function handleDelete() {
     if (!remito) return;
@@ -168,6 +185,15 @@ export function RemitoDetailPanel({
           </div>
         ) : (
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            <RemitoAnnulSection
+              remito={remito}
+              canManage={canEdit}
+              annul={logisticaApi.annulRemito}
+              unannul={logisticaApi.unannulRemito}
+              onChanged={handleAnnulChanged}
+              onDialogOpenChange={setAnnulDialogOpen}
+            />
+
             {/* Preview imagen / PDF */}
             {remito.viewUrl ? (
               remito.isPdf ? (
@@ -233,6 +259,13 @@ export function RemitoDetailPanel({
               id={remito.id}
               fetchAttachments={logisticaApi.getRemitoAttachments}
               onPreviewOpenChange={setPhotoPreviewOpen}
+            />
+
+            <RemitoCommentsSection
+              id={remito.id}
+              fetchComments={logisticaApi.getRemitoComments}
+              addComment={logisticaApi.addRemitoComment}
+              canComment={canEdit}
             />
           </div>
         )}

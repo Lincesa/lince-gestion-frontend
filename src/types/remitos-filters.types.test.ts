@@ -31,3 +31,16 @@ describe('countActiveRemitoFilters', () => {
     })).toBe(4);
   });
 });
+
+describe('annulled filter', () => {
+  it('counts the annulled filter as an applied and exportable filter', () => {
+    expect(countActiveRemitoFilters({ annulled: 'only' })).toBe(1);
+    expect(countActiveRemitoFilters({ annulled: 'exclude', cliente: 'x' })).toBe(2);
+    expect(hasRemitoExportFilters({ annulled: 'exclude' })).toBe(true);
+  });
+
+  it('treats a missing annulled filter as "todos"', () => {
+    expect(countActiveRemitoFilters({ annulled: undefined })).toBe(0);
+    expect(hasRemitoExportFilters({ annulled: undefined })).toBe(false);
+  });
+});

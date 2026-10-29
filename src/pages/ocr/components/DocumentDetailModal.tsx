@@ -5,12 +5,22 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getDocumentAttachments, getDocumentViewUrl } from '@/api/ocr';
+import {
+  addDocumentComment,
+  annulDocument,
+  getDocumentAttachments,
+  getDocumentComments,
+  getDocumentViewUrl,
+  unannulDocument,
+} from '@/api/ocr';
 import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
+import { RemitoAnnulSection } from '@/components/logistica/RemitoAnnulSection';
+import { RemitoCommentsSection } from '@/components/logistica/RemitoCommentsSection';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { deleteDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { deleteDocument, fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
 import { DocumentType } from '@/types/ocr.types';
+import { canManageOcrAnnul } from '@/utils/remitoAnnul';
 import { FilePreviewModal } from './FilePreviewModal';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
@@ -56,6 +66,8 @@ interface Props {
   documentId: string;
   onClose:    () => void;
   onDeleted?: (id: string) => void;
+  /** Called after the remito was voided or unvoided, so the host refreshes its list. */
+  onAnnulChanged?: () => void;
   submitting: boolean;
 }
 
@@ -108,16 +120,19 @@ export function DocumentDetailModal({
   documentId,
   onClose,
   onDeleted,
+  onAnnulChanged,
   submitting,
 }: Props) {
   const dispatch = useAppDispatch();
   const current = useAppSelector((s) => s.ocrDocuments.current);
   const doc = current?.id === documentId ? current : null;
+  const canManageAnnul = canManageOcrAnnul(useAppSelector((s) => s.auth.user));
 
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
+  const [annulDialogOpen, setAnnulDialogOpen] = useState(false);
   const [form, setForm] = useState<EditForm>(buildInitialForm(null));
   const [extraFields, setExtraFields] = useState<Record<string, string>>({});
   const [showExtraFields, setShowExtraFields] = useState(false);
@@ -147,13 +162,18 @@ export function DocumentDetailModal({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewOpen || photoPreviewOpen) return;
+        if (previewOpen || photoPreviewOpen || annulDialogOpen) return;
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen, photoPreviewOpen]);
+  }, [onClose, previewOpen, photoPreviewOpen, annulDialogOpen]);
+
+  const handleAnnulChanged = () => {
+    void dispatch(fetchDocument(documentId));
+    onAnnulChanged?.();
+  };
 
   const handleSave = async () => {
     if (!doc) return;
@@ -214,6 +234,17 @@ export function DocumentDetailModal({
           <div className="px-6 py-12 text-center text-sm text-muted-foreground">Cargando detalle...</div>
         ) : (
           <div className="max-h-[75vh] space-y-5 overflow-y-auto px-6 py-4">
+            {doc.type === DocumentType.REMITO && (
+              <RemitoAnnulSection
+                remito={doc}
+                canManage={canManageAnnul}
+                annul={annulDocument}
+                unannul={unannulDocument}
+                onChanged={handleAnnulChanged}
+                onDialogOpenChange={setAnnulDialogOpen}
+              />
+            )}
+
             {loadingUrl ? (
               <div className="flex h-48 items-center justify-center rounded-lg border border-border bg-muted/40">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -352,6 +383,16 @@ export function DocumentDetailModal({
                 id={doc.id}
                 fetchAttachments={getDocumentAttachments}
                 onPreviewOpenChange={setPhotoPreviewOpen}
+              />
+            )}
+
+            {/* The backend limits comments to office users (A2), so anyone on this dashboard can comment. */}
+            {doc.type === DocumentType.REMITO && (
+              <RemitoCommentsSection
+                id={doc.id}
+                fetchComments={getDocumentComments}
+                addComment={addDocumentComment}
+                canComment
               />
             )}
           </div>

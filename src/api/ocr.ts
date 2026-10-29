@@ -7,6 +7,7 @@ import type {
   OcrDocumentStatus,
   OcrStats,
   PaginatedDocuments,
+  RemitoComment,
   RemitoFilterOptions,
   UploadUrlResponse,
 } from '@/types/ocr.types';
@@ -259,6 +260,27 @@ export function deleteDocument(id: string): Promise<{ deleted: boolean }> {
 /** SUPERADMIN: eliminar múltiples documentos en bulk (DB + S3) */
 export function bulkDeleteDocuments(ids: string[]): Promise<{ deleted: number; failed: string[] }> {
   return api.delete<{ deleted: number; failed: string[] }>(`${BASE}/bulk`, { body: JSON.stringify({ ids }) });
+}
+
+// ── Anulación y comentarios (solo REMITO) ─────────────────────────────────────
+
+/** OCR ADMIN: anular un remito con motivo obligatorio */
+export function annulDocument(id: string, reason: string): Promise<OcrDocument> {
+  return api.post<OcrDocument>(`${BASE}/${id}/annul`, { reason });
+}
+
+/** OCR ADMIN: deshacer la anulación de un remito */
+export function unannulDocument(id: string): Promise<OcrDocument> {
+  return api.delete<OcrDocument>(`${BASE}/${id}/annul`);
+}
+
+/** Hilo de comentarios del remito, del más viejo al más nuevo */
+export function getDocumentComments(id: string): Promise<RemitoComment[]> {
+  return api.get<RemitoComment[]>(`${BASE}/${id}/comments`);
+}
+
+export function addDocumentComment(id: string, body: string): Promise<RemitoComment> {
+  return api.post<RemitoComment>(`${BASE}/${id}/comments`, { body });
 }
 
 // ── Configuración (SUPERADMIN) ────────────────────────────────────────────────

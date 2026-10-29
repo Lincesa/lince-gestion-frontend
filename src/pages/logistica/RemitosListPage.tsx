@@ -5,7 +5,9 @@ import { fetchRemitos, removeRemitoFromList } from '@/store/logistica/remitosSli
 import { logisticaApi, type ListRemitosParams } from '@/api/logistica';
 import { RemitoDetailPanel } from '@/components/logistica/RemitoDetailPanel';
 import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
-import type { RemitoLogistica } from '@/types/logistica.types';
+import type { RemitoDetalle, RemitoLogistica } from '@/types/logistica.types';
+import { annulledRowClass, isRemitoAnnulled, type AnnulInfo } from '@/utils/remitoAnnul';
+import { RemitoAnnulledBadge } from '@/components/logistica/RemitoAnnulledBadge';
 import type { RemitoFilterOptions } from '@/types/remitos-filters.types';
 import { EMPTY_REMITO_FILTERS, hasRemitoExportFilters } from '@/types/remitos-filters.types';
 
@@ -22,6 +24,8 @@ export function RemitosListPage() {
     uploaders: [],
   });
   const [exporting, setExporting] = useState(false);
+  // Void state patched after a void / unvoid, so the row turns red without reloading the table.
+  const [annulPatches, setAnnulPatches] = useState<Record<string, AnnulInfo>>({});
 
   const currentIndex = selectedId ? list.findIndex((r) => r.id === selectedId) : -1;
 
@@ -32,6 +36,28 @@ export function RemitosListPage() {
   useEffect(() => {
     void dispatch(fetchRemitos(filters));
   }, [dispatch, filters]);
+
+  // A fresh list already carries the current void state.
+  useEffect(() => {
+    setAnnulPatches({});
+  }, [list]);
+
+  const handleAnnulChanged = (remito: RemitoDetalle) => {
+    // With the Anulados filter on, the row may no longer belong to the list: reload it.
+    if (filters.annulled) {
+      void dispatch(fetchRemitos(filters));
+      return;
+    }
+    setAnnulPatches((prev) => ({
+      ...prev,
+      [remito.id]: {
+        annulledAt:     remito.annulledAt ?? null,
+        annulledBy:     remito.annulledBy ?? null,
+        annulledByName: remito.annulledByName ?? null,
+        annulReason:    remito.annulReason ?? null,
+      },
+    }));
+  };
 
   useEffect(() => {
     if (!selectedId || list.length === 0) return;
@@ -130,34 +156,38 @@ export function RemitosListPage() {
                   </td>
                 </tr>
               ) : (
-                list.map((remito) => (
-                  <tr
-                    key={remito.id}
-                    data-remito-id={remito.id}
-                    onClick={() => openDetail(remito)}
-                    className={`cursor-pointer transition-colors hover:bg-accent/60 ${
-                      selectedId === remito.id ? 'bg-primary/[0.08] ring-1 ring-inset ring-primary/20' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(remito.createdAt).toLocaleString('es-AR', {
-                        day: '2-digit', month: '2-digit', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </td>
-                    <td className="px-4 py-3 font-mono">
-                      {remito.nroRemito ?? (
-                        <span className="text-muted-foreground italic">No se obtuvo</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span>{remito.uploadedByName}</span>
-                        <span className="text-xs text-muted-foreground">{remito.uploadedByEmail}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                list.map((row) => {
+                  const remito = { ...row, ...annulPatches[row.id] };
+                  return (
+                    <tr
+                      key={remito.id}
+                      data-remito-id={remito.id}
+                      onClick={() => openDetail(remito)}
+                      className={`cursor-pointer transition-colors ${annulledRowClass(remito, selectedId === remito.id)}`}
+                    >
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(remito.createdAt).toLocaleString('es-AR', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="px-4 py-3 font-mono">
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {remito.nroRemito ?? (
+                            <span className="text-muted-foreground italic">No se obtuvo</span>
+                          )}
+                          {isRemitoAnnulled(remito) && <RemitoAnnulledBadge remito={remito} />}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span>{remito.uploadedByName}</span>
+                          <span className="text-xs text-muted-foreground">{remito.uploadedByEmail}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -194,6 +224,7 @@ export function RemitosListPage() {
             dispatch(removeRemitoFromList(id));
             setSelectedId(null);
           }}
+          onAnnulChanged={handleAnnulChanged}
           index={currentIndex}
           total={list.length}
           hasPrev={currentIndex > 0}
