@@ -10,6 +10,8 @@ export interface RemitosFilterValues {
   sortBy?: 'createdAt' | 'nroRemito';
   sortOrder?: 'ASC' | 'DESC';
   nroRemito?: string;
+  /** Partial, case-insensitive match on the OCR-read client name. */
+  cliente?: string;
   status?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -63,6 +65,7 @@ export function countActiveRemitoFilters(filters: RemitosFilterValues): number {
     filters.chofer,
     filters.uploadedByEmail,
     filters.nroRemito,
+    filters.cliente,
     filters.status,
     filters.dateFrom,
     filters.dateTo,
@@ -82,6 +85,7 @@ export function hasRemitoExportFilters(filters: RemitosFilterValues): boolean {
     || filters.chofer
     || filters.uploadedByEmail
     || filters.nroRemito
+    || filters.cliente
     || filters.status
     || filters.dateFrom
     || filters.dateTo

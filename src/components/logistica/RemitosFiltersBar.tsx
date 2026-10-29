@@ -44,7 +44,9 @@ export function RemitosFiltersBar({
   onExport,
 }: RemitosFiltersBarProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clienteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [clienteInput, setClienteInput] = useState(values.cliente ?? '');
   const activeCount = countActiveRemitoFilters(values);
 
   const patch = (next: Partial<RemitosFilterValues>) => {
@@ -65,6 +67,7 @@ export function RemitosFiltersBar({
       sortBy: undefined,
       sortOrder: undefined,
       nroRemito: undefined,
+      cliente: undefined,
       status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
@@ -74,6 +77,8 @@ export function RemitosFiltersBar({
       remitoDateTo: undefined,
     });
     onNroRemitoInputChange('');
+    if (clienteDebounceRef.current) clearTimeout(clienteDebounceRef.current);
+    setClienteInput('');
   };
 
   return (
@@ -95,6 +100,16 @@ export function RemitosFiltersBar({
           )}
         </button>
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={detectRemitoSortPreset(values)}
+            onChange={(e) => handleSortChange(e.target.value as RemitoSortPreset)}
+            aria-label="Orden"
+            className={fieldClass}
+          >
+            <option value="">Fecha más reciente</option>
+            <option value="remito-desc">N° remito: mayor a menor</option>
+            <option value="remito-asc">N° remito: menor a mayor</option>
+          </select>
           {showExport && onExport && (
             <button
               type="button"
@@ -156,16 +171,24 @@ export function RemitosFiltersBar({
             </label>
 
             <label className="space-y-1.5 min-w-0">
-              <span className="text-xs font-medium text-muted-foreground">Orden</span>
-              <select
-                value={detectRemitoSortPreset(values)}
-                onChange={(e) => handleSortChange(e.target.value as RemitoSortPreset)}
-                className={`${fieldClass} w-full`}
-              >
-                <option value="">Fecha más reciente</option>
-                <option value="remito-desc">N° remito: mayor a menor</option>
-                <option value="remito-asc">N° remito: menor a mayor</option>
-              </select>
+              <span className="text-xs font-medium text-muted-foreground">Cliente</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente…"
+                  value={clienteInput}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setClienteInput(v);
+                    if (clienteDebounceRef.current) clearTimeout(clienteDebounceRef.current);
+                    clienteDebounceRef.current = setTimeout(() => {
+                      patch({ cliente: v.trim() || undefined });
+                    }, 400);
+                  }}
+                  className={`${fieldClass} w-full pl-8`}
+                />
+              </div>
             </label>
           </div>
 

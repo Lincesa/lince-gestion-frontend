@@ -9,6 +9,7 @@ describe('hasRemitoExportFilters', () => {
 
   it('counts the OCR presence state and the remito date as filters', () => {
     expect(hasRemitoExportFilters({ presenceState: 'duda' })).toBe(true);
+    expect(hasRemitoExportFilters({ cliente: 'anonima' })).toBe(true);
     expect(hasRemitoExportFilters({ remitoDateFrom: '2026-03-01' })).toBe(true);
     expect(hasRemitoExportFilters({ remitoDateTo: '2026-03-31' })).toBe(true);
   });
@@ -26,6 +27,7 @@ describe('countActiveRemitoFilters', () => {
       presenceField: 'firma',
       presenceState: 'duda',
       remitoDateFrom: '2026-03-01',
-    })).toBe(3);
+      cliente: 'anonima',
+    })).toBe(4);
   });
 });

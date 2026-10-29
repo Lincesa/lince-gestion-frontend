@@ -105,6 +105,7 @@ export interface FilterDocumentsParams {
   nroRemito?:        string;
   ptoVenta?:         string;
   chofer?:           string;
+  cliente?:          string;
   presenceField?:    'firma' | 'aclaracion' | 'dni';
   presenceState?:    'si' | 'duda' | 'no';
   remitoDateFrom?:   string;

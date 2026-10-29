@@ -65,6 +65,7 @@ export interface ListRemitosParams {
   uploadedByEmail?: string;
   ptoVenta?: string;
   chofer?: string;
+  cliente?: string;
   presenceField?: 'firma' | 'aclaracion' | 'dni';
   presenceState?: 'si' | 'duda' | 'no';
   remitoDateFrom?: string;
@@ -105,6 +106,7 @@ export const logisticaApi = {
     if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
     if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
     if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.cliente)         qs.set('cliente',         params.cliente);
     if (params.presenceField)   qs.set('presenceField',   params.presenceField);
     if (params.presenceState)   qs.set('presenceState',   params.presenceState);
     if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
@@ -131,6 +133,7 @@ export const logisticaApi = {
     if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
     if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
     if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.cliente)         qs.set('cliente',         params.cliente);
     if (params.presenceField)   qs.set('presenceField',   params.presenceField);
     if (params.presenceState)   qs.set('presenceState',   params.presenceState);
     if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
