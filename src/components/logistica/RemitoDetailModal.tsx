@@ -7,6 +7,7 @@ import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
 import { uploadToS3 } from '@/api/ocr';
 import { useCanPerform } from '@/hooks/useCanPerform';
 import { ModuleKey } from '@/types/auth.types';
+import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 
 const LOGISTICA_PERSIST_API = {
   downloadFile:            (id: string) => logisticaApi.downloadRemitoFile(id),
@@ -39,6 +40,7 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
   const [remito, setRemito]               = useState<RemitoDetalle | null>(null);
   const [loading, setLoading]             = useState(true);
   const [previewOpen, setPreviewOpen]     = useState(false);
+  const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting]           = useState(false);
 
@@ -53,14 +55,14 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewOpen) return;
+        if (previewOpen || photoPreviewOpen) return;
         if (confirmDelete) { setConfirmDelete(false); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen, confirmDelete]);
+  }, [onClose, previewOpen, photoPreviewOpen, confirmDelete]);
 
   const handleDelete = async () => {
     if (!remito) return;
@@ -164,6 +166,12 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted }: Props) {
                 <p className="text-sm text-foreground">{remito.uploadedByName}</p>
                 <p className="text-xs text-muted-foreground">{remito.uploadedByEmail}</p>
               </div>
+
+              <SupportingPhotosSection
+                id={remito.id}
+                fetchAttachments={logisticaApi.getRemitoAttachments}
+                onPreviewOpenChange={setPhotoPreviewOpen}
+              />
             </>
           )}
         </div>

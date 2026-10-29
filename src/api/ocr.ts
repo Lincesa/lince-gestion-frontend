@@ -1,6 +1,7 @@
 import { api, API_BASE_URL, apiFetch, getAccessToken } from './client';
 import type {
   FilterDocumentsParams,
+  OcrAttachment,
   OcrConfig,
   OcrDocument,
   OcrDocumentStatus,
@@ -176,6 +177,11 @@ export function getDocument(id: string): Promise<OcrDocument> {
 /** Obtiene una presigned view URL fresca para el documento (sin traer todo el detalle) */
 export function getDocumentViewUrl(id: string): Promise<{ viewUrl: string | null }> {
   return api.get<{ viewUrl: string | null }>(`${BASE}/${id}/view-url`);
+}
+
+/** Lista las fotos de respaldo confirmadas de un remito, cada una con una viewUrl fresca */
+export function getDocumentAttachments(documentId: string): Promise<OcrAttachment[]> {
+  return api.get<OcrAttachment[]>(`${BASE}/${documentId}/attachments`);
 }
 
 export interface ReplaceUploadUrlResponse {

@@ -5,10 +5,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Clock, FileText, Loader2, Maximize2, Save, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getDocumentViewUrl } from '@/api/ocr';
+import { getDocumentAttachments, getDocumentViewUrl } from '@/api/ocr';
+import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteDocument, fetchDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
-import { DocumentStatus } from '@/types/ocr.types';
+import { DocumentStatus, DocumentType } from '@/types/ocr.types';
 import { FilePreviewModal } from './FilePreviewModal';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
@@ -127,6 +128,7 @@ export function DocumentDetailPanel({
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const [form, setForm] = useState<EditForm>(buildInitialForm(null));
   const [extraFields, setExtraFields] = useState<Record<string, string>>({});
   const [showExtraFields, setShowExtraFields] = useState(false);
@@ -180,13 +182,13 @@ export function DocumentDetailPanel({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewOpen) return;
+        if (previewOpen || photoPreviewOpen) return;
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen]);
+  }, [onClose, previewOpen, photoPreviewOpen]);
 
   const handleSave = async () => {
     if (!doc) return;
@@ -427,6 +429,14 @@ export function DocumentDetailPanel({
                 </div>
               )}
             </div>
+
+            {doc.type === DocumentType.REMITO && (
+              <SupportingPhotosSection
+                id={doc.id}
+                fetchAttachments={getDocumentAttachments}
+                onPreviewOpenChange={setPhotoPreviewOpen}
+              />
+            )}
           </div>
         )}
 

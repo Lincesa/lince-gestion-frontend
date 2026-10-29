@@ -5,9 +5,11 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FileText, Loader2, Maximize2, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getDocumentViewUrl } from '@/api/ocr';
+import { getDocumentAttachments, getDocumentViewUrl } from '@/api/ocr';
+import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { deleteDocument, updateDocumentFields } from '@/store/ocr/documentsSlice';
+import { DocumentType } from '@/types/ocr.types';
 import { FilePreviewModal } from './FilePreviewModal';
 
 type PresenceStatus = 'si' | 'duda' | 'no';
@@ -114,6 +116,7 @@ export function DocumentDetailModal({
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const [form, setForm] = useState<EditForm>(buildInitialForm(null));
   const [extraFields, setExtraFields] = useState<Record<string, string>>({});
   const [showExtraFields, setShowExtraFields] = useState(false);
@@ -143,13 +146,13 @@ export function DocumentDetailModal({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewOpen) return;
+        if (previewOpen || photoPreviewOpen) return;
         onClose();
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose, previewOpen]);
+  }, [onClose, previewOpen, photoPreviewOpen]);
 
   const handleSave = async () => {
     if (!doc) return;
@@ -338,6 +341,14 @@ export function DocumentDetailModal({
                 </div>
               )}
             </div>
+
+            {doc.type === DocumentType.REMITO && (
+              <SupportingPhotosSection
+                id={doc.id}
+                fetchAttachments={getDocumentAttachments}
+                onPreviewOpenChange={setPhotoPreviewOpen}
+              />
+            )}
           </div>
         )}
 

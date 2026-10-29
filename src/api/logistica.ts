@@ -21,6 +21,7 @@ import type {
   ComplianceSummary,
   ComplianceUploadUrlResponse,
 } from '@/types/logistica.types';
+import type { OcrAttachment } from '@/types/ocr.types';
 
 const BASE = '/logistica/remitos';
 
@@ -169,6 +170,9 @@ export const logisticaApi = {
   getRemito: (id: string) => api.get<RemitoDetalle>(`${BASE}/${id}`),
 
   getViewUrl: (id: string) => api.get<{ url: string }>(`${BASE}/${id}/view-url`),
+
+  /** Fotos de respaldo del remito (solo lectura), cada una con una viewUrl fresca */
+  getRemitoAttachments: (id: string) => api.get<OcrAttachment[]>(`${BASE}/${id}/attachments`),
 
   /** URL de descarga — el backend sirve el archivo con Content-Disposition */
   getFileUrl: (id: string) => `${API_BASE_URL}${BASE}/${id}/file`,

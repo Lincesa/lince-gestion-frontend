@@ -52,6 +52,18 @@ export interface OcrDocument {
   viewUrl?:         string | null;
 }
 
+/** Supporting photo attached to a REMITO (never goes through OCR). Mirrors the backend AttachmentDto. */
+export interface OcrAttachment {
+  id:          string;
+  documentId:  string;
+  contentType: string;
+  uploadedBy:  string;
+  createdAt:   string;
+  confirmedAt: string | null;
+  /** Presigned URL — expires; refetch the list instead of caching it. */
+  viewUrl:     string;
+}
+
 export interface OcrDocumentStatus {
   id:               string;
   status:           DocumentStatus;
