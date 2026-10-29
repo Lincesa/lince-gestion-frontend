@@ -50,7 +50,9 @@ const DEFAULT_ZOOM = 5;
 const LABELS_ZOOM = 13;
 
 function ZoomWatcher({ onZoom }: { onZoom: (zoom: number) => void }) {
-  useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
+  const map = useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
+  // The map may mount at a zoom other than the default: sync once on mount.
+  useEffect(() => { onZoom(map.getZoom()); }, [map, onZoom]);
   return null;
 }
 

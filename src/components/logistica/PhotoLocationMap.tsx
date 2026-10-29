@@ -31,6 +31,8 @@ export default function PhotoLocationMap({ lat, lng, reference }: Props) {
 
   return (
     <MapContainer
+      // Leaflet reads center/bounds only on mount: a new photo needs a new map.
+      key={`${lat},${lng},${reference?.id ?? ''}`}
       {...(bounds ? { bounds } : { center: photo, zoom: 15 })}
       className="h-40 w-full"
       // A preview, not a workspace: it must not steal the detail panel's scroll.

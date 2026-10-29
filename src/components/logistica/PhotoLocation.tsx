@@ -65,7 +65,11 @@ function LocatedPhoto({
   const reference = nearest && nearest.meters <= SAME_MAP_METERS ? nearest.point : null;
 
   const copyCoordinates = () => {
-    void navigator.clipboard?.writeText(coordinates)
+    if (!navigator.clipboard) {
+      toast.error('Este navegador no permite copiar: seleccioná las coordenadas a mano');
+      return;
+    }
+    navigator.clipboard.writeText(coordinates)
       .then(() => toast.success('Coordenadas copiadas'))
       .catch(() => toast.error('No se pudieron copiar las coordenadas'));
   };
