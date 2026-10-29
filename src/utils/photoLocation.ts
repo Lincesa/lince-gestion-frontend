@@ -42,7 +42,9 @@ const KM_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
 /** "350 m" up close, "12,4 km" further, whole km past 100 km. */
 export function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)} m`;
+  // Round first so 999.6 m reads "1 km", not "1000 m".
+  const rounded = Math.round(meters);
+  if (rounded < 1000) return `${rounded} m`;
   const km = meters / 1000;
   return `${km >= 100 ? Math.round(km) : KM_FORMAT.format(Math.round(km * 10) / 10)} km`;
 }

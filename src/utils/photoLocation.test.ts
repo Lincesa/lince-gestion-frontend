@@ -38,6 +38,7 @@ describe('ubicación de la foto del remito', () => {
   it('muestra metros cerca y kilómetros lejos, en formato argentino', () => {
     expect(formatDistance(42)).toBe('42 m');
     expect(formatDistance(999)).toBe('999 m');
+    expect(formatDistance(999.6)).toBe('1 km');
     expect(formatDistance(1000)).toBe('1 km');
     expect(formatDistance(12_440)).toBe('12,4 km');
     expect(formatDistance(228_310)).toBe('228 km');
