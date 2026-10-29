@@ -1,5 +1,8 @@
 export type RemitoSortPreset = '' | 'remito-desc' | 'remito-asc';
 
+export type RemitoPresenceField = 'firma' | 'aclaracion' | 'dni';
+export type RemitoPresenceState = 'si' | 'duda' | 'no';
+
 export interface RemitosFilterValues {
   ptoVenta?: string;
   chofer?: string;
@@ -10,6 +13,12 @@ export interface RemitosFilterValues {
   status?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** Without a field, presenceState matches any of firma / aclaración / DNI. */
+  presenceField?: RemitoPresenceField;
+  presenceState?: RemitoPresenceState;
+  /** The remito's own date (OCR "fecha"), not the upload date. */
+  remitoDateFrom?: string;
+  remitoDateTo?: string;
   page?: number;
   limit?: number;
 }
@@ -59,7 +68,10 @@ export function hasRemitoExportFilters(filters: RemitosFilterValues): boolean {
     || filters.nroRemito
     || filters.status
     || filters.dateFrom
-    || filters.dateTo,
+    || filters.dateTo
+    || filters.presenceState
+    || filters.remitoDateFrom
+    || filters.remitoDateTo,
   );
 }
 

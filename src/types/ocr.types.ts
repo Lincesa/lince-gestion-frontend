@@ -105,6 +105,10 @@ export interface FilterDocumentsParams {
   nroRemito?:        string;
   ptoVenta?:         string;
   chofer?:           string;
+  presenceField?:    'firma' | 'aclaracion' | 'dni';
+  presenceState?:    'si' | 'duda' | 'no';
+  remitoDateFrom?:   string;
+  remitoDateTo?:     string;
   sortBy?:           'createdAt' | 'nroRemito';
   sortOrder?:        'ASC' | 'DESC';
   page?:             number;

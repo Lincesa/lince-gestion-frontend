@@ -8,6 +8,8 @@ import {
   joinRemitoFilterValues,
   splitRemitoFilterValues,
   type RemitoFilterOptions,
+  type RemitoPresenceField,
+  type RemitoPresenceState,
   type RemitoSortPreset,
   type RemitosFilterValues,
 } from '@/types/remitos-filters.types';
@@ -63,6 +65,10 @@ export function RemitosFiltersBar({
       status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
+      presenceField: undefined,
+      presenceState: undefined,
+      remitoDateFrom: undefined,
+      remitoDateTo: undefined,
     });
     onNroRemitoInputChange('');
   };
@@ -198,6 +204,56 @@ export function RemitosFiltersBar({
             type="date"
             value={values.dateTo ?? ''}
             onChange={(e) => patch({ dateTo: e.target.value || undefined })}
+            className={`${fieldClass} w-full`}
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <label className="space-y-1.5 min-w-0">
+          <span className="text-xs font-medium text-muted-foreground">Campo OCR</span>
+          <select
+            value={values.presenceField ?? ''}
+            onChange={(e) => patch({ presenceField: (e.target.value || undefined) as RemitoPresenceField | undefined })}
+            className={`${fieldClass} w-full`}
+          >
+            <option value="">Cualquiera</option>
+            <option value="firma">Firma</option>
+            <option value="aclaracion">Aclaración</option>
+            <option value="dni">DNI</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5 min-w-0">
+          <span className="text-xs font-medium text-muted-foreground">Detección</span>
+          <select
+            value={values.presenceState ?? ''}
+            onChange={(e) => patch({ presenceState: (e.target.value || undefined) as RemitoPresenceState | undefined })}
+            className={`${fieldClass} w-full`}
+          >
+            <option value="">Todas</option>
+            <option value="si">Sí</option>
+            <option value="duda">Duda</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5 min-w-0">
+          <span className="text-xs font-medium text-muted-foreground">Fecha remito desde</span>
+          <input
+            type="date"
+            value={values.remitoDateFrom ?? ''}
+            onChange={(e) => patch({ remitoDateFrom: e.target.value || undefined })}
+            className={`${fieldClass} w-full`}
+          />
+        </label>
+
+        <label className="space-y-1.5 min-w-0">
+          <span className="text-xs font-medium text-muted-foreground">Fecha remito hasta</span>
+          <input
+            type="date"
+            value={values.remitoDateTo ?? ''}
+            onChange={(e) => patch({ remitoDateTo: e.target.value || undefined })}
             className={`${fieldClass} w-full`}
           />
         </label>

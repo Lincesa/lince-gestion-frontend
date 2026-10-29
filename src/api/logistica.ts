@@ -65,6 +65,10 @@ export interface ListRemitosParams {
   uploadedByEmail?: string;
   ptoVenta?: string;
   chofer?: string;
+  presenceField?: 'firma' | 'aclaracion' | 'dni';
+  presenceState?: 'si' | 'duda' | 'no';
+  remitoDateFrom?: string;
+  remitoDateTo?: string;
   sortBy?: 'createdAt' | 'nroRemito';
   sortOrder?: 'ASC' | 'DESC';
 }
@@ -101,6 +105,10 @@ export const logisticaApi = {
     if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
     if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
     if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.presenceField)   qs.set('presenceField',   params.presenceField);
+    if (params.presenceState)   qs.set('presenceState',   params.presenceState);
+    if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
+    if (params.remitoDateTo)    qs.set('remitoDateTo',    params.remitoDateTo);
     if (params.sortBy)          qs.set('sortBy',          params.sortBy);
     if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
     const query = qs.toString();
@@ -123,6 +131,10 @@ export const logisticaApi = {
     if (params.uploadedByEmail) qs.set('uploadedByEmail', params.uploadedByEmail);
     if (params.ptoVenta)        qs.set('ptoVenta',        params.ptoVenta);
     if (params.chofer)          qs.set('chofer',          params.chofer);
+    if (params.presenceField)   qs.set('presenceField',   params.presenceField);
+    if (params.presenceState)   qs.set('presenceState',   params.presenceState);
+    if (params.remitoDateFrom)  qs.set('remitoDateFrom',  params.remitoDateFrom);
+    if (params.remitoDateTo)    qs.set('remitoDateTo',    params.remitoDateTo);
     if (params.sortBy)          qs.set('sortBy',          params.sortBy);
     if (params.sortOrder)       qs.set('sortOrder',       params.sortOrder);
     const query = qs.toString();
