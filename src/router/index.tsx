@@ -8,6 +8,7 @@ import { RequireRole } from './RequireRole';
 import { RequireSoporteItAdmin } from './RequireSoporteItAdmin';
 import { isSoporteItAdmin } from '@/permissions/soporteIt';
 import { AppLayout } from '@/components/AppLayout';
+import { TRIPS_ENABLED } from '@/config/features';
 import { LoginPage } from '@/pages/LoginPage';
 
 const DashboardPage = lazy(() =>
@@ -550,22 +551,27 @@ const router = createBrowserRouter([
                       </Suspense>
                     ),
                   },
-                  {
-                    path: 'viajes',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <ViajesPage />
-                      </Suspense>
-                    ),
-                  },
-                  {
-                    path: 'viajes/:id',
-                    element: (
-                      <Suspense fallback={<PageLoader />}>
-                        <ViajeDetailPage />
-                      </Suspense>
-                    ),
-                  },
+                  // Viajes is hidden while TRIPS_ENABLED is off; the pages stay in the code.
+                  ...(TRIPS_ENABLED
+                    ? [
+                        {
+                          path: 'viajes',
+                          element: (
+                            <Suspense fallback={<PageLoader />}>
+                              <ViajesPage />
+                            </Suspense>
+                          ),
+                        },
+                        {
+                          path: 'viajes/:id',
+                          element: (
+                            <Suspense fallback={<PageLoader />}>
+                              <ViajeDetailPage />
+                            </Suspense>
+                          ),
+                        },
+                      ]
+                    : [{ path: 'viajes/*', element: <Navigate to="/logistica/remitos" replace /> }]),
                   {
                     path: 'documentacion',
                     element: (

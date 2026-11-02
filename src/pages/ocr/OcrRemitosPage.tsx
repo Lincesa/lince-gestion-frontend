@@ -25,6 +25,7 @@ import { useAppSelector } from '@/store';
 import { formatTripDate } from '@/utils/logistica';
 import { StatusBadge } from './components/StatusBadge';
 import { OcrTestModal } from './components/OcrTestModal';
+import { TRIPS_ENABLED } from '@/config/features';
 import {
   isPdfBlob,
   normalizeRotation,
@@ -144,7 +145,7 @@ export function OcrRemitosPage() {
   }, [step]);
 
   useEffect(() => {
-    if (!isTransport) return;
+    if (!isTransport || !TRIPS_ENABLED) return;
     void logisticaApi.listTrips()
       .then(setTrips)
       .catch(() => setTrips([]));
@@ -446,7 +447,8 @@ export function OcrRemitosPage() {
       {/* ── Estado: idle ─────────────────────────────────────────── */}
       {step === 'idle' && (
         <>
-          {isTransport && (
+          {/* Trip picker hidden while TRIPS_ENABLED is off; the remito goes without a trip. */}
+          {isTransport && TRIPS_ENABLED && (
             <label className="block space-y-1.5">
               <span className="text-sm font-medium text-foreground">Viaje</span>
               <select

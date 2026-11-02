@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAppSelector } from '@/store';
 import { GlobalRole, ModuleKey } from '@/types';
 import { isFieldUser } from '@/auth/profile';
+import { logisticaTabs } from '@/config/features';
 
 export function LogisticaLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -9,7 +10,7 @@ export function LogisticaLayout() {
   const isLogisticaAdmin = user?.modules?.[ModuleKey.LOGISTICA]?.role === 'ADMIN';
   const isField = isFieldUser(user);
 
-  const tabs = [
+  const tabs = logisticaTabs([
     { to: '/logistica/remitos', label: 'Remitos' },
     { to: '/logistica/mapa',    label: 'Mapa'    },
     { to: '/logistica/viajes', label: 'Viajes' },
@@ -20,7 +21,7 @@ export function LogisticaLayout() {
       { to: '/logistica/transportes', label: 'Transportes' },
       { to: '/logistica/usuarios-campo', label: 'Usuarios campo' },
     ] : []),
-  ];
+  ]);
 
   if (isField) return <Outlet />;
 

@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from '@/store';
 import { clearAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
 import { isFieldUser, isTransportUser as isTransportProfile } from '@/auth/profile';
+import { TRIPS_ENABLED } from '@/config/features';
 
 export function AppLayout() {
   const user = useAppSelector((s) => s.auth.user);
@@ -27,7 +28,7 @@ export function AppLayout() {
       ...(isTransportUser
         ? [{ to: '/logistica/mi-transporte', label: 'Mi transporte', Icon: Truck }]
         : []),
-      ...(isTransportUser
+      ...(isTransportUser && TRIPS_ENABLED
         ? [{ to: '/logistica/viajes', label: 'Viajes', Icon: Route }]
         : []),
       { to: '/ocr/remitos', label: 'Remitos', Icon: FileText },

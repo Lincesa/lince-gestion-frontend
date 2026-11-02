@@ -94,7 +94,7 @@ describe('toggleTransportFuelLoads', () => {
 describe('Combustible route access', () => {
   it('keeps field users out of the office fuel loads page', () => {
     expect(resolveFieldJailRedirect({ profile: UserProfile.TRANSPORTE, pathname: '/logistica/combustible' }))
-      .toBe('/logistica/viajes');
+      .toBe('/logistica/mi-transporte');
     expect(resolveFieldJailRedirect({ profile: UserProfile.TAG, pathname: '/logistica/combustible' }))
       .toBe('/ocr/remitos');
   });

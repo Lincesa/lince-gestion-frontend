@@ -2,6 +2,33 @@ import { describe, expect, it } from 'vitest';
 import { UserProfile } from '@/types';
 import { resolveFieldJailRedirect } from './fieldJail';
 
+describe('field jail while trips are hidden', () => {
+  it('lands TRANSPORTE on Mi transporte instead of Viajes', () => {
+    expect(
+      resolveFieldJailRedirect({ profile: UserProfile.TRANSPORTE, pathname: '/' }),
+    ).toBe('/logistica/mi-transporte');
+  });
+
+  it('sends TRANSPORTE away from a saved Viajes link', () => {
+    expect(
+      resolveFieldJailRedirect({
+        profile: UserProfile.TRANSPORTE,
+        logisticsRole: 'CHOFER',
+        pathname: '/logistica/viajes/123',
+      }),
+    ).toBe('/logistica/mi-transporte');
+  });
+
+  it('still lets TRANSPORTE into Mi transporte and remitos', () => {
+    expect(
+      resolveFieldJailRedirect({ profile: UserProfile.TRANSPORTE, pathname: '/logistica/mi-transporte' }),
+    ).toBeNull();
+    expect(
+      resolveFieldJailRedirect({ profile: UserProfile.TRANSPORTE, pathname: '/ocr/remitos' }),
+    ).toBeNull();
+  });
+});
+
 describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
   it('jails TAG to /ocr/remitos from staff routes', () => {
     expect(
@@ -22,6 +49,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
         profile: UserProfile.TRANSPORTE,
         pathname: '/',
         mustChangePassword: false,
+        tripsEnabled: true,
       }),
     ).toBe('/logistica/viajes');
     expect(
@@ -29,6 +57,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
         profile: UserProfile.TRANSPORTE,
         pathname: '/crm',
         mustChangePassword: false,
+        tripsEnabled: true,
       }),
     ).toBe('/logistica/viajes');
   });
@@ -39,6 +68,7 @@ describe('PrivateRoute field jail (TRANSPORTE mirrors TAG)', () => {
         profile: UserProfile.TRANSPORTE,
         logisticsRole: 'CHOFER',
         pathname: '/logistica/viajes/123',
+        tripsEnabled: true,
       }),
     ).toBeNull();
     expect(
