@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
+import { Switch } from '@/components/ui/Switch';
 import type { TransportMemberRole, TransportMemberView, TransportView } from '@/types/logistica.types';
 
 type TransportForm = {
@@ -250,15 +251,17 @@ export function TransportesPage() {
                       <TableCell>{transport.allowedPrefijos.join(', ') || '—'}</TableCell>
                       <TableCell><Badge variant={transport.active ? 'secondary' : 'destructive'}>{transport.active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
                       <TableCell>
-                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="checkbox"
+                        <div className="inline-flex items-center gap-2 text-sm">
+                          <Switch
                             checked={transport.fuelLoadsEnabled}
                             disabled={saving}
-                            onChange={() => void toggleFuelLoads(transport)}
+                            label={`Carga de combustible de ${transport.name}`}
+                            onCheckedChange={() => void toggleFuelLoads(transport)}
                           />
-                          {transport.fuelLoadsEnabled ? 'Habilitada' : 'No'}
-                        </label>
+                          <span className={transport.fuelLoadsEnabled ? 'text-foreground' : 'text-muted-foreground'}>
+                            {transport.fuelLoadsEnabled ? 'Activada' : 'Desactivada'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>{transport.members.length}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
