@@ -153,6 +153,9 @@ const MiTransportePage = lazy(() =>
 const DocumentacionPage = lazy(() =>
   import('@/pages/logistica/DocumentacionPage').then((m) => ({ default: m.DocumentacionPage })),
 );
+const CombustiblePage = lazy(() =>
+  import('@/pages/logistica/CombustiblePage').then((m) => ({ default: m.CombustiblePage })),
+);
 
 function PageLoader() {
   return (
@@ -568,6 +571,15 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <DocumentacionPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    // Office only: the field-user jail keeps TAG / TRANSPORTE users out.
+                    path: 'combustible',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <CombustiblePage />
                       </Suspense>
                     ),
                   },

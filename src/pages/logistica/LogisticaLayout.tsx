@@ -14,6 +14,7 @@ export function LogisticaLayout() {
     { to: '/logistica/mapa',    label: 'Mapa'    },
     { to: '/logistica/viajes', label: 'Viajes' },
     { to: '/logistica/documentacion', label: 'Documentación' },
+    { to: '/logistica/combustible', label: 'Combustible' },
     ...(isSuperAdmin || isLogisticaAdmin ? [
       { to: '/logistica/tags', label: 'Tags' },
       { to: '/logistica/transportes', label: 'Transportes' },

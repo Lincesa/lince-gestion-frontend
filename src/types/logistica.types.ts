@@ -71,6 +71,8 @@ export interface TransportView {
   slug: string;
   allowedPrefijos: string[];
   active: boolean;
+  /** Drivers of this transport can record fuel loads from the app. */
+  fuelLoadsEnabled: boolean;
   members: TransportMemberView[];
 }
 
@@ -227,4 +229,31 @@ export interface ComplianceUploadUrlResponse {
   uploadUrl: string;
   s3Key: string;
   expiresIn: number;
+}
+
+export interface FuelLoadView {
+  id: string;
+  transportId: string;
+  transportName: string;
+  driverId: string;
+  driverName: string;
+  vehicleId: string | null;
+  vehiclePlate: string | null;
+  vehicleLabel: string | null;
+  liters: number;
+  odometerKm: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  placeNote: string | null;
+  loadedAt: string;
+  createdAt: string;
+  ticketUrl: string | null;
+  odometerUrl: string | null;
+}
+
+export interface PaginatedFuelLoads {
+  items: FuelLoadView[];
+  total: number;
+  page: number;
+  limit: number;
 }

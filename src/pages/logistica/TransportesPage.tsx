@@ -34,6 +34,14 @@ function randomPassword(): string {
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
 }
 
+/** Flips the transport's fuel loads flag; `setFlag` is injectable for tests. */
+export function toggleTransportFuelLoads(
+  transport: TransportView,
+  setFlag: (id: string, enabled: boolean) => Promise<unknown> = logisticaApi.setTransportFuelLoads,
+) {
+  return setFlag(transport.id, !transport.fuelLoadsEnabled);
+}
+
 export function TransportesPage() {
   const [items, setItems] = useState<TransportView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +111,19 @@ export function TransportesPage() {
       await load();
     } catch (err) {
       toast.error((err as Error).message || 'No se pudo guardar el transporte');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleFuelLoads = async (transport: TransportView) => {
+    setSaving(true);
+    try {
+      await toggleTransportFuelLoads(transport);
+      toast.success(transport.fuelLoadsEnabled ? 'Carga de combustible desactivada' : 'Carga de combustible activada');
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo actualizar la carga de combustible');
     } finally {
       setSaving(false);
     }
@@ -209,6 +230,7 @@ export function TransportesPage() {
                 <TableHead>Transporte</TableHead>
                 <TableHead>Prefijos</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Carga de combustible</TableHead>
                 <TableHead>Integrantes</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -227,6 +249,17 @@ export function TransportesPage() {
                       <TableCell className="font-medium">{transport.name}</TableCell>
                       <TableCell>{transport.allowedPrefijos.join(', ') || '—'}</TableCell>
                       <TableCell><Badge variant={transport.active ? 'secondary' : 'destructive'}>{transport.active ? 'Activo' : 'Inactivo'}</Badge></TableCell>
+                      <TableCell>
+                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={transport.fuelLoadsEnabled}
+                            disabled={saving}
+                            onChange={() => void toggleFuelLoads(transport)}
+                          />
+                          {transport.fuelLoadsEnabled ? 'Habilitada' : 'No'}
+                        </label>
+                      </TableCell>
                       <TableCell>{transport.members.length}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <Button variant="outline" size="sm" onClick={() => openTransport(transport)}>
@@ -239,7 +272,7 @@ export function TransportesPage() {
                     </TableRow>
                     {expanded && (
                       <TableRow>
-                        <TableCell colSpan={6} className="p-0 bg-muted/20">
+                        <TableCell colSpan={7} className="p-0 bg-muted/20">
                           <div className="overflow-x-auto">
                             <Table>
                               <TableHeader>

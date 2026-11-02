@@ -5,6 +5,7 @@ import type {
   FieldUserKind,
   FieldUserResetResult,
   FieldUserView,
+  PaginatedFuelLoads,
   GeoLayer,
   GeoPoint,
   PaginatedRemitos,
@@ -94,6 +95,17 @@ export interface ConfirmReplaceResponse {
   documentId: string;
   viewUrl: string | null;
   fileHash: string;
+}
+
+export interface ListFuelLoadsParams {
+  page?: number;
+  limit?: number;
+  transportId?: string;
+  vehicleId?: string;
+  /** YYYY-MM-DD */
+  dateFrom?: string;
+  /** YYYY-MM-DD */
+  dateTo?: string;
 }
 
 export const logisticaApi = {
@@ -234,6 +246,22 @@ export const logisticaApi = {
 
   updateTransport: (id: string, payload: { name?: string; allowedPrefijos?: string[]; active?: boolean }) =>
     api.patch<TransportView>(`/logistica/transports/${id}`, payload),
+
+  /** Logística ADMIN: enable or disable fuel loads for a transport's drivers. */
+  setTransportFuelLoads: (id: string, fuelLoadsEnabled: boolean) =>
+    api.patch<TransportView>(`/logistica/transports/${id}`, { fuelLoadsEnabled }),
+
+  listFuelLoads: (params: ListFuelLoadsParams = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page)        qs.set('page',        String(params.page));
+    if (params.limit)       qs.set('limit',       String(params.limit));
+    if (params.transportId) qs.set('transportId', params.transportId);
+    if (params.vehicleId)   qs.set('vehicleId',   params.vehicleId);
+    if (params.dateFrom)    qs.set('dateFrom',    params.dateFrom);
+    if (params.dateTo)      qs.set('dateTo',      params.dateTo);
+    const query = qs.toString();
+    return api.get<PaginatedFuelLoads>(`/logistica/fuel-loads${query ? `?${query}` : ''}`);
+  },
 
   addTransportMember: (
     transportId: string,
