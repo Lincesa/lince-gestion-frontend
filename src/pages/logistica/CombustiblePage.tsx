@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { MapPin, RotateCcw } from 'lucide-react';
+import { MapPin, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { logisticaApi, type ListFuelLoadsParams } from '@/api/logistica';
+import { useAppSelector } from '@/store';
+import { GlobalRole } from '@/types/auth.types';
 import { FilePreviewModal } from '@/pages/ocr/components/FilePreviewModal';
 import type { FuelLoadView, PaginatedFuelLoads, VehicleView } from '@/types/logistica.types';
 
@@ -47,12 +50,20 @@ function Thumbnail({ url, alt, onOpen }: { url: string | null; alt: string; onOp
   );
 }
 
+/** Deleting a fuel load is reserved to the superadmin. */
+export function canDeleteFuelLoads(user: { globalRole: GlobalRole } | null | undefined): boolean {
+  return user?.globalRole === GlobalRole.SUPERADMIN;
+}
+
 export function FuelLoadsTable({
   items,
   onPreview,
+  onDelete,
 }: {
   items: FuelLoadView[];
   onPreview: (url: string) => void;
+  /** Shows a delete button per row when given. */
+  onDelete?: (load: FuelLoadView) => void;
 }) {
   const th = 'px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap';
   return (
@@ -69,12 +80,13 @@ export function FuelLoadsTable({
             <th className={th}>Lugar</th>
             <th className={th}>Ticket</th>
             <th className={th}>Odómetro</th>
+            {onDelete && <th className={th} />}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {items.length === 0 ? (
             <tr>
-              <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+              <td colSpan={onDelete ? 10 : 9} className="px-4 py-8 text-center text-muted-foreground">
                 No hay cargas de combustible
               </td>
             </tr>
@@ -120,6 +132,19 @@ export function FuelLoadsTable({
                   <td className="px-4 py-3">
                     <Thumbnail url={load.odometerUrl} alt="Odómetro" onOpen={onPreview} />
                   </td>
+                  {onDelete && (
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onDelete(load)}
+                        aria-label="Eliminar carga"
+                        title="Eliminar carga"
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })
@@ -138,6 +163,7 @@ export function CombustiblePage() {
   const [transports, setTransports] = useState<Array<{ id: string; name: string }>>([]);
   const [vehicles, setVehicles] = useState<VehicleView[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const canDelete = canDeleteFuelLoads(useAppSelector((s) => s.auth.user));
 
   useEffect(() => {
     logisticaApi.listComplianceTransports().then(setTransports).catch(() => {});
@@ -173,6 +199,23 @@ export function CombustiblePage() {
   // Any filter change goes back to the first page.
   const patch = (next: Partial<FuelLoadsFilters>) => setFilters((f) => ({ ...f, ...next, page: 1 }));
   const setPage = (page: number) => setFilters((f) => ({ ...f, page }));
+
+  const handleDelete = async (load: FuelLoadView) => {
+    const when = new Date(load.loadedAt).toLocaleString('es-AR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const liters = load.liters.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+    if (!window.confirm(`¿Eliminar la carga de ${liters} L de ${load.driverName ?? 'chofer sin nombre'} del ${when}? También se borran sus fotos.`)) {
+      return;
+    }
+    try {
+      await logisticaApi.deleteFuelLoad(load.id);
+      toast.success('Carga de combustible eliminada');
+      setFilters((f) => ({ ...f }));
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo eliminar la carga');
+    }
+  };
 
   const page = filters.page ?? 1;
   const pages = data ? Math.max(1, Math.ceil(data.total / (data.limit || PAGE_SIZE))) : 1;
@@ -253,7 +296,11 @@ export function CombustiblePage() {
         </div>
       )}
 
-      {!loading && !error && <FuelLoadsTable items={data?.items ?? []} onPreview={setPreviewUrl} />}
+      {!loading && !error && <FuelLoadsTable
+          items={data?.items ?? []}
+          onPreview={setPreviewUrl}
+          onDelete={canDelete ? (load) => void handleDelete(load) : undefined}
+        />}
 
       {!loading && pages > 1 && (
         <div className="flex items-center justify-center gap-2">

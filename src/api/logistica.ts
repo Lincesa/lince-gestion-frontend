@@ -263,6 +263,9 @@ export const logisticaApi = {
     return api.get<PaginatedFuelLoads>(`/logistica/fuel-loads${query ? `?${query}` : ''}`);
   },
 
+  /** SUPERADMIN only: deletes the load and its photos. */
+  deleteFuelLoad: (id: string) => api.delete<void>(`/logistica/fuel-loads/${id}`),
+
   addTransportMember: (
     transportId: string,
     payload: { name: string; email: string; password: string; role: TransportMemberRole },

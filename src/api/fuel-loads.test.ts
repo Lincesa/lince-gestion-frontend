@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const get = vi.fn();
 const patch = vi.fn();
+const del = vi.fn();
 vi.mock('./client', () => ({
   api: {
     get: (...args: unknown[]) => get(...args),
     patch: (...args: unknown[]) => patch(...args),
+    delete: (...args: unknown[]) => del(...args),
   },
   API_BASE_URL: 'http://api.test',
   apiFetch: vi.fn(),
@@ -18,6 +20,12 @@ describe('fuel loads API', () => {
   beforeEach(() => {
     get.mockReset();
     patch.mockReset();
+    del.mockReset();
+  });
+
+  it('deletes a fuel load by id', async () => {
+    await logisticaApi.deleteFuelLoad('load-1');
+    expect(del).toHaveBeenCalledWith('/logistica/fuel-loads/load-1');
   });
 
   it('lists fuel loads without filters', async () => {

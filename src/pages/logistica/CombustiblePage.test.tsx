@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { UserProfile } from '@/types';
 import type { FuelLoadView, TransportView } from '@/types/logistica.types';
 import { resolveFieldJailRedirect } from '@/router/fieldJail';
-import { FuelLoadsTable, fuelLoadsQuery } from './CombustiblePage';
+import { FuelLoadsTable, canDeleteFuelLoads, fuelLoadsQuery } from './CombustiblePage';
+import { GlobalRole } from '@/types/auth.types';
 import { toggleTransportFuelLoads } from './TransportesPage';
 
 function load(overrides: Partial<FuelLoadView> = {}): FuelLoadView {
@@ -96,5 +97,26 @@ describe('Combustible route access', () => {
       .toBe('/logistica/viajes');
     expect(resolveFieldJailRedirect({ profile: UserProfile.TAG, pathname: '/logistica/combustible' }))
       .toBe('/ocr/remitos');
+  });
+});
+
+describe('fuel load deletion', () => {
+  it('is only for the superadmin', () => {
+    expect(canDeleteFuelLoads({ globalRole: GlobalRole.SUPERADMIN })).toBe(true);
+    expect(canDeleteFuelLoads({ globalRole: GlobalRole.ADMIN })).toBe(false);
+    expect(canDeleteFuelLoads({ globalRole: GlobalRole.USER })).toBe(false);
+    expect(canDeleteFuelLoads(null)).toBe(false);
+  });
+
+  it('shows a delete button per row when deletion is allowed', () => {
+    const html = renderToStaticMarkup(
+      <FuelLoadsTable items={[load()]} onPreview={() => {}} onDelete={() => {}} />,
+    );
+    expect(html).toContain('aria-label="Eliminar carga"');
+  });
+
+  it('hides the delete button otherwise', () => {
+    const html = renderToStaticMarkup(<FuelLoadsTable items={[load()]} onPreview={() => {}} />);
+    expect(html).not.toContain('Eliminar carga');
   });
 });
