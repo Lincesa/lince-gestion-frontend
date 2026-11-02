@@ -256,6 +256,7 @@ export function RemitoDetailModal({ remitoId, onClose, onDeleted, onAnnulChanged
           url={remito.viewUrl}
           isPdf={remito.isPdf}
           documentId={remito.id}
+          documentStatus={remito.status}
           persistApi={LOGISTICA_PERSIST_API}
           onClose={() => setPreviewOpen(false)}
           onRotated={(nextUrl) => setRemito((prev) => (prev ? { ...prev, viewUrl: nextUrl } : prev))}

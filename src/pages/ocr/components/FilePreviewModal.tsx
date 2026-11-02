@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { X, FileText, ZoomIn, ZoomOut, RotateCcw, RotateCw, Save, Loader2 } from 'lucide-react';
 import * as ocrApi from '@/api/ocr';
+import { DocumentStatus } from '@/types/ocr.types';
 import {
   getRotatedImageContentType,
   normalizeRotation,
@@ -29,10 +30,27 @@ export interface PersistRotationApi {
   ) => Promise<void>;
 }
 
+/**
+ * Why the rotation cannot be saved yet, or null when it can. The API refuses
+ * to replace the file of a PENDIENTE document (the driver's app may still
+ * re-upload the original) or a PROCESANDO one (OCR is reading it).
+ */
+export function rotationSaveBlockedReason(status?: string | null): string | null {
+  if (status === DocumentStatus.PENDIENTE) {
+    return 'El archivo todavía se está subiendo. Vas a poder guardar la rotación cuando termine.';
+  }
+  if (status === DocumentStatus.PROCESANDO) {
+    return 'El OCR todavía está procesando el documento. Vas a poder guardar la rotación cuando termine.';
+  }
+  return null;
+}
+
 interface Props {
   url:          string;
   isPdf:        boolean;
   documentId?:  string;
+  /** Current status of the document; saving the rotation waits until it settles. */
+  documentStatus?: string | null;
   persistApi?:  PersistRotationApi;
   onClose:      () => void;
   onRotated?:   (viewUrl: string) => void;
@@ -53,10 +71,12 @@ export function FilePreviewModal({
   url,
   isPdf,
   documentId,
+  documentStatus,
   persistApi = DEFAULT_PERSIST_API,
   onClose,
   onRotated,
 }: Props) {
+  const saveBlockedReason = rotationSaveBlockedReason(documentStatus);
   const [scale, setScale]           = useState(1);
   const [offset, setOffset]         = useState({ x: 0, y: 0 });
   const [rotation, setRotation]     = useState<RotationDegrees>(0);
@@ -115,7 +135,7 @@ export function FilePreviewModal({
   };
 
   const handleSaveRotation = async () => {
-    if (!documentId || isPdf || rotation === 0 || saving) return;
+    if (!documentId || isPdf || rotation === 0 || saving || saveBlockedReason) return;
 
     setSaving(true);
     try {
@@ -208,12 +228,16 @@ export function FilePreviewModal({
             {documentId && rotation !== 0 && (
               <button
                 onClick={() => void handleSaveRotation()}
-                disabled={saving}
+                disabled={saving || saveBlockedReason !== null}
+                title={saveBlockedReason ?? undefined}
                 className="ml-2 flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 {saving ? 'Guardando…' : 'Guardar rotación'}
               </button>
+            )}
+            {documentId && rotation !== 0 && saveBlockedReason && (
+              <span className="ml-2 max-w-xs text-xs text-white/70">{saveBlockedReason}</span>
             )}
           </div>
         )}

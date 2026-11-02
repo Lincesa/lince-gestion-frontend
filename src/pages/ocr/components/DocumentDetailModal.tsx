@@ -452,6 +452,7 @@ export function DocumentDetailModal({
           url={viewUrl}
           isPdf={doc?.s3Key.endsWith('.pdf') ?? false}
           documentId={documentId}
+          documentStatus={doc?.status}
           onClose={() => setPreviewOpen(false)}
           onRotated={(nextUrl) => setViewUrl(nextUrl)}
         />
