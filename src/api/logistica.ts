@@ -18,7 +18,10 @@ import type {
   UpdateTripPayload,
   VehicleKind,
   VehicleView,
+  ComplianceCadence,
+  ComplianceDocTypeView,
   ComplianceFileView,
+  ComplianceOverview,
   ComplianceSummary,
   ComplianceUploadUrlResponse,
 } from '@/types/logistica.types';
@@ -385,6 +388,16 @@ export const logisticaApi = {
 
   updateComplianceFile: (fileId: string, payload: { expiresAt?: string | null; notes?: string | null }) =>
     api.patch<ComplianceFileView>(`/logistica/compliance/files/${fileId}`, payload),
+
+  approveComplianceFile: (fileId: string) =>
+    api.post<ComplianceFileView>(`/logistica/compliance/files/${fileId}/approve`, {}),
+
+  listComplianceTypes: () => api.get<ComplianceDocTypeView[]>('/logistica/compliance/types'),
+
+  updateComplianceType: (key: string, payload: { cadence?: ComplianceCadence; defaultAlertDays?: number }) =>
+    api.patch<ComplianceDocTypeView>(`/logistica/compliance/types/${encodeURIComponent(key)}`, payload),
+
+  getComplianceOverview: () => api.get<ComplianceOverview>('/logistica/compliance/overview'),
 
   deleteComplianceFile: (fileId: string) =>
     api.delete<{ id: string; supersededAt: string }>(`/logistica/compliance/files/${fileId}`),

@@ -150,7 +150,7 @@ export interface FieldUserResetResult {
 
 export type VehicleKind = 'camion' | 'batea' | 'otro';
 export type ComplianceSubject = 'TRANSPORT' | 'PERSON' | 'VEHICLE';
-export type ComplianceCadence = 'once' | 'monthly' | 'annual' | 'custom';
+export type ComplianceCadence = 'once' | 'monthly' | 'semiannual' | 'annual' | 'custom';
 export type ComplianceStatus = 'missing' | 'ok' | 'expiring' | 'expired';
 export type ComplianceReviewStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -169,6 +169,8 @@ export interface ComplianceDocTypeView {
   subject: ComplianceSubject;
   cadence: ComplianceCadence;
   defaultAlertDays: number;
+  /** The document has a front and a back uploaded as separate files. */
+  twoSided: boolean;
   areaHint: string | null;
   sort: number;
 }
@@ -188,6 +190,9 @@ export interface ComplianceFileView {
   uploadedBy: string;
   uploadedByName: string | null;
   reviewStatus: ComplianceReviewStatus;
+  reviewedBy?: string | null;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
   notes: string | null;
   confirmedAt: string | null;
   supersededAt: string | null;
@@ -201,11 +206,32 @@ export interface ComplianceSlotView {
   subject: ComplianceSubject;
   cadence: ComplianceCadence;
   defaultAlertDays: number;
+  twoSided: boolean;
   subjectUserId: string | null;
   vehicleId: string | null;
   status: ComplianceStatus;
   expiresAt: string | null;
+  /** Files counting for the slot that are not approved yet. */
+  pendingReview: number;
   files: ComplianceFileView[];
+}
+
+export interface ComplianceOverviewRow {
+  transportId: string;
+  transportName: string;
+  subject: ComplianceSubject;
+  subjectUserId: string | null;
+  vehicleId: string | null;
+  role: string | null;
+  name: string;
+  status: ComplianceStatus;
+  nextExpiresAt: string | null;
+  counts: Record<ComplianceStatus, number>;
+  pendingReview: number;
+}
+
+export interface ComplianceOverview {
+  rows: ComplianceOverviewRow[];
 }
 
 export interface ComplianceMemberView {

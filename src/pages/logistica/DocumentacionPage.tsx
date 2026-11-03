@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, FileText, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, FileText, Plus, RefreshCw, Settings, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadToS3 } from '@/api/ocr';
 import { logisticaApi } from '@/api/logistica';
+import { isFieldUser } from '@/auth/profile';
+import { useCanPerform } from '@/hooks/useCanPerform';
+import { useAppSelector } from '@/store';
+import { ModuleKey } from '@/types/auth.types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -10,27 +14,20 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Select } from '@/components/ui/Select';
 import type {
+  ComplianceCadence,
   ComplianceFileView,
+  ComplianceOverviewRow,
   ComplianceSlotView,
   ComplianceStatus,
   ComplianceSummary,
   VehicleKind,
   VehicleView,
 } from '@/types/logistica.types';
-
-const STATUS_LABEL: Record<ComplianceStatus, string> = {
-  missing: 'Faltante',
-  ok: 'Al día',
-  expiring: 'Por vencer',
-  expired: 'Vencido',
-};
-
-const STATUS_CLASS: Record<ComplianceStatus, string> = {
-  missing: 'bg-muted text-muted-foreground',
-  ok: 'bg-emerald-600 text-white',
-  expiring: 'bg-amber-500 text-white',
-  expired: 'bg-destructive text-destructive-foreground',
-};
+import { defaultExpiryFor } from './documentacion/expiry';
+import { OverviewBoard } from './documentacion/OverviewBoard';
+import { complianceAbilities, type ComplianceAbilities } from './documentacion/permissions';
+import { STATUS_LABEL, StatusBadge } from './documentacion/status';
+import { CADENCE_LABEL, TypesConfigDialog } from './documentacion/TypesConfigDialog';
 
 const KIND_LABEL: Record<VehicleKind, string> = {
   camion: 'Camión',
@@ -39,6 +36,16 @@ const KIND_LABEL: Record<VehicleKind, string> = {
 };
 
 type StatusFilter = 'all' | ComplianceStatus;
+type PageView = 'detail' | 'board';
+type DniSide = 'front' | 'back';
+
+const SIDE_LABEL: Record<DniSide, string> = { front: 'Frente', back: 'Dorso' };
+
+/** Two-sided documents (DNI, carnet, cédula verde) need front and back as separate files. */
+function isTwoSided(slot: Pick<ComplianceSlotView, 'twoSided' | 'typeKey'>): boolean {
+  // Older API responses carried no flag and only DNI had sides.
+  return slot.twoSided ?? slot.typeKey === 'dni';
+}
 
 function mimeFromFile(file: File): string | null {
   const type = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '');
@@ -46,15 +53,86 @@ function mimeFromFile(file: File): string | null {
   return null;
 }
 
-function StatusBadge({ status }: { status: ComplianceStatus }) {
+function ReviewBadge({ file }: { file: ComplianceFileView }) {
+  if (file.reviewStatus === 'APPROVED') {
+    const by = [file.reviewedByName, file.reviewedAt?.slice(0, 10)].filter(Boolean).join(' · ');
+    return (
+      <Badge className="bg-emerald-600 text-white" title={by ? `Aprobado por ${by}` : undefined}>
+        Aprobado{file.reviewedByName ? ` · ${file.reviewedByName}` : ''}
+      </Badge>
+    );
+  }
+  // NONE, PENDING and (not produced yet) REJECTED all wait for review.
+  return <Badge variant="secondary">Pendiente de revisión</Badge>;
+}
+
+export function DocumentacionHeader({
+  abilities,
+  view,
+  onView,
+  onConfigure,
+  onRefresh,
+}: {
+  abilities: ComplianceAbilities;
+  view: PageView;
+  onView: (view: PageView) => void;
+  onConfigure: () => void;
+  onRefresh: () => void;
+}) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLASS[status]}`}>
-      {STATUS_LABEL[status]}
-    </span>
+    <div className="flex flex-wrap items-end gap-3 justify-between">
+      <div>
+        <h1 className="text-xl font-semibold">Documentación</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Todo opcional. El estado es visual: no bloquea remitos ni viajes.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {abilities.isOffice && (
+          <div className="inline-flex rounded-md border p-0.5">
+            {(['board', 'detail'] as PageView[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onView(key)}
+                className={[
+                  'rounded px-3 py-1 text-xs font-medium',
+                  view === key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                ].join(' ')}
+              >
+                {key === 'board' ? 'Tablero' : 'Por transporte'}
+              </button>
+            ))}
+          </div>
+        )}
+        {abilities.canConfigureTypes && (
+          <Button variant="outline" size="sm" onClick={onConfigure}>
+            <Settings className="h-4 w-4 mr-2" />
+            Configurar tipos
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={onRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Actualizar
+        </Button>
+      </div>
+    </div>
   );
 }
 
 export function DocumentacionPage() {
+  const user = useAppSelector((s) => s.auth.user);
+  const { canEdit, canAdmin } = useCanPerform(ModuleKey.LOGISTICA);
+  const abilities = complianceAbilities({
+    isField: isFieldUser(user),
+    globalRole: user?.globalRole,
+    canEdit,
+    canAdmin,
+  });
+  const [view, setView] = useState<PageView>('detail');
+  const [overviewRows, setOverviewRows] = useState<ComplianceOverviewRow[]>([]);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [typesOpen, setTypesOpen] = useState(false);
   const [transports, setTransports] = useState<Array<{ id: string; name: string }>>([]);
   const [transportId, setTransportId] = useState('');
   const [summary, setSummary] = useState<ComplianceSummary | null>(null);
@@ -69,6 +147,7 @@ export function DocumentacionPage() {
   const [preview, setPreview] = useState<{ url: string; contentType: string; name: string } | null>(null);
   const [expiryFile, setExpiryFile] = useState<ComplianceFileView | null>(null);
   const [expiryValue, setExpiryValue] = useState('');
+  const [expiryHint, setExpiryHint] = useState<ComplianceCadence | null>(null);
 
   const loadTransports = useCallback(async () => {
     try {
@@ -95,9 +174,26 @@ export function DocumentacionPage() {
     }
   }, []);
 
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true);
+    try {
+      const data = await logisticaApi.getComplianceOverview();
+      setOverviewRows(data.rows);
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo cargar el tablero');
+      setOverviewRows([]);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadTransports();
   }, [loadTransports]);
+
+  useEffect(() => {
+    if (view === 'board' && abilities.isOffice) void loadOverview();
+  }, [abilities.isOffice, loadOverview, view]);
 
   useEffect(() => {
     void loadSummary(transportId);
@@ -122,11 +218,12 @@ export function DocumentacionPage() {
     slot: ComplianceSlotView,
     file: File,
     replaceFileId?: string,
-    dniSide?: 'front' | 'back',
+    dniSide?: DniSide,
   ) => {
     if (!summary) return;
-    if (slot.typeKey === 'dni' && !dniSide) {
-      toast.error('Elegí frente o dorso del DNI');
+    const twoSided = isTwoSided(slot);
+    if (twoSided && !dniSide) {
+      toast.error(`Elegí frente o dorso de ${slot.label}`);
       return;
     }
     const contentType = mimeFromFile(file);
@@ -138,7 +235,7 @@ export function DocumentacionPage() {
       const url = await logisticaApi.requestComplianceUploadUrl({
         transportId: summary.transportId,
         typeKey: slot.typeKey,
-        ...(dniSide ? { dniSide } : {}),
+        ...(twoSided && dniSide ? { dniSide } : {}),
         contentType,
         originalName: file.name,
         subjectUserId: slot.subjectUserId ?? undefined,
@@ -146,9 +243,16 @@ export function DocumentacionPage() {
         replaceFileId,
       });
       await uploadToS3(url.uploadUrl, file, contentType);
-      await logisticaApi.confirmComplianceUpload(url.fileId);
-      toast.success(slot.typeKey === 'dni' ? `${dniSide === 'front' ? 'Frente' : 'Dorso'} del DNI cargado` : 'Archivo cargado');
+      const confirmed = await logisticaApi.confirmComplianceUpload(url.fileId);
+      toast.success(twoSided && dniSide ? `${SIDE_LABEL[dniSide]} de ${slot.label} cargado` : 'Archivo cargado');
       await loadSummary(summary.transportId);
+      // Suggest the expiry from the type cadence; the user confirms or cancels it.
+      const suggested = defaultExpiryFor(slot.cadence);
+      if (suggested && !confirmed.expiresAt) {
+        setExpiryFile(confirmed);
+        setExpiryValue(suggested);
+        setExpiryHint(slot.cadence);
+      }
     } catch (err) {
       toast.error((err as Error).message || 'No se pudo subir el archivo');
     }
@@ -215,6 +319,33 @@ export function DocumentacionPage() {
     }
   };
 
+  const openExpiry = (file: ComplianceFileView, cadence: ComplianceCadence) => {
+    const current = file.expiresAt?.slice(0, 10) ?? '';
+    const suggested = current ? '' : defaultExpiryFor(cadence);
+    setExpiryFile(file);
+    setExpiryValue(current || suggested);
+    setExpiryHint(suggested ? cadence : null);
+  };
+
+  const approveFile = async (file: ComplianceFileView) => {
+    try {
+      await logisticaApi.approveComplianceFile(file.id);
+      toast.success('Archivo aprobado');
+      await loadSummary(transportId);
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo aprobar el archivo');
+    }
+  };
+
+  const openFromBoard = (row: ComplianceOverviewRow) => {
+    setFilter('all');
+    setTransportId(row.transportId);
+    setOpenEmpresa(row.subject === 'TRANSPORT');
+    setOpenChofer(row.subject === 'PERSON' ? row.subjectUserId : null);
+    setOpenVehicle(row.subject === 'VEHICLE' ? row.vehicleId : null);
+    setView('detail');
+  };
+
   const removeFile = async (file: ComplianceFileView) => {
     if (!confirm('¿Quitar este archivo? Queda en historial.')) return;
     try {
@@ -227,19 +358,18 @@ export function DocumentacionPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
-      <div className="flex flex-wrap items-end gap-3 justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Documentación</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Todo opcional. El estado es visual: no bloquea remitos ni viajes.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void loadSummary(transportId)}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Actualizar
-        </Button>
-      </div>
+      <DocumentacionHeader
+        abilities={abilities}
+        view={view}
+        onView={setView}
+        onConfigure={() => setTypesOpen(true)}
+        onRefresh={() => void (view === 'board' ? loadOverview() : loadSummary(transportId))}
+      />
 
+      {view === 'board' && abilities.isOffice ? (
+        <OverviewBoard rows={overviewRows} loading={overviewLoading} onOpen={openFromBoard} />
+      ) : (
+      <>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="transport">Transporte</Label>
@@ -322,10 +452,8 @@ export function DocumentacionPage() {
               slots={slots.filter((s) => s.subject === 'TRANSPORT')}
               onUpload={uploadSlot}
               onPreview={openPreview}
-              onExpiry={(file) => {
-                setExpiryFile(file);
-                setExpiryValue(file.expiresAt?.slice(0, 10) ?? '');
-              }}
+              onExpiry={openExpiry}
+              onApprove={abilities.canApprove ? approveFile : undefined}
               onRemove={removeFile}
             />
           </Section>
@@ -341,10 +469,8 @@ export function DocumentacionPage() {
                 slots={slots.filter((s) => s.subject === 'PERSON' && s.subjectUserId === member.userId)}
                 onUpload={uploadSlot}
                 onPreview={openPreview}
-                onExpiry={(file) => {
-                  setExpiryFile(file);
-                  setExpiryValue(file.expiresAt?.slice(0, 10) ?? '');
-                }}
+                onExpiry={openExpiry}
+                onApprove={abilities.canApprove ? approveFile : undefined}
                 onRemove={removeFile}
               />
             </Section>
@@ -361,16 +487,22 @@ export function DocumentacionPage() {
                 slots={slots.filter((s) => s.subject === 'VEHICLE' && s.vehicleId === vehicle.id)}
                 onUpload={uploadSlot}
                 onPreview={openPreview}
-                onExpiry={(file) => {
-                  setExpiryFile(file);
-                  setExpiryValue(file.expiresAt?.slice(0, 10) ?? '');
-                }}
+                onExpiry={openExpiry}
+                onApprove={abilities.canApprove ? approveFile : undefined}
                 onRemove={removeFile}
               />
             </Section>
           ))}
         </>
       )}
+      </>
+      )}
+
+      <TypesConfigDialog
+        open={typesOpen}
+        onClose={() => setTypesOpen(false)}
+        onSaved={() => void (view === 'board' ? loadOverview() : loadSummary(transportId))}
+      />
 
       <Dialog open={vehicleOpen} onClose={() => setVehicleOpen(false)} title="Nuevo vehículo">
         <div className="space-y-3">
@@ -418,6 +550,11 @@ export function DocumentacionPage() {
             value={expiryValue}
             onChange={(e) => setExpiryValue(e.target.value)}
           />
+          {expiryHint && (
+            <p className="text-xs text-muted-foreground">
+              Fecha sugerida según el vencimiento del tipo ({CADENCE_LABEL[expiryHint]}). Podés cambiarla.
+            </p>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setExpiryFile(null)}>Cancelar</Button>
             <Button onClick={() => void saveExpiry()}>Guardar</Button>
@@ -469,71 +606,79 @@ export function SlotList({
   onPreview,
   onExpiry,
   onRemove,
+  onApprove,
 }: {
   slots: ComplianceSlotView[];
-  onUpload: (slot: ComplianceSlotView, file: File, replaceFileId?: string, dniSide?: 'front' | 'back') => Promise<void>;
+  onUpload: (slot: ComplianceSlotView, file: File, replaceFileId?: string, dniSide?: DniSide) => Promise<void>;
   onPreview: (file: ComplianceFileView) => void;
-  onExpiry: (file: ComplianceFileView) => void;
+  onExpiry: (file: ComplianceFileView, cadence: ComplianceCadence) => void;
   onRemove: (file: ComplianceFileView) => void;
+  /** Present only for users allowed to approve documentation. */
+  onApprove?: (file: ComplianceFileView) => void;
 }) {
   if (!slots.length) {
     return <p className="text-sm text-muted-foreground">Sin ítems para este filtro.</p>;
   }
   return (
     <ul className="space-y-3">
-      {slots.map((slot) => (
-        <li key={`${slot.typeKey}-${slot.subjectUserId ?? ''}-${slot.vehicleId ?? ''}`} className="rounded-md border p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{slot.label}</span>
-              <StatusBadge status={slot.status} />
+      {slots.map((slot) => {
+        const twoSided = isTwoSided(slot);
+        const rowProps = {
+          onPreview,
+          onExpiry: (file: ComplianceFileView) => onExpiry(file, slot.cadence),
+          onRemove,
+          onApprove,
+        };
+        return (
+          <li key={`${slot.typeKey}-${slot.subjectUserId ?? ''}-${slot.vehicleId ?? ''}`} className="rounded-md border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">{slot.label}</span>
+                <StatusBadge status={slot.status} />
+                {slot.pendingReview > 0 && (
+                  <Badge variant="secondary">
+                    {slot.pendingReview} {slot.pendingReview === 1 ? 'pendiente' : 'pendientes'} de revisión
+                  </Badge>
+                )}
+              </div>
+              {!twoSided && <UploadInput label="Subir" onFile={(file) => void onUpload(slot, file)} />}
             </div>
-            {slot.typeKey !== 'dni' && <UploadInput label="Subir" onFile={(file) => void onUpload(slot, file)} />}
-          </div>
-          {slot.typeKey === 'dni' ? (
-            <div className="mt-3 space-y-3">
-              <p className="text-xs text-muted-foreground">Cargá el frente y el dorso por separado. Podés ver o reemplazar cada lado.</p>
-              {(['front', 'back'] as const).map((side) => (
-                <div key={side} className="rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{side === 'front' ? 'Frente' : 'Dorso'}</span>
-                    {!slot.files.some((file) => file.dniSide === side) && (
-                      <UploadInput label={`Subir ${side === 'front' ? 'frente' : 'dorso'}`} onFile={(file) => void onUpload(slot, file, undefined, side)} />
-                    )}
+            {twoSided ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">Cargá el frente y el dorso por separado. Podés ver o reemplazar cada lado.</p>
+                {(['front', 'back'] as const).map((side) => (
+                  <div key={side} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{SIDE_LABEL[side]}</span>
+                      {!slot.files.some((file) => file.dniSide === side) && (
+                        <UploadInput label={`Subir ${SIDE_LABEL[side].toLowerCase()}`} onFile={(file) => void onUpload(slot, file, undefined, side)} />
+                      )}
+                    </div>
+                    <FileRows
+                      {...rowProps}
+                      files={slot.files.filter((file) => file.dniSide === side)}
+                      onReplace={(file, next) => void onUpload(slot, next, file.id, side)}
+                    />
                   </div>
-                  <FileRows
-                    files={slot.files.filter((file) => file.dniSide === side)}
-                    onPreview={onPreview}
-                    onExpiry={onExpiry}
-                    onRemove={onRemove}
-                    onReplace={(file, next) => void onUpload(slot, next, file.id, side)}
-                  />
-                </div>
-              ))}
-              {slot.files.some((file) => !file.dniSide) && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Archivos anteriores sin lado identificado. Para completar el DNI, cargá frente y dorso arriba.</p>
-                  <FileRows
-                    files={slot.files.filter((file) => !file.dniSide)}
-                    onPreview={onPreview}
-                    onExpiry={onExpiry}
-                    onRemove={onRemove}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <FileRows
-              files={slot.files}
-              onPreview={onPreview}
-              onExpiry={onExpiry}
-              onRemove={onRemove}
-              onReplace={(file, next) => void onUpload(slot, next, file.id)}
-            />
-          )}
-        </li>
-      ))}
+                ))}
+                {slot.files.some((file) => !file.dniSide) && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Archivos anteriores sin lado identificado. Para completar el documento, cargá frente y dorso arriba.</p>
+                    <FileRows {...rowProps} files={slot.files.filter((file) => !file.dniSide)} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <FileRows
+                {...rowProps}
+                files={slot.files}
+                onReplace={(file, next) => void onUpload(slot, next, file.id)}
+              />
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -560,12 +705,13 @@ function UploadInput({ label, onFile }: { label: string; onFile: (file: File) =>
   );
 }
 
-function FileRows({ files, onPreview, onExpiry, onRemove, onReplace }: {
+function FileRows({ files, onPreview, onExpiry, onRemove, onReplace, onApprove }: {
   files: ComplianceFileView[];
   onPreview: (file: ComplianceFileView) => void;
   onExpiry: (file: ComplianceFileView) => void;
   onRemove: (file: ComplianceFileView) => void;
   onReplace?: (file: ComplianceFileView, next: File) => void;
+  onApprove?: (file: ComplianceFileView) => void;
 }) {
   if (files.length === 0) return <p className="text-xs text-muted-foreground mt-2">Sin archivo.</p>;
   return (
@@ -578,6 +724,13 @@ function FileRows({ files, onPreview, onExpiry, onRemove, onReplace }: {
           </button>
           <span className="flex items-center gap-1">
             <Badge variant="outline">{STATUS_LABEL[file.status]}</Badge>
+            <ReviewBadge file={file} />
+            {onApprove && file.confirmedAt && file.reviewStatus !== 'APPROVED' && (
+              <Button variant="ghost" size="sm" onClick={() => onApprove(file)}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                Aprobar
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => onExpiry(file)}>Vence</Button>
             {onReplace && <UploadInput label="Reemplazar" onFile={(next) => onReplace(file, next)} />}
             <Button variant="ghost" size="icon" aria-label="Quitar archivo" onClick={() => onRemove(file)}>
