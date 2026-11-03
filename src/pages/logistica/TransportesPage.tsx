@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logisticaApi } from '@/api/logistica';
 import { Badge } from '@/components/ui/Badge';
@@ -43,6 +43,18 @@ export function toggleTransportFuelLoads(
   return setFlag(transport.id, !transport.fuelLoadsEnabled);
 }
 
+/** Resets the member's account password; `reset` is injectable for tests. */
+export async function resetMemberPassword(
+  member: TransportMemberView,
+  password: string,
+  reset: (userId: string, newPassword: string) => Promise<{ temporaryPassword: string }> = logisticaApi.resetFieldUserPassword,
+): Promise<string> {
+  const newPassword = password.trim();
+  if (newPassword.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+  const result = await reset(member.userId, newPassword);
+  return result.temporaryPassword;
+}
+
 export function TransportesPage() {
   const [items, setItems] = useState<TransportView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +67,9 @@ export function TransportesPage() {
   const [editingMember, setEditingMember] = useState<TransportMemberView | null>(null);
   const [transportForm, setTransportForm] = useState<TransportForm>(EMPTY_TRANSPORT);
   const [memberForm, setMemberForm] = useState<MemberForm>(EMPTY_MEMBER);
+  const [resetMember, setResetMember] = useState<TransportMemberView | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -191,6 +206,25 @@ export function TransportesPage() {
     }
   };
 
+  const openResetPassword = (member: TransportMemberView) => {
+    setResetMember(member);
+    setResetPassword(randomPassword());
+    setRevealedPassword(null);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetMember) return;
+    setSaving(true);
+    try {
+      setRevealedPassword(await resetMemberPassword(resetMember, resetPassword));
+      toast.success('Contraseña restablecida');
+    } catch (err) {
+      toast.error((err as Error).message || 'No se pudo restablecer la contraseña');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const removeMember = async (transport: TransportView, member: TransportMemberView) => {
     if (!window.confirm(`¿Quitar a ${member.name} de ${transport.name}?`)) return;
     setSaving(true);
@@ -296,6 +330,9 @@ export function TransportesPage() {
                                     <TableCell>{member.active ? 'Activo' : 'Inactivo'}</TableCell>
                                     <TableCell className="text-right whitespace-nowrap">
                                       <Button variant="outline" size="sm" onClick={() => openMember(transport, member)}>Rol</Button>
+                                      <Button variant="ghost" size="icon" disabled={saving} title="Restablecer contraseña" aria-label="Restablecer contraseña" onClick={() => openResetPassword(member)}>
+                                        <KeyRound className="h-4 w-4" />
+                                      </Button>
                                       <Button variant="ghost" size="sm" disabled={saving} onClick={() => void toggleMember(transport, member)}>
                                         {member.active ? 'Desactivar' : 'Activar'}
                                       </Button>
@@ -344,6 +381,31 @@ export function TransportesPage() {
           <div className="space-y-1"><Label htmlFor="member-role">Rol</Label><Select id="member-role" value={memberForm.role} onChange={(event) => setMemberForm((current) => ({ ...current, role: event.target.value as TransportMemberRole }))}><option value="CHOFER">Chofer</option><option value="DUENO">Dueño</option></Select></div>
           <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setMemberDialog(false)}>Cancelar</Button><Button loading={saving} onClick={() => void saveMember()}>Guardar</Button></div>
         </div>
+      </Dialog>
+
+      <Dialog open={resetMember !== null} onClose={() => setResetMember(null)} title="Restablecer contraseña" description={resetMember ? `${resetMember.name} · ${resetMember.email}` : undefined}>
+        {revealedPassword ? (
+          <div className="space-y-4">
+            <p className="text-sm">Contraseña temporal nueva:</p>
+            <p className="rounded-md border border-border bg-muted px-3 py-2 font-mono text-base select-all">{revealedPassword}</p>
+            <p className="text-sm text-muted-foreground">Copiala ahora: no se vuelve a mostrar. Al ingresar se le pide cambiarla, y se cierran las sesiones abiertas en otros dispositivos.</p>
+            <div className="flex justify-end"><Button onClick={() => setResetMember(null)}>Listo</Button></div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="member-reset-password">Contraseña temporal</Label>
+              <div className="flex gap-2">
+                <Input id="member-reset-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
+                <Button variant="outline" onClick={() => setResetPassword(randomPassword())}>Generar</Button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setResetMember(null)}>Cancelar</Button>
+              <Button loading={saving} onClick={() => void handleResetPassword()}>Restablecer</Button>
+            </div>
+          </div>
+        )}
       </Dialog>
     </div>
   );
