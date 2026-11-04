@@ -156,7 +156,7 @@ describe('fuel loads Excel report', () => {
     const [header] = rows(buildFuelLoadsSheet([load()], ORIGIN));
     expect(header).toEqual([
       'Marca temporal', 'Chofer', 'Transporte', 'Patente', 'Fecha', 'Litros',
-      '¿Se llenó?', 'Motivo', 'Bandera', 'Km tacómetro', 'Lugar', 'Foto ticket', 'Foto tacómetro',
+      '¿Se llenó?', 'Motivo', 'Bandera', 'Km tacómetro', 'Foto ticket', 'Foto tacómetro',
     ]);
   });
 
@@ -173,10 +173,10 @@ describe('fuel loads Excel report', () => {
     expect(first).toEqual([
       excelSerial(new Date('2026-11-02T13:31:00.000Z')), 'Juan Pérez', 'TTe. LINCE', 'AB123CD',
       excelSerial(new Date('2026-11-02T13:30:00.000Z')), 152.5, 'SI', null, 'YPF',
-      123456, 'YPF Ruta 9', 'Ver ticket', 'Ver tacómetro',
+      123456, 'Ver ticket', 'Ver tacómetro',
     ]);
-    expect(second.slice(3, 13)).toEqual([
-      null, expect.any(Number), 152.5, 'NO', 'Se cortó el sistema', 'Shell', null, null, 'Ver ticket', null,
+    expect(second.slice(3, 12)).toEqual([
+      null, expect.any(Number), 152.5, 'NO', 'Se cortó el sistema', 'Shell', null, 'Ver ticket', null,
     ]);
     // Loads recorded before the app asked stay blank, never "NO".
     expect(third.slice(6, 9)).toEqual([null, null, null]);
@@ -186,8 +186,8 @@ describe('fuel loads Excel report', () => {
 
   it('links the photos to the web app, never to an expiring storage link', () => {
     const sheet = buildFuelLoadsSheet([load({ odometerUrl: 'https://s3.test/odo.jpg' })], ORIGIN);
-    expect(sheet.L2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/ticket');
-    expect(sheet.M2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/odometer');
+    expect(sheet.K2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/ticket');
+    expect(sheet.L2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/odometer');
     expect(JSON.stringify(sheet)).not.toContain('s3.test');
   });
 

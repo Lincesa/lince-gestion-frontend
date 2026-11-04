@@ -80,11 +80,11 @@ export function fuelLoadPhotoPath(id: string, photo: FuelLoadPhoto): string {
 
 const REPORT_HEADER = [
   'Marca temporal', 'Chofer', 'Transporte', 'Patente', 'Fecha', 'Litros',
-  '¿Se llenó?', 'Motivo', 'Bandera', 'Km tacómetro', 'Lugar', 'Foto ticket', 'Foto tacómetro',
+  '¿Se llenó?', 'Motivo', 'Bandera', 'Km tacómetro', 'Foto ticket', 'Foto tacómetro',
 ];
-const REPORT_WIDTHS = [18, 22, 18, 12, 18, 10, 10, 28, 12, 14, 28, 14, 16];
-const TICKET_COL = 11;
-const ODOMETER_COL = 12;
+const REPORT_WIDTHS = [18, 22, 18, 12, 18, 10, 10, 28, 12, 14, 14, 16];
+const TICKET_COL = 10;
+const ODOMETER_COL = 11;
 
 /** SI / NO, or blank for loads recorded before the app asked. */
 function tankFilledLabel(load: FuelLoadView): string | null {
@@ -108,7 +108,6 @@ export function buildFuelLoadsSheet(items: FuelLoadView[], origin: string): XLSX
     load.notFilledReason ?? null,
     load.fuelBrand ?? null,
     load.odometerKm ?? null,
-    load.placeNote ?? null,
     load.ticketUrl ? 'Ver ticket' : null,
     load.odometerUrl ? 'Ver tacómetro' : null,
   ]);
