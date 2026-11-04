@@ -24,7 +24,9 @@ export function PrivateRoute() {
       });
   }, [isAuthenticated, dispatch]);
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
+  }
 
   const redirect = resolveFieldJailRedirect({
     profile: getUserProfile(user),

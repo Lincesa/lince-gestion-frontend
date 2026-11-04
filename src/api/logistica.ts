@@ -5,6 +5,8 @@ import type {
   FieldUserKind,
   FieldUserResetResult,
   FieldUserView,
+  FuelLoadPhoto,
+  FuelLoadView,
   PaginatedFuelLoads,
   GeoLayer,
   GeoPoint,
@@ -265,6 +267,14 @@ export const logisticaApi = {
     const query = qs.toString();
     return api.get<PaginatedFuelLoads>(`/logistica/fuel-loads${query ? `?${query}` : ''}`);
   },
+
+  /** Logística EDITOR: fixes a mistyped km or truck. `vehicleId: null` leaves the load without a truck. */
+  updateFuelLoad: (id: string, payload: { odometerKm?: number; vehicleId?: string | null }) =>
+    api.patch<FuelLoadView>(`/logistica/fuel-loads/${id}`, payload),
+
+  /** Office: a fresh signed link to one photo (the Excel report links to a page that calls this). */
+  fuelLoadPhotoUrl: (id: string, photo: FuelLoadPhoto) =>
+    api.get<{ url: string }>(`/logistica/fuel-loads/${id}/photos/${photo}`),
 
   /** SUPERADMIN only: deletes the load and its photos. */
   deleteFuelLoad: (id: string) => api.delete<void>(`/logistica/fuel-loads/${id}`),

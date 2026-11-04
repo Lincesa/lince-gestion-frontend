@@ -1,22 +1,24 @@
 import { FormEvent, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { DarkModeToggle } from '@/components/ui/DarkModeToggle';
 import { Button } from '@/components/ui/Button';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { setAuth } from '@/store/auth/authSlice';
 import { authApi } from '@/api/auth';
+import { loginDestination } from '@/router/loginRedirect';
 
 export function LoginPage() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const destination = loginDestination(useLocation().state);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) return <Navigate to={destination} replace />;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,7 +27,7 @@ export function LoginPage() {
     try {
       const res = await authApi.login(email, password);
       dispatch(setAuth({ user: res.user, accessToken: res.accessToken, refreshToken: res.refreshToken }));
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {

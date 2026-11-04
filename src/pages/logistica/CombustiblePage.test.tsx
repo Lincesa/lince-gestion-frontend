@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { UserProfile } from '@/types';
 import type { FuelLoadView, TransportView } from '@/types/logistica.types';
 import { resolveFieldJailRedirect } from '@/router/fieldJail';
-import { FuelLoadsTable, canDeleteFuelLoads, fuelLoadsQuery } from './CombustiblePage';
+import * as XLSX from 'xlsx';
+import { FuelLoadsTable, buildFuelLoadsSheet, canDeleteFuelLoads, excelSerial, fuelLoadsQuery, fuelLoadPhotoPath, fuelPlates, parseKm } from './CombustiblePage';
 import { GlobalRole } from '@/types/auth.types';
 import { toggleTransportFuelLoads } from './TransportesPage';
 
@@ -22,6 +23,9 @@ function load(overrides: Partial<FuelLoadView> = {}): FuelLoadView {
     latitude: -26.8241,
     longitude: -65.2226,
     placeNote: 'YPF Ruta 9',
+    tankFilled: true,
+    notFilledReason: null,
+    fuelBrand: 'YPF',
     loadedAt: '2026-11-02T13:30:00.000Z',
     createdAt: '2026-11-02T13:31:00.000Z',
     ticketUrl: 'https://s3.test/ticket.jpg',
@@ -118,5 +122,112 @@ describe('fuel load deletion', () => {
   it('hides the delete button otherwise', () => {
     const html = renderToStaticMarkup(<FuelLoadsTable items={[load()]} onPreview={() => {}} />);
     expect(html).not.toContain('Eliminar carga');
+  });
+});
+
+describe('fuel load correction', () => {
+  it('shows an edit button per row when editing is allowed', () => {
+    const html = renderToStaticMarkup(
+      <FuelLoadsTable items={[load()]} onPreview={() => {}} onEdit={() => {}} />,
+    );
+    expect(html).toContain('aria-label="Corregir carga"');
+  });
+
+  it('hides the edit button otherwise', () => {
+    const html = renderToStaticMarkup(<FuelLoadsTable items={[load()]} onPreview={() => {}} />);
+    expect(html).not.toContain('Corregir carga');
+  });
+
+  it('reads the km as typed, with or without thousands dots', () => {
+    expect(parseKm('687716')).toBe(687716);
+    expect(parseKm(' 687.716 ')).toBe(687716);
+    expect(parseKm('')).toBeNull();
+    expect(parseKm('68a')).toBeNull();
+    expect(parseKm('-5')).toBeNull();
+    expect(parseKm('687,5')).toBeNull();
+  });
+});
+
+describe('fuel loads Excel report', () => {
+  const ORIGIN = 'https://gestion.test';
+  const rows = (sheet: XLSX.WorkSheet) => XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null });
+
+  it('follows the order of the old form sheet', () => {
+    const [header] = rows(buildFuelLoadsSheet([load()], ORIGIN));
+    expect(header).toEqual([
+      'Marca temporal', 'Chofer', 'Transporte', 'Patente', 'Fecha', 'Litros',
+      '¿Se llenó?', 'Motivo', 'Bandera', 'Km tacómetro', 'Lugar', 'Foto ticket', 'Foto tacómetro',
+    ]);
+  });
+
+  it('keeps numbers and dates as numbers and blanks for missing data', () => {
+    const sheet = buildFuelLoadsSheet([
+      load({ odometerUrl: 'https://s3.test/odo.jpg' }),
+      load({
+        id: 'load-2', vehiclePlate: null, odometerKm: null, placeNote: null, odometerUrl: null,
+        tankFilled: false, notFilledReason: 'Se cortó el sistema', fuelBrand: 'Shell',
+      }),
+      load({ id: 'load-3', tankFilled: null, fuelBrand: null }),
+    ], ORIGIN);
+    const [, first, second, third] = rows(sheet);
+    expect(first).toEqual([
+      excelSerial(new Date('2026-11-02T13:31:00.000Z')), 'Juan Pérez', 'TTe. LINCE', 'AB123CD',
+      excelSerial(new Date('2026-11-02T13:30:00.000Z')), 152.5, 'SI', null, 'YPF',
+      123456, 'YPF Ruta 9', 'Ver ticket', 'Ver tacómetro',
+    ]);
+    expect(second.slice(3, 13)).toEqual([
+      null, expect.any(Number), 152.5, 'NO', 'Se cortó el sistema', 'Shell', null, null, 'Ver ticket', null,
+    ]);
+    // Loads recorded before the app asked stay blank, never "NO".
+    expect(third.slice(6, 9)).toEqual([null, null, null]);
+    expect(sheet.A2.z).toBe('dd/mm/yyyy hh:mm');
+    expect(sheet.E2.z).toBe('dd/mm/yyyy hh:mm');
+  });
+
+  it('links the photos to the web app, never to an expiring storage link', () => {
+    const sheet = buildFuelLoadsSheet([load({ odometerUrl: 'https://s3.test/odo.jpg' })], ORIGIN);
+    expect(sheet.L2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/ticket');
+    expect(sheet.M2.l?.Target).toBe('https://gestion.test/logistica/combustible/load-1/foto/odometer');
+    expect(JSON.stringify(sheet)).not.toContain('s3.test');
+  });
+
+  it('builds the photo path the route serves', () => {
+    expect(fuelLoadPhotoPath('load-1', 'ticket')).toBe('/logistica/combustible/load-1/foto/ticket');
+  });
+});
+
+describe('excelSerial', () => {
+  it('shows in Excel the same local date and minute the page shows', () => {
+    const date = new Date('2026-11-03T23:53:00.000Z');
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const local = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    expect(XLSX.SSF.format('dd/mm/yyyy hh:mm', excelSerial(date))).toBe(local);
+  });
+});
+
+describe('fuel loads table answers', () => {
+  it('shows whether the tank was filled, why not, and the brand', () => {
+    const html = renderToStaticMarkup(
+      <FuelLoadsTable
+        items={[load({ tankFilled: false, notFilledReason: 'Pq cortó la tarjeta', fuelBrand: 'Shell' })]}
+        onPreview={() => {}}
+      />,
+    );
+    expect(html).toContain('NO');
+    expect(html).toContain('Pq cortó la tarjeta');
+    expect(html).toContain('Shell');
+  });
+});
+
+describe('fuelPlates', () => {
+  it('lists the active trucks of a transport by plate, without bateas', () => {
+    const v = (id: string, plate: string, kind: 'camion' | 'batea' | 'otro' | null, active = true) =>
+      ({ id, transportId: 't-1', plate, label: null, kind, active });
+    expect(fuelPlates([
+      v('1', 'OUJ944', 'camion'),
+      v('2', 'BAT001', 'batea'),
+      v('3', 'AB080SH', null),
+      v('4', 'AA000AA', 'camion', false),
+    ]).map((x) => x.plate)).toEqual(['AB080SH', 'OUJ944']);
   });
 });

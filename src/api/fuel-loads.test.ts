@@ -23,6 +23,16 @@ describe('fuel loads API', () => {
     del.mockReset();
   });
 
+  it('corrects the km and the truck of a fuel load', async () => {
+    await logisticaApi.updateFuelLoad('load-1', { odometerKm: 687716, vehicleId: null });
+    expect(patch).toHaveBeenCalledWith('/logistica/fuel-loads/load-1', { odometerKm: 687716, vehicleId: null });
+  });
+
+  it('asks for a fresh link to a photo', async () => {
+    await logisticaApi.fuelLoadPhotoUrl('load-1', 'odometer');
+    expect(get).toHaveBeenCalledWith('/logistica/fuel-loads/load-1/photos/odometer');
+  });
+
   it('deletes a fuel load by id', async () => {
     await logisticaApi.deleteFuelLoad('load-1');
     expect(del).toHaveBeenCalledWith('/logistica/fuel-loads/load-1');

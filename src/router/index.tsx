@@ -157,6 +157,9 @@ const DocumentacionPage = lazy(() =>
 const CombustiblePage = lazy(() =>
   import('@/pages/logistica/CombustiblePage').then((m) => ({ default: m.CombustiblePage })),
 );
+const FuelLoadPhotoPage = lazy(() =>
+  import('@/pages/logistica/CombustiblePage').then((m) => ({ default: m.FuelLoadPhotoPage })),
+);
 
 function PageLoader() {
   return (
@@ -586,6 +589,15 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <CombustiblePage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    // Excel report photo links: behind login, office only like the page above.
+                    path: 'combustible/:id/foto/:photo',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <FuelLoadPhotoPage />
                       </Suspense>
                     ),
                   },

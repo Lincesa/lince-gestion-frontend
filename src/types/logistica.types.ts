@@ -271,11 +271,17 @@ export interface FuelLoadView {
   latitude: number | null;
   longitude: number | null;
   placeNote: string | null;
+  /** Null for loads recorded before the app asked (Trello #89). */
+  tankFilled: boolean | null;
+  notFilledReason: string | null;
+  fuelBrand: string | null;
   loadedAt: string;
   createdAt: string;
   ticketUrl: string | null;
   odometerUrl: string | null;
 }
+
+export type FuelLoadPhoto = 'ticket' | 'odometer';
 
 export interface PaginatedFuelLoads {
   items: FuelLoadView[];
