@@ -23,6 +23,7 @@ import { downloadDocumentFile, exportRemitos, getOcrStats, getRemitoFilterOption
 import { hasRemitoExportFilters } from '@/types/remitos-filters.types';
 import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
 import { EditedShareChart } from './components/EditedShareChart';
+import { DuplicateBadge } from './components/RemitoDuplicatesNotice';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   bulkDeleteDocuments,
@@ -129,7 +130,8 @@ export function OcrDashboardPage() {
     type: DocumentType.REMITO,
   });
   const [nroRemitoInput, setNroRemitoInput] = useState('');
-  const [detailDoc, setDetailDoc] = useState<OcrDocument | null>(null);
+  // Only the id is needed: the panel loads the document, which may not be on this page.
+  const [detailDoc, setDetailDoc] = useState<Pick<OcrDocument, 'id'> | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [stats, setStats] = useState<OcrStats | null>(null);
@@ -225,7 +227,7 @@ export function OcrDashboardPage() {
     }
   };
 
-  const openDetail = (doc: OcrDocument) => {
+  const openDetail = (doc: Pick<OcrDocument, 'id'>) => {
     setDetailDoc(doc);
     void dispatch(fetchDocument(doc.id));
     requestAnimationFrame(() => {
@@ -487,6 +489,7 @@ export function OcrDashboardPage() {
                       <span className="inline-flex flex-wrap items-center gap-1.5">
                         {formatRemitoNumber(doc)}
                         {isRemitoAnnulled(doc) && <RemitoAnnulledBadge remito={doc} />}
+                        <DuplicateBadge count={doc.possibleDuplicates?.length ?? 0} />
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap" title={doc.uploadedByEmail ?? undefined}>{formatUploader(doc)}</td>
@@ -579,6 +582,7 @@ export function OcrDashboardPage() {
         return (
           <DocumentDetailPanel
             documentId={detailDoc.id}
+            onOpenDocument={(id) => openDetail({ id })}
             onClose={() => { setDetailDoc(null); dispatch(clearCurrent()); }}
             onAnnulChanged={() => {
               const filtersWithType = { ...filters, type: DocumentType.REMITO };

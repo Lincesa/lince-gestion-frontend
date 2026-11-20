@@ -8,6 +8,7 @@ import type {
   OcrStats,
   PaginatedDocuments,
   RemitoComment,
+  RemitoDuplicate,
   RemitoFilterOptions,
   UploadUrlResponse,
 } from '@/types/ocr.types';
@@ -275,6 +276,11 @@ export function unannulDocument(id: string): Promise<OcrDocument> {
 }
 
 /** Hilo de comentarios del remito, del más viejo al más nuevo */
+/** ADMIN: remitos that may be the same as this one, to compare and void or delete. */
+export function getDocumentDuplicates(id: string): Promise<RemitoDuplicate[]> {
+  return api.get<RemitoDuplicate[]>(`${BASE}/${id}/duplicates`);
+}
+
 export function getDocumentComments(id: string): Promise<RemitoComment[]> {
   return api.get<RemitoComment[]>(`${BASE}/${id}/comments`);
 }

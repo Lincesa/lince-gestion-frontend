@@ -10,12 +10,14 @@ import {
   annulDocument,
   getDocumentAttachments,
   getDocumentComments,
+  getDocumentDuplicates,
   getDocumentViewUrl,
   unannulDocument,
 } from '@/api/ocr';
 import { PhotoLocationSection } from '@/components/logistica/PhotoLocationSection';
 import { RemitoAnnulSection } from '@/components/logistica/RemitoAnnulSection';
 import { RemitoCommentsSection } from '@/components/logistica/RemitoCommentsSection';
+import { RemitoDuplicatesSection } from './RemitoDuplicatesNotice';
 import { SupportingPhotosSection } from '@/components/ocr/SupportingPhotosSection';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { annulmentChanged, deleteDocument, fetchDocument, updateDocumentFields, type AnnulmentPatch } from '@/store/ocr/documentsSlice';
@@ -68,6 +70,8 @@ interface Props {
   onDeleted?: (id: string) => void;
   /** Called after the remito was voided or unvoided, so the host refreshes its list. */
   onAnnulChanged?: () => void;
+  /** Opens another remito in this panel (used by the possible-duplicate warning). */
+  onOpenDocument?: (id: string) => void;
   submitting: boolean;
   index:      number;
   total:      number;
@@ -127,6 +131,7 @@ export function DocumentDetailPanel({
   onClose,
   onDeleted,
   onAnnulChanged,
+  onOpenDocument,
   submitting,
   index,
   total,
@@ -475,6 +480,15 @@ export function DocumentDetailPanel({
                 </div>
               )}
             </div>
+
+            {doc.type === DocumentType.REMITO && onOpenDocument && (
+              <RemitoDuplicatesSection
+                id={doc.id}
+                duplicateAttempts={doc.duplicateAttempts ?? 0}
+                fetchDuplicates={getDocumentDuplicates}
+                onOpen={onOpenDocument}
+              />
+            )}
 
             {doc.type === DocumentType.REMITO && (
               <PhotoLocationSection lat={doc.latitude} lng={doc.longitude} />

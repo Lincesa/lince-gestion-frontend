@@ -58,6 +58,34 @@ export interface OcrDocument {
   updatedAt:        string;
   /** Presigned GET URL incluida en findOne() — expira en 1h */
   viewUrl?:         string | null;
+  /** Times the same account sent this exact photo again; each retry was rejected. */
+  duplicateAttempts?: number;
+  /** Other remitos this one may duplicate (sent by the admin list endpoint). */
+  possibleDuplicates?: RemitoDuplicateRef[];
+}
+
+/**
+ * Why two remitos may be the same one. Only a warning for the operator:
+ * same_file = identical photo from another account; same_number = same prefix and
+ * number read by OCR (it can misread, so a person decides).
+ */
+export type RemitoDuplicateReason = 'same_file' | 'same_number';
+
+export interface RemitoDuplicateRef {
+  id:      string;
+  reasons: RemitoDuplicateReason[];
+}
+
+/** A possible duplicate with what is needed to compare it (GET /ocr/documents/:id/duplicates). */
+export interface RemitoDuplicate extends RemitoDuplicateRef {
+  status:          DocumentStatus;
+  createdAt:       string;
+  driverName:      string | null;
+  uploadedByName:  string | null;
+  uploadedByEmail: string | null;
+  ptoVenta:        string | null;
+  nroRemito:       string | null;
+  fecha:           string | null;
 }
 
 /** Supporting photo attached to a REMITO (never goes through OCR). Mirrors the backend AttachmentDto. */
