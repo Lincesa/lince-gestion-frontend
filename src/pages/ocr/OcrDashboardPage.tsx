@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { downloadDocumentFile, exportRemitos, getOcrStats, getRemitoFilterOptions } from '@/api/ocr';
 import { hasRemitoExportFilters } from '@/types/remitos-filters.types';
 import { RemitosFiltersBar } from '@/components/logistica/RemitosFiltersBar';
+import { EditedShareChart } from './components/EditedShareChart';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   bulkDeleteDocuments,
@@ -321,7 +322,7 @@ export function OcrDashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_1fr]">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[160px_1fr] xl:grid-cols-[160px_1fr_minmax(260px,auto)]">
         {/* Total + Editados */}
         <div className="flex flex-col gap-4">
           <div className="rounded-lg border border-border bg-card p-4">
@@ -366,6 +367,10 @@ export function OcrDashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="sm:col-span-2 xl:col-span-1">
+          <EditedShareChart total={total} edited={edited} />
         </div>
       </div>
 
