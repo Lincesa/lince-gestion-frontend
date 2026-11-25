@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { balanceMasasApi } from '@/api/balanceMasas';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { nombreMesTitulo } from '@/components/balance-masas/tablero';
 import { useConfirmar } from '@/components/balance-masas/useConfirmar';
+import { useAppSelector } from '@/store';
+import { GlobalRole } from '@/types/auth.types';
 import type { EventoBalance } from '@/types/balanceMasas.types';
 import { useBalanceMasas } from './BalanceMasasLayout';
 
@@ -15,6 +18,7 @@ const TIPO_EVENTO: Record<string, string> = {
   revisiones: 'Confirmaciones de ajustes',
   importacion: 'Importación de historial_balance.xlsx',
   arranque: 'Arranque',
+  eliminacion: 'Eliminación del cierre',
 };
 
 const fechaHora = (iso: string) =>
@@ -22,16 +26,37 @@ const fechaHora = (iso: string) =>
 
 export function HistorialPage() {
   const { estado, recargarEstado, canAdmin } = useBalanceMasas();
+  const isSuperadmin = useAppSelector((s) => s.auth.user?.globalRole === GlobalRole.SUPERADMIN);
   const { confirmar, dialogo } = useConfirmar();
   const inputRef = useRef<HTMLInputElement>(null);
   const [eventos, setEventos] = useState<EventoBalance[] | null>(null);
-  const [ocupado, setOcupado] = useState<'exportar' | 'importar' | null>(null);
+  const [ocupado, setOcupado] = useState<'exportar' | 'importar' | 'eliminar' | null>(null);
+  const [cierreAEliminar, setCierreAEliminar] = useState<{ mes: string; revision: number } | null>(null);
 
   useEffect(() => {
     balanceMasasApi.eventos().then(setEventos).catch((e) => { setEventos([]); toast.error(e instanceof Error ? e.message : String(e)); });
   }, [estado.revision]);
 
   const vacio = !estado.mesesCerrados.length && !estado.ultimoMes;
+  const ultimoCerrado = estado.mesesCerrados.at(-1);
+
+  const eliminar = async () => {
+    if (!isSuperadmin || !cierreAEliminar || ocupado) return;
+    const { mes, revision } = cierreAEliminar;
+    const nombre = nombreMesTitulo(mes);
+    setCierreAEliminar(null);
+    setOcupado('eliminar');
+    try {
+      await balanceMasasApi.eliminarMes(mes, revision);
+      toast.success(`Se eliminó el cierre de ${nombre}.`);
+      await recargarEstado();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      await recargarEstado();
+    } finally {
+      setOcupado(null);
+    }
+  };
 
   const exportar = async () => {
     setOcupado('exportar');
@@ -67,6 +92,15 @@ export function HistorialPage() {
   return (
     <>
       {dialogo}
+      {isSuperadmin && cierreAEliminar ? (
+        <Dialog open onClose={() => setCierreAEliminar(null)} title={`¿Eliminar el cierre de ${nombreMesTitulo(cierreAEliminar.mes)}?`}>
+          <p>Se eliminarán el balance, los ajustes y los reportes de ese mes. Esta acción no se puede deshacer.</p>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button autoFocus variant="outline" onClick={() => setCierreAEliminar(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => void eliminar()}>Eliminar mes</Button>
+          </div>
+        </Dialog>
+      ) : null}
       <header className="head">
         <div>
           <div className="k">Historial</div>
@@ -83,7 +117,7 @@ export function HistorialPage() {
         <h2>Respaldo</h2>
         <p className="hint">Descargá el historial completo en <b>historial_balance.xlsx</b>, con las mismas hojas que el archivo de la carpeta compartida.</p>
         <div className="btns">
-          <Button variant="outline" onClick={() => void exportar()} loading={ocupado === 'exportar'}>Descargar historial_balance.xlsx</Button>
+          <Button variant="outline" onClick={() => void exportar()} disabled={ocupado !== null} loading={ocupado === 'exportar'}>Descargar historial_balance.xlsx</Button>
         </div>
         {canAdmin && vacio ? (
           <>
@@ -102,11 +136,25 @@ export function HistorialPage() {
                   if (f) void importar(f);
                 }}
               />
-              <Button onClick={() => inputRef.current?.click()} loading={ocupado === 'importar'}>Importar historial_balance.xlsx</Button>
+              <Button onClick={() => inputRef.current?.click()} disabled={ocupado !== null} loading={ocupado === 'importar'}>Importar historial_balance.xlsx</Button>
             </div>
           </>
         ) : null}
       </section>
+
+      {isSuperadmin ? (
+        <section className="paso" aria-labelledby="balance-eliminar-cierre">
+          <h2 id="balance-eliminar-cierre">Administración de cierres</h2>
+          {ultimoCerrado ? (
+            <>
+              <p className="hint">Solo se puede eliminar el último mes cerrado: <b>{nombreMesTitulo(ultimoCerrado)}</b>.</p>
+              <div className="btns">
+                <Button variant="destructive" disabled={ocupado !== null} loading={ocupado === 'eliminar'} onClick={() => setCierreAEliminar({ mes: ultimoCerrado, revision: estado.revision })}>Eliminar último mes</Button>
+              </div>
+            </>
+          ) : <p className="hint">No hay meses cerrados para eliminar.</p>}
+        </section>
+      ) : null}
 
       <section className="paso">
         <h2>Cambios guardados</h2>

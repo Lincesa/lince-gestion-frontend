@@ -17,6 +17,11 @@ describe('balanceMasasApi', () => {
     apiFetch.mockResolvedValue({});
   });
 
+  it('sends the confirmed month and revision when deleting a close', async () => {
+    await balanceMasasApi.eliminarMes('2026-10', 7);
+    expect(lastCall()).toEqual(['/balance-masas/meses/2026-10', { method: 'DELETE', body: '{"revision":7}' }]);
+  });
+
   it('reads the overview, a closed month, the draft and the audit list', async () => {
     await balanceMasasApi.estado();
     expect(lastCall()[0]).toBe('/balance-masas/estado');

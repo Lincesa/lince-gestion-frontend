@@ -22,6 +22,9 @@ export const balanceMasasApi = {
   /** Dashboard of a closed month ("aaaa-mm"). */
   mes: (mes: string) => apiFetch<MesCerrado>(`${BASE}/meses/${mes}`),
 
+  eliminarMes: (mes: string, revision: number) =>
+    apiFetch<GuardadoMes>(`${BASE}/meses/${mes}`, json('DELETE', { revision })),
+
   /** Confirm / reject adjustments of a closed month. */
   revisarMes: (mes: string, revision: number, revisiones: Revisiones) =>
     apiFetch<RevisionGuardada>(`${BASE}/meses/${mes}/revisiones`, json('PATCH', { revision, revisiones })),
