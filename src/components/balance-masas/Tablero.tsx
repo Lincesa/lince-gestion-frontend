@@ -82,22 +82,38 @@ export function ObsCards({ lista, onProducto }: { lista: ProductoPreparado[]; on
 
 // ---------------- Pending invoicing at close ----------------
 
+function resumenFacturado(viajes: FilaPendiente['viajes']) {
+  const facturados = viajes.flatMap(({ resultado }) => resultado?.estado === 'facturado' ? [resultado] : []);
+  if (!facturados.length) return null;
+  const meses = [...new Set(facturados.map(({ mes }) => mes))].sort().map(nombreMes).join(' y ');
+  const cantidad = facturados.length === viajes.length
+    ? facturados.length === 1 ? 'Facturado' : 'Todos facturados'
+    : plural(facturados.length, 'facturado', 'facturados');
+  return `${cantidad} en ${meses}`;
+}
+
 export function PendientesFacturar({ lince, prov }: { lince: FilaPendiente[]; prov: FilaPendiente[] }) {
   const tarjeta = (cls: string, titulo: string, nota: string, filas: FilaPendiente[]) => {
     const total = filas.reduce((s, x) => s + x.tn, 0);
     const viajes = filas.flatMap((fila) => fila.viajes);
     const pendientes = viajes.filter((viaje) => !viaje.resultado);
     const quedan = pendientes.reduce((s, viaje) => s + viaje.tn, 0);
+    const todosFacturados = viajes.length > 0 && viajes.every(({ resultado }) => resultado?.estado === 'facturado');
     return (
       <div className={`dg ${cls}`}>
         <div className="dg-h"><span>{titulo}</span><span>{f2(total)} t</span></div>
         <div className="dg-sub">{nota}</div>
         {viajes.some((viaje) => viaje.resultado) && (
           <div className="dg-sub">
-            {pendientes.length ? `Siguen pendientes ${f2(quedan)} t.` : 'Sin viajes pendientes.'}
+            {todosFacturados
+              ? <span className="pf-ok">✓ Ya está todo facturado.</span>
+              : pendientes.length ? `Siguen pendientes ${f2(quedan)} t.` : 'Sin viajes pendientes.'}
           </div>
         )}
-        {filas.length ? filas.map((fila) => (
+        {filas.length ? filas.map((fila) => {
+          const facturado = resumenFacturado(fila.viajes);
+          const pendientesFila = fila.viajes.filter((viaje) => !viaje.resultado).length;
+          return (
           <details key={fila.k} className="pf">
             <summary className="dg-it">
               <span className="dg-n">{fila.nombre}</span>
@@ -105,7 +121,9 @@ export function PendientesFacturar({ lince, prov }: { lince: FilaPendiente[]; pr
               <span className="dg-c">
                 {plural(fila.n, 'viaje', 'viajes')}
                 {fila.ant ? ` · ${fila.ant} de meses anteriores` : ''}
-                {fila.viajes.some((viaje) => viaje.resultado) && ` · ${fila.viajes.filter((viaje) => !viaje.resultado).length} pendientes`}
+                {facturado && <> · <span className="pf-ok">✓ {facturado}</span></>}
+                {fila.viajes.some((viaje) => viaje.resultado) && (!facturado || pendientesFila > 0) &&
+                  ` · ${plural(pendientesFila, 'pendiente', 'pendientes')}`}
               </span>
             </summary>
             <ul className="pf-vs">
@@ -127,7 +145,8 @@ export function PendientesFacturar({ lince, prov }: { lince: FilaPendiente[]; pr
               })}
             </ul>
           </details>
-        )) : <div className="dg-sub">Sin pendientes.</div>}
+          );
+        }) : <div className="dg-sub">Sin pendientes.</div>}
       </div>
     );
   };

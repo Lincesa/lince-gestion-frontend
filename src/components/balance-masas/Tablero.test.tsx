@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AjusteTablero, ProductoTablero } from '@/types/balanceMasas.types';
-import { AccionesPendientes, EstadoResumen, PendientesFacturar, VistaProducto, VistaTodos } from './Tablero';
+import { AccionesPendientes, EstadoResumen, PendientesFacturar, VistaProducto, VistaTodos } from './Tablero.tsx';
 import { ArchivosTabla, ChecklistMes, textoIncompleto } from './MesAbierto';
 import { prepararDatos } from './tablero';
 
@@ -37,6 +37,29 @@ describe('dashboard components keep the HTML markup', () => {
     expect(html).toContain('Facturado en noviembre 2026 · A0075-00002848');
     expect(html).toContain('Ya no figura como pendiente en noviembre 2026');
     expect(html).toContain('Siguen pendientes 20,00 t.');
+    expect(html).toContain('1 facturado en noviembre 2026');
+    expect(html).not.toContain('Ya está todo facturado.');
+  });
+
+  it('shows confirmed billing summaries without expanding either card', () => {
+    const viaje = { remito: '1', fecha: '', tn: 20, resultado: { estado: 'facturado' as const, mes: '2026-10', factura: 'A-1', fecha: '' } };
+    const fila = { k: 'A', nombre: 'Arena', n: 1, tn: 20, viajes: [viaje] };
+    const html = renderToStaticMarkup(<PendientesFacturar lince={[fila]} prov={[{ ...fila, n: 2, tn: 40, viajes: [viaje, { ...viaje, remito: '2' }] }]} />);
+    const summaries = html.match(/<summary[\s\S]*?<\/summary>/g);
+    expect(summaries?.[0]).toContain('Facturado en octubre 2026');
+    expect(summaries?.[1]).toContain('Todos facturados en octubre 2026');
+    expect(html.match(/Ya está todo facturado\./g)).toHaveLength(2);
+    expect(html).not.toContain('0 pendientes');
+  });
+
+  it('does not label a missing pending entry as invoiced', () => {
+    const html = renderToStaticMarkup(<PendientesFacturar lince={[]} prov={[{
+      k: 'A', nombre: 'Arena', n: 1, tn: 20,
+      viajes: [{ remito: '1', fecha: '', tn: 20, resultado: { estado: 'sin_pendiente', mes: '2026-10' } }],
+    }]} />);
+    expect(html).toContain('Ya no figura como pendiente en octubre 2026');
+    expect(html).not.toContain('Ya está todo facturado.');
+    expect(html).not.toContain('Facturado en octubre 2026');
   });
 
   it('all-products table with status label and footer', () => {

@@ -435,8 +435,13 @@
   color: var(--muted);
 }
 
-.bm .pf-e.facturado {
+.bm .pf-e.facturado,
+.bm .pf-ok {
   color: var(--ok-tx);
+}
+
+.bm .pf-ok {
+  font-weight: 600;
 }
 
 .bm .pf-e.pendiente {
