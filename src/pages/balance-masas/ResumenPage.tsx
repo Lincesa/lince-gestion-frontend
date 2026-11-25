@@ -448,7 +448,7 @@ export function ResumenPage() {
   const extra = (
     <>
       {lista.some((x) => x.porConfirmar.length) ? <AccionesPendientes lista={lista} editable={editable} abrir={abrir} onIr={irAFicha} /> : null}
-      <PendientesFacturar lince={pf.lince} prov={pf.prov} onProducto={irAProducto} />
+      <PendientesFacturar lince={pf.lince} prov={pf.prov} />
     </>
   );
 

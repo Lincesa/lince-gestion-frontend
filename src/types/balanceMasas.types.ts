@@ -87,6 +87,10 @@ export interface Revision {
 
 export type Revisiones = Record<string, Revision>;
 
+export type ResultadoPendiente =
+  | { estado: 'facturado'; mes: string; factura: string; fecha: string }
+  | { estado: 'sin_pendiente'; mes: string };
+
 export interface PendienteRow {
   mes_cierre: string;
   producto: string;
@@ -95,6 +99,7 @@ export interface PendienteRow {
   remito: string;
   fecha: string;
   toneladas: string | number;
+  resultado?: ResultadoPendiente;
 }
 
 export interface EstadoBalance {

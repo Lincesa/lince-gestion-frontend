@@ -8,6 +8,7 @@ import type {
   PendienteRow,
   Producto,
   ProductoTablero,
+  ResultadoPendiente,
   Revision,
   Revisiones,
   TipoReporte,
@@ -268,15 +269,35 @@ export function agruparConceptos<T extends AjusteTablero>(l: T[]): { cat: string
 
 // ---------------- Pending invoicing at close ----------------
 
+export interface ViajePendiente {
+  remito: string;
+  fecha: string;
+  tn: number;
+  resultado: ResultadoPendiente | null;
+}
+
 export interface FilaPendiente {
   k: string;
   nombre: string;
   n: number;
   tn: number;
   ant?: number;
+  viajes: ViajePendiente[];
 }
 
 const PEND_LINCE = new Set(['Facturado el mes siguiente', 'Viaje registrado sin facturar']);
+
+function facturaPosterior(a: AjusteTablero, mes: string): ResultadoPendiente | null {
+  if (a.resuelto?.factura && a.resuelto.mes > mes) return { estado: 'facturado', ...a.resuelto };
+  const m = /facturad[oa] el (\d{2})\/(0[1-9]|1[0-2]) \(([A-Z]\d{4}-\d{8})\)/.exec(a.det);
+  if (!m) return null;
+  const anio = Number(mes.slice(0, 4)) + Number(m[2] < mes.slice(5));
+  const mesFactura = `${anio}-${m[2]}`;
+  return mesFactura > mes
+    ? { estado: 'facturado', mes: mesFactura, factura: m[3], fecha: `${m[1]}/${m[2]}/${anio}` }
+    : null;
+}
+
 
 /**
  * Pending invoicing at the close of month M, in tonnes per product.
@@ -289,16 +310,35 @@ export function pendientesFacturar(
   const nombres = Object.fromEntries(maestro.map((p) => [p.clave, p.nombre]));
   const lince = D.productos.filter((p) => !soloK || p.k === soloK).map((p) => {
     const xs = p.ajustes.filter((a) => a.col === 'ven' && PEND_LINCE.has(a.cat));
-    return { k: p.k, nombre: p.nombre, n: xs.length, tn: r2(sumaAbs(xs)) };
+    const viajes = xs.map((a) => {
+      const fecha = /Viaje del (\d{2}\/\d{2})/.exec(a.det)?.[1];
+      return {
+        remito: a.remito || /remito ([^,)\s]+)/.exec(a.det)?.[1] || '',
+        fecha: fecha ? `${fecha}/${M.slice(0, 4)}` : '',
+        tn: r2(Math.abs(a.tn)),
+        resultado: facturaPosterior(a, M),
+      };
+    });
+    return { k: p.k, nombre: p.nombre, n: xs.length, tn: r2(sumaAbs(xs)), viajes };
   }).filter((x) => x.n);
   const porProd = new Map<string, Required<FilaPendiente>>();
   for (const x of filas) {
     if (soloK && x.producto !== soloK) continue;
-    if (!porProd.has(x.producto)) porProd.set(x.producto, { k: x.producto, nombre: nombres[x.producto] || x.producto, n: 0, tn: 0, ant: 0 });
+    if (!porProd.has(x.producto)) porProd.set(x.producto, { k: x.producto, nombre: nombres[x.producto] || x.producto, n: 0, tn: 0, ant: 0, viajes: [] });
     const y = porProd.get(x.producto)!;
     y.n++;
     y.tn += Number(x.toneladas) || 0;
     const f = String(x.fecha || '');
+    const ajuste = D.productos.find((p) => p.k === x.producto)?.ajustes.find((a) =>
+      a.col === 'com' && a.remito === String(x.remito) &&
+      (a.cat === 'Proveedor factura el mes siguiente' || a.cat === 'Pendiente de factura del proveedor'));
+    const factura = ajuste ? facturaPosterior(ajuste, M) : null;
+    y.viajes.push({
+      remito: String(x.remito),
+      fecha: f,
+      tn: r2(Number(x.toneladas) || 0),
+      resultado: x.resultado?.estado === 'facturado' ? x.resultado : (factura ?? x.resultado ?? null),
+    });
     if (/^\d\d\/\d\d\/\d{4}$/.test(f) && `${f.slice(6)}-${f.slice(3, 5)}` < M) y.ant++;
   }
   const orden = maestro.map((p) => p.clave);

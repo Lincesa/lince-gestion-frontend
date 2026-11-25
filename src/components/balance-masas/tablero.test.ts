@@ -177,15 +177,19 @@ describe('pendientesFacturar', () => {
   const maestro = [{ clave: 'B', nombre: 'Piedra' }, { clave: 'A', nombre: 'Arena' }] as Producto[];
   it('Lince: trips not invoiced in the month; supplier: pending at close, ordered as the master, counting older months', () => {
     const D = prepararDatos(datos([
-      prod({ k: 'A', nombre: 'Arena', ajustes: [aj({ col: 'ven', cat: 'Facturado el mes siguiente', tn: -2.34 }), aj({ col: 'ven', cat: 'Viaje registrado sin facturar', tn: -1.01 })] }),
+      prod({ k: 'A', nombre: 'Arena', ajustes: [aj({ col: 'ven', cat: 'Facturado el mes siguiente', tn: -2.34, det: 'Viaje del 15/10 facturado el 02/11 (A0075-00002848)', remito: '12' }), aj({ col: 'ven', cat: 'Viaje registrado sin facturar', tn: -1.01 })] }),
     ]));
     const filas = [
       { mes_cierre: '2026-10', producto: 'A', grupo: '', zona: '', remito: '1', fecha: '15/10/2026', toneladas: 3 },
-      { mes_cierre: '2026-10', producto: 'B', grupo: '', zona: '', remito: '2', fecha: '20/09/2026', toneladas: '1.5' },
+      { mes_cierre: '2026-10', producto: 'B', grupo: '', zona: '', remito: '2', fecha: '20/09/2026', toneladas: '1.5', resultado: { estado: 'sin_pendiente' as const, mes: '2026-11' } },
     ];
     const r = pendientesFacturar(D, '2026-10', null, filas, maestro);
-    expect(r.lince).toEqual([{ k: 'A', nombre: 'Arena', n: 2, tn: 3.35 }]);
-    expect(r.prov).toEqual([{ k: 'B', nombre: 'Piedra', n: 1, tn: 1.5, ant: 1 }, { k: 'A', nombre: 'Arena', n: 1, tn: 3, ant: 0 }]);
+    expect(r.lince[0]).toMatchObject({ k: 'A', nombre: 'Arena', n: 2, tn: 3.35, viajes: [
+      { remito: '12', fecha: '15/10/2026', tn: 2.34, resultado: { estado: 'facturado', mes: '2026-11', factura: 'A0075-00002848' } },
+      { tn: 1.01, resultado: null },
+    ] });
+    expect(r.prov.map(({ viajes: _viajes, ...grupo }) => grupo)).toEqual([{ k: 'B', nombre: 'Piedra', n: 1, tn: 1.5, ant: 1 }, { k: 'A', nombre: 'Arena', n: 1, tn: 3, ant: 0 }]);
+    expect(r.prov[0]?.viajes[0]?.resultado).toEqual({ estado: 'sin_pendiente', mes: '2026-11' });
     expect(pendientesFacturar(D, '2026-10', 'A', filas, maestro).prov.map((x) => x.k)).toEqual(['A']);
   });
 });

@@ -38,18 +38,7 @@ export function EstadoResumen({ lista, todos }: { lista: ProductoPreparado[]; to
           <div className="t2">{e.t2}</div>
         </div>
       </div>
-      <div className="est-cnt">
-        <div className={e.lin ? 'hot' : ''}>
-          <div className="lb">Lince para revisar</div>
-          <div className="nb">{e.lin}</div>
-          <div className="sb">{e.lin ? 'Facturación o logística' : 'Sin casos'}</div>
-        </div>
-        <div>
-          <div className="lb">Proveedor</div>
-          <div className="nb" style={{ color: 'var(--prov-tx)' }}>{e.nProv}</div>
-          <div className="sb">{f2(e.tProv)} t · no controlable</div>
-        </div>
-      </div>
+
     </div>
   );
 }
@@ -93,30 +82,59 @@ export function ObsCards({ lista, onProducto }: { lista: ProductoPreparado[]; on
 
 // ---------------- Pending invoicing at close ----------------
 
-export function PendientesFacturar({ lince, prov, onProducto }: { lince: FilaPendiente[]; prov: FilaPendiente[]; onProducto: (k: string) => void }) {
+export function PendientesFacturar({ lince, prov }: { lince: FilaPendiente[]; prov: FilaPendiente[] }) {
   const tarjeta = (cls: string, titulo: string, nota: string, filas: FilaPendiente[]) => {
-    const tot = filas.reduce((s, x) => s + x.tn, 0);
+    const total = filas.reduce((s, x) => s + x.tn, 0);
+    const viajes = filas.flatMap((fila) => fila.viajes);
+    const pendientes = viajes.filter((viaje) => !viaje.resultado);
+    const quedan = pendientes.reduce((s, viaje) => s + viaje.tn, 0);
     return (
       <div className={`dg ${cls}`}>
-        <div className="dg-h"><span>{titulo}</span><span>{f2(tot)} t</span></div>
+        <div className="dg-h"><span>{titulo}</span><span>{f2(total)} t</span></div>
         <div className="dg-sub">{nota}</div>
-        {filas.length ? filas.map((x) => (
-          <button key={x.k} type="button" className="dg-it" onClick={() => onProducto(x.k)}>
-            <span className="dg-n">{x.nombre}</span>
-            <span className="dg-t">{f2(x.tn)} t</span>
-            <span className="dg-c">
-              {plural(x.n, 'viaje', 'viajes')}
-              {x.ant ? ` · ${x.ant === x.n ? (x.n === 1 ? 'de un mes anterior' : 'todos de meses anteriores') : `${x.ant} de meses anteriores`}` : ''}
-            </span>
-          </button>
+        {viajes.some((viaje) => viaje.resultado) && (
+          <div className="dg-sub">
+            {pendientes.length ? `Siguen pendientes ${f2(quedan)} t.` : 'Sin viajes pendientes.'}
+          </div>
+        )}
+        {filas.length ? filas.map((fila) => (
+          <details key={fila.k} className="pf">
+            <summary className="dg-it">
+              <span className="dg-n">{fila.nombre}</span>
+              <span className="dg-t">{f2(fila.tn)} t</span>
+              <span className="dg-c">
+                {plural(fila.n, 'viaje', 'viajes')}
+                {fila.ant ? ` · ${fila.ant} de meses anteriores` : ''}
+                {fila.viajes.some((viaje) => viaje.resultado) && ` · ${fila.viajes.filter((viaje) => !viaje.resultado).length} pendientes`}
+              </span>
+            </summary>
+            <ul className="pf-vs">
+              {fila.viajes.map((viaje, i) => {
+                const resultado = viaje.resultado;
+                return (
+                  <li className="pf-v" key={`${viaje.remito}-${viaje.fecha}-${i}`}>
+                    <span>{viaje.remito ? `Remito ${viaje.remito}` : 'Viaje'}{viaje.fecha && ` · ${viaje.fecha}`}</span>
+                    <span>{f2(viaje.tn)} t</span>
+                    <span className={`pf-e ${resultado?.estado ?? 'pendiente'}`}>
+                      {resultado?.estado === 'facturado'
+                        ? `Facturado en ${nombreMes(resultado.mes)} · ${resultado.factura}${resultado.fecha ? ` del ${resultado.fecha}` : ''}`
+                        : resultado?.estado === 'sin_pendiente'
+                          ? `Ya no figura como pendiente en ${nombreMes(resultado.mes)}`
+                          : 'Pendiente'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
         )) : <div className="dg-sub">Sin pendientes.</div>}
       </div>
     );
   };
   return (
     <div className="dgs">
-      {tarjeta('l', 'Pendientes de facturar por Lince', 'Viajes del mes que Lince no facturó en el mes (se facturan después del cierre o todavía no tienen factura de venta).', lince)}
-      {tarjeta('p', 'Pendientes de facturar por el proveedor', 'Viajes que el proveedor todavía no facturó al cierre del mes, incluidos los que vienen de meses anteriores.', prov)}
+      {tarjeta('l', 'Pendientes de facturar por Lince', 'Viajes sin factura de venta al cierre.', lince)}
+      {tarjeta('p', 'Pendientes de facturar por el proveedor', 'Viajes sin factura de compra al cierre, incluidos los de meses anteriores.', prov)}
     </div>
   );
 }
