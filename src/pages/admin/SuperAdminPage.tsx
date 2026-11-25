@@ -38,6 +38,7 @@ const MODULE_LABELS: Record<ModuleKey, string> = {
   [ModuleKey.SOPORTE_IT]: 'Soporte IT',
   [ModuleKey.ASISTENCIA]: 'RRHH',
   [ModuleKey.LOGISTICA]:  'Logística',
+  [ModuleKey.BALANCE_MASAS]: 'Balance de masas',
 };
 
 const MODULE_ROLES: Partial<Record<ModuleKey, string[]>> = {

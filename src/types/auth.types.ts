@@ -19,6 +19,7 @@ export enum ModuleKey {
   SOPORTE_IT = 'soporte-it',
   ASISTENCIA = 'asistencia',
   LOGISTICA = 'logistica',
+  BALANCE_MASAS = 'balance-masas',
 }
 
 export interface ModulePermission {
