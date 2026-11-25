@@ -1,7 +1,7 @@
 /*
  * Styles of balance-de-masas.html (final dashboard design + changes approved on 19/11/2026), scoped under
  * `.bm` so they do not leak into the rest of Lince Gestión. Generated once from the HTML's <style> block:
- * same tokens, classes and values; dark mode follows the app's `.dark` class instead of prefers-color-scheme.
+ * original tokens and class names; dark mode follows the app's `.dark` class instead of prefers-color-scheme.
  */
 .bm{
   --bg:#F6F4F6; --surface:#FFFFFF; --ink:#333232; --muted:#6E6A6E; --line:#E5E1E5;
@@ -313,3 +313,87 @@
 .bm .tablewrap td:first-child{white-space:normal;min-width:180px}
 /* Audit list: every column is text, aligned like its header. */
 .bm table.eventos th,.bm table.eventos td{text-align:left}
+
+/* Dashboard refinements for the available width inside the app shell. */
+.bm .contenido {
+  container-type: inline-size;
+}
+
+.bm .head {
+  background: linear-gradient(115deg, var(--brand), color-mix(in srgb, var(--brand), #211124 22%));
+  padding: clamp(16px, 3vw, 26px);
+}
+
+.bm .head .filtros {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bm .head select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 38px;
+}
+
+.bm .head .filtros label {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.bm .head :focus-visible {
+  outline-color: var(--brand-ink);
+}
+
+.bm .menu-it.on {
+  background: var(--brand-soft);
+  color: var(--brand-text);
+  box-shadow: inset 3px 0 var(--lince);
+}
+
+.bm .zona:hover {
+  border-color: var(--lince);
+  background: var(--brand-soft);
+}
+
+.bm table.resumen-productos {
+  min-width: 615px;
+}
+
+.bm table.resumen-productos th,
+.bm table.resumen-productos td {
+  padding-inline: 10px;
+}
+
+.bm table.resumen-productos th:not(:first-child) {
+  white-space: normal;
+}
+
+.bm table.resumen-productos .estado-col {
+  text-align: center;
+}
+
+@container (max-width: 720px) {
+  .bm .est-top,
+  .bm .dgs.tres {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 520px) {
+  .bm .head .filtros {
+    width: 100%;
+  }
+
+  .bm .head .filtros label {
+    flex-basis: 100%;
+  }
+
+  .bm .tabs {
+    overflow-x: auto;
+  }
+
+  .bm .tab {
+    flex-shrink: 0;
+  }
+}
