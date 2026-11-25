@@ -178,10 +178,10 @@ export function VistaTodos({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="hint">Toneladas después de los ajustes explicados. En verde, las columnas coinciden; en rojo, queda una diferencia sin explicar. Elegí un producto para ver el detalle.</div>
       <div className="tablewrap">
-        <Table>
+        <Table className="resumen-productos">
           <TableHeader>
             <TableRow>
-              <TableHead>Producto</TableHead><TableHead>TN registradas</TableHead><TableHead>TN facturadas</TableHead><TableHead>TN compradas</TableHead><TableHead />
+              <TableHead>Producto</TableHead><TableHead>TN registradas</TableHead><TableHead>TN facturadas</TableHead><TableHead>TN compradas</TableHead><TableHead className="estado-col">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -200,7 +200,7 @@ export function VistaTodos({
                   <td className={v}>{f2(p.ok.reg)}</td>
                   <td className={v}>{p.venta ? f2(p.ok.ven) : <span className="muted">No aplica</span>}</td>
                   <td className={v}>{f2(p.ok.com)}</td>
-                  <td style={{ textAlign: 'center' }}><CoinTd p={p} /></td>
+                  <td className="estado-col"><CoinTd p={p} /></td>
                 </tr>
               );
             })}
