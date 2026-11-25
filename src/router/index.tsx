@@ -59,6 +59,18 @@ const CrmSatisfactionPage = lazy(() =>
   import('@/pages/crm/SatisfactionPage').then((m) => ({ default: m.SatisfactionPage })),
 );
 
+const BalanceMasasLayout = lazy(() =>
+  import('@/pages/balance-masas/BalanceMasasLayout').then((m) => ({ default: m.BalanceMasasLayout })),
+);
+const BalanceMasasResumenPage = lazy(() =>
+  import('@/pages/balance-masas/ResumenPage').then((m) => ({ default: m.ResumenPage })),
+);
+const BalanceMasasReportePage = lazy(() =>
+  import('@/pages/balance-masas/ReportePage').then((m) => ({ default: m.ReportePage })),
+);
+const BalanceMasasHistorialPage = lazy(() =>
+  import('@/pages/balance-masas/HistorialPage').then((m) => ({ default: m.HistorialPage })),
+);
 const ConciliacionesLayout = lazy(() =>
   import('@/pages/conciliaciones/ConciliacionesLayout').then((m) => ({ default: m.ConciliacionesLayout })),
 );
@@ -245,6 +257,45 @@ const router = createBrowserRouter([
                     element: (
                       <Suspense fallback={<PageLoader />}>
                         <CrmSatisfactionPage />
+                      </Suspense>
+                    ),
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            path: 'balance-masas',
+            element: <RequireModule moduleKey={ModuleKey.BALANCE_MASAS} />,
+            children: [
+              {
+                element: (
+                  <Suspense fallback={<PageLoader />}>
+                    <BalanceMasasLayout />
+                  </Suspense>
+                ),
+                children: [
+                  {
+                    index: true,
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <BalanceMasasResumenPage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'reportes/:tipo',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <BalanceMasasReportePage />
+                      </Suspense>
+                    ),
+                  },
+                  {
+                    path: 'historial',
+                    element: (
+                      <Suspense fallback={<PageLoader />}>
+                        <BalanceMasasHistorialPage />
                       </Suspense>
                     ),
                   },

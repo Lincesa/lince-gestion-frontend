@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardCheck, FileText, LayoutDashboard, MessageSquare, MapPin, Monitor, ScanLine, Settings, Users } from 'lucide-react';
+import { ClipboardCheck, Scale, FileText, LayoutDashboard, MessageSquare, MapPin, Monitor, ScanLine, Settings, Users } from 'lucide-react';
 import { GlobalRole, ModuleKey, type AuthUser } from '@/types';
 
 export type DashboardNavKey = 'dashboard' | 'admin';
@@ -63,6 +63,13 @@ export const APP_MODULE_NAV: readonly AppModuleNav[] = [
     path: '/logistica',
     Icon: MapPin,
     requiresModule: ModuleKey.LOGISTICA,
+  },
+  {
+    key: ModuleKey.BALANCE_MASAS,
+    label: 'Balance de masas',
+    path: '/balance-masas',
+    Icon: Scale,
+    requiresModule: ModuleKey.BALANCE_MASAS,
   },
   {
     key: 'admin',
