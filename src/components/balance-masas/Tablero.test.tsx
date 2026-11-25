@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AjusteTablero, ProductoTablero } from '@/types/balanceMasas.types';
-import { AccionesPendientes, EstadoResumen, VistaProducto, VistaTodos } from './Tablero';
+import { AccionesPendientes, EstadoResumen, PendientesFacturar, VistaProducto, VistaTodos } from './Tablero';
 import { ArchivosTabla, ChecklistMes, textoIncompleto } from './MesAbierto';
 import { prepararDatos } from './tablero';
 
@@ -20,8 +20,23 @@ describe('dashboard components keep the HTML markup', () => {
     const html = renderToStaticMarkup(<EstadoResumen lista={[P()]} todos={false} />);
     expect(html).toContain('class="est-big pend"');
     expect(html).toContain('Requiere confirmación');
-    expect(html).toContain('Lince para revisar');
-    expect(html).toContain('class="hot"');
+    expect(html).not.toContain('Lince para revisar');
+    expect(html).not.toContain('est-cnt');
+  });
+
+  it('shows confirmed invoices and absent pending entries as different outcomes', () => {
+    const html = renderToStaticMarkup(<PendientesFacturar lince={[]} prov={[{
+      k: 'A', nombre: 'Arena', n: 3, tn: 60,
+      viajes: [
+        { remito: '1', fecha: '01/10/2026', tn: 20, resultado: { estado: 'facturado', mes: '2026-11', factura: 'A0075-00002848', fecha: '02/11/2026' } },
+        { remito: '2', fecha: '02/10/2026', tn: 20, resultado: { estado: 'sin_pendiente', mes: '2026-11' } },
+        { remito: '3', fecha: '03/10/2026', tn: 20, resultado: null },
+      ],
+    }]} />);
+    expect(html).toContain('<details');
+    expect(html).toContain('Facturado en noviembre 2026 · A0075-00002848');
+    expect(html).toContain('Ya no figura como pendiente en noviembre 2026');
+    expect(html).toContain('Siguen pendientes 20,00 t.');
   });
 
   it('all-products table with status label and footer', () => {
